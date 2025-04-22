@@ -1,15 +1,13 @@
-
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
-// Basic profanity check - would be better to use a more comprehensive library in production
 const profanityList = ['fuck', 'shit', 'ass', 'bitch', 'dick', 'penis', 'vagina', 'sex'];
 
 const VipRegistrationPage = () => {
@@ -35,17 +33,13 @@ const VipRegistrationPage = () => {
     if (!value) return "Nickname is required";
     if (value.length > 16) return "Nickname must be max 16 characters";
     
-    // Check for max 2 numbers
     const numberCount = (value.match(/\d/g) || []).length;
     if (numberCount > 2) return "Nickname can contain maximum 2 numbers";
     
-    // Check for max 3 consecutive same letters
     if (/(.)\1\1\1/.test(value)) return "Nickname cannot contain more than 3 consecutive same letters";
     
-    // Check for alphanumeric and spaces only
     if (!/^[a-zA-Z0-9\s]*$/.test(value)) return "Nickname can only contain letters, numbers, and spaces";
     
-    // Profanity check
     const lowerCaseValue = value.toLowerCase();
     for (const word of profanityList) {
       if (lowerCaseValue.includes(word)) return "Nickname contains inappropriate language";
@@ -79,7 +73,6 @@ const VipRegistrationPage = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Validate as user types
     let errorMsg = "";
     switch (name) {
       case "nickname":
@@ -90,7 +83,6 @@ const VipRegistrationPage = () => {
         break;
       case "password":
         errorMsg = validatePassword(value);
-        // Also update confirm password error if it's not empty
         if (formData.confirmPassword) {
           setErrors(prev => ({
             ...prev,
@@ -107,7 +99,6 @@ const VipRegistrationPage = () => {
   };
 
   const isFormValid = () => {
-    // Check if all fields have values and no errors
     return (
       formData.nickname &&
       formData.email &&
@@ -128,41 +119,20 @@ const VipRegistrationPage = () => {
     setIsSubmitting(true);
     
     try {
-      // 1. Sign up the user with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            nickname: formData.nickname,
-          },
-        },
       });
       
       if (authError) throw authError;
       
       if (authData.user) {
-        // 2. Create profile entry
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: authData.user.id,
-              nickname: formData.nickname,
-              role: 'vip',
-              vip_status: true,
-            },
-          ]);
-        
-        if (profileError) throw profileError;
-        
         toast({
           title: "Registration successful!",
-          description: "You can now log in with your credentials.",
+          description: "Please set up your profile to continue.",
         });
         
-        // Navigate to login page
-        navigate('/vip/login');
+        navigate('/vip/profile-setup');
       }
     } catch (error: any) {
       toast({
