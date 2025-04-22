@@ -24,7 +24,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
     setMessage,
     charLimit,
     inputRef,
-    handleSend: handleTextSend,
+    handleTextSend,
     handleKeyPress,
     handleEmojiClick
   } = useMessageInput({ onSendMessage });
@@ -41,11 +41,21 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
   } = useImageUpload(currentUserId);
 
   const handleSend = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      console.error('No current user ID available');
+      return;
+    }
     
     try {
+      console.log('Starting message send:', {
+        hasContent: !!message.trim(),
+        hasFile: !!selectedFile,
+        timestamp: new Date().toISOString()
+      });
+
       // Handle regular text message
       if (!selectedFile) {
+        console.log('Sending text-only message');
         handleTextSend();
         return;
       }
@@ -58,6 +68,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       }
 
       setUploadingMessage(true);
+      console.log('Starting image upload process');
 
       // First create a message record
       const messageContent = message.trim() || "[Image]";
@@ -79,6 +90,11 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         return;
       }
       
+      console.log('Message record created:', {
+        messageId: messageData?.id,
+        timestamp: new Date().toISOString()
+      });
+
       // Upload image to storage
       const imageUrl = await uploadImage();
       
@@ -86,6 +102,12 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         toast.error("Failed to upload image");
         return;
       }
+      
+      console.log('Image uploaded successfully:', {
+        imageUrl,
+        messageId: messageData.id,
+        timestamp: new Date().toISOString()
+      });
       
       // Create media record
       const { error: mediaError } = await supabase
@@ -102,6 +124,8 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         toast.error("Failed to link image to message");
         return;
       }
+
+      console.log('Media record created successfully');
 
       // Update daily upload count
       await updateDailyUploadCount();

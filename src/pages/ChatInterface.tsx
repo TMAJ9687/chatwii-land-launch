@@ -139,24 +139,26 @@ const ChatInterface = () => {
         async (payload) => {
           console.log('New message received:', {
             payload,
-            timestamp: new Date().toISOString(),
-            currentMessages: messages.length
+            timestamp: new Date().toISOString()
           });
           
           const newMessage = payload.new as Message;
           
           // Add optimistic update for sent messages
-          const optimisticMessage: MessageWithMedia = {
-            ...newMessage,
-            media: null
-          };
-
           setMessages(current => {
-            if (!current.some(msg => msg.id === optimisticMessage.id)) {
+            // Check if message already exists
+            const exists = current.some(msg => msg.id === newMessage.id);
+            
+            if (!exists) {
               console.log('Adding new message to state:', {
-                messageId: optimisticMessage.id,
+                messageId: newMessage.id,
                 timestamp: new Date().toISOString()
               });
+              
+              const optimisticMessage: MessageWithMedia = {
+                ...newMessage,
+                media: null
+              };
               return [...current, optimisticMessage];
             }
             return current;
@@ -175,13 +177,15 @@ const ChatInterface = () => {
           });
 
           // Update message with media data
-          setMessages(current => 
-            current.map(msg => 
-              msg.id === newMessage.id 
-                ? { ...msg, media: mediaData?.[0] || null }
-                : msg
-            )
-          );
+          if (mediaData?.length) {
+            setMessages(current => 
+              current.map(msg => 
+                msg.id === newMessage.id 
+                  ? { ...msg, media: mediaData[0] }
+                  : msg
+              )
+            );
+          }
         }
       )
       .subscribe((status) => {
@@ -200,7 +204,7 @@ const ChatInterface = () => {
       window.selectedUserId = undefined;
       supabase.removeChannel(channel);
     };
-  }, [selectedUserId, currentUserId, messages.length]);
+  }, [selectedUserId, currentUserId]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     console.log('Attempting to send message:', {

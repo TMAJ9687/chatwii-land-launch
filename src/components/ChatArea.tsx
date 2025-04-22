@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Flag, Ban } from 'lucide-react';
@@ -39,6 +40,10 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   };
 
   useEffect(() => {
+    console.log('Messages updated, scrolling to bottom:', {
+      messageCount: initialMessages.length,
+      timestamp: new Date().toISOString()
+    });
     scrollToBottom();
   }, [initialMessages]);
 
@@ -135,7 +140,10 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                       e.stopPropagation();
                       toggleImageReveal(message.id);
                     }}
-                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+                    className={`absolute bottom-2 ${
+                      message.sender_id === currentUserId ? 'right-2' : 'left-2'
+                    } z-10 bg-background/80 hover:bg-background/90 backdrop-blur-sm text-sm`}
+                    size="sm"
                   >
                     {revealedImages.has(message.id) ? 'Hide Image' : 'Reveal Image'}
                   </Button>
