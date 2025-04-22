@@ -1,6 +1,6 @@
-
 import { Crown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 interface UserListItemProps {
   name: string;
@@ -13,6 +13,8 @@ interface UserListItemProps {
   onClick?: () => void;
   avatar?: string;
   profileTheme?: string;
+  isBlocked?: boolean;
+  onUnblock?: () => void;
 }
 
 export const UserListItem = ({ 
@@ -25,14 +27,14 @@ export const UserListItem = ({
   isSelected = false,
   onClick,
   avatar,
-  profileTheme = 'default'
+  profileTheme = 'default',
+  isBlocked = false,
+  onUnblock
 }: UserListItemProps) => {
-  // Get the first letter of the name for avatar fallback
   const firstLetter = name.charAt(0).toUpperCase();
   
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
   
-  // Set border color based on profile theme if VIP
   let themeBorderClass = '';
   if (isVip) {
     switch (profileTheme) {
@@ -57,10 +59,9 @@ export const UserListItem = ({
     <div 
       className={`flex items-start p-3 gap-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
         isSelected ? 'bg-gray-100 dark:bg-gray-800' : ''
-      }`}
+      } ${isBlocked ? 'opacity-50 grayscale' : ''}`}
       onClick={onClick}
     >
-      {/* Avatar */}
       <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ''} rounded-full`}>
         <Avatar className="w-10 h-10">
           {avatar ? (
@@ -73,15 +74,29 @@ export const UserListItem = ({
         </Avatar>
       </div>
       
-      {/* User info */}
       <div className="flex flex-col flex-grow min-w-0">
-        <div className="flex items-center gap-1">
-          <h3 className="font-semibold truncate">{name}</h3>
-          {isVip && (
-            <span className="flex items-center text-xs font-bold text-yellow-500">
-              <Crown className="h-3 w-3 mr-0.5" />
-              VIP
-            </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <h3 className="font-semibold truncate">{name}</h3>
+            {isVip && (
+              <span className="flex items-center text-xs font-bold text-yellow-500">
+                <Crown className="h-3 w-3 mr-0.5" />
+                VIP
+              </span>
+            )}
+          </div>
+          {isBlocked && onUnblock && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnblock();
+              }}
+              className="ml-2"
+            >
+              Unblock
+            </Button>
           )}
         </div>
         
@@ -93,7 +108,6 @@ export const UserListItem = ({
           <span className="truncate">{country}</span>
         </div>
         
-        {/* Interests */}
         <div className="flex flex-wrap gap-1 mt-1">
           {interests.map((interest, idx) => (
             <span 

@@ -1,4 +1,3 @@
-
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -6,6 +5,7 @@ import { useUserList } from "@/hooks/useUserList";
 import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo } from "react";
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 interface UserListProps {
   onUserSelect: (userId: string) => void;
@@ -14,6 +14,7 @@ interface UserListProps {
 
 export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
   const { users } = useUserList(onUserSelect, selectedUserId);
+  const { blockedUsers, unblockUser } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
@@ -43,7 +44,7 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
 
       return true;
     });
-  }, [users, filters]);
+  }, [users, filters, blockedUsers]);
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({
@@ -101,6 +102,12 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
             onClick={() => onUserSelect(user.id)}
             avatar={user.avatar_url}
             profileTheme={user.profile_theme}
+            isBlocked={blockedUsers.includes(user.id)}
+            onUnblock={
+              blockedUsers.includes(user.id) 
+                ? () => unblockUser(user.id)
+                : undefined
+            }
           />
         ))}
       </div>
