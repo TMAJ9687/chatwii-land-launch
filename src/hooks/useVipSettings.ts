@@ -10,6 +10,7 @@ interface ProfileData {
   profile_theme: ProfileTheme;
   visibility: VisibilityStatus;
   country: string;
+  gender: string; // Added gender property
 }
 
 export const useVipSettings = () => {
@@ -21,6 +22,7 @@ export const useVipSettings = () => {
     profile_theme: 'default',
     visibility: 'online',
     country: '',
+    gender: 'male', // Default gender
   });
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export const useVipSettings = () => {
         profile_theme: (profile.profile_theme as ProfileTheme) || 'default',
         visibility: (profile.visibility as VisibilityStatus) || 'online',
         country: profile.country || '',
+        gender: profile.gender || 'male', // Add gender with a default value if not present
       });
       
       setLoading(false);
@@ -83,6 +86,7 @@ export const useVipSettings = () => {
         profile_theme: profileData.profile_theme,
         visibility: profileData.visibility,
         country: profileData.country,
+        // Don't update gender here as it's not editable in the VIP settings
       })
       .eq('id', session.user.id);
     

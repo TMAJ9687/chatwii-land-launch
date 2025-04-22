@@ -1,3 +1,4 @@
+
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -25,11 +26,22 @@ import { ProfileTheme } from '@/types/profile';
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+interface SettingsAvatars {
+  vip_male: string[];
+  vip_female: string[];
+  standard_male: string | null;
+  standard_female: string | null;
+}
+
 const getSiteAvatars = async (gender: string): Promise<string[]> => {
   const { data } = await supabase.from("site_settings").select("settings").eq("id", 1).maybeSingle();
-  if (data?.settings?.avatars) {
-    if (gender === "female") return data.settings.avatars.vip_female || [];
-    return data.settings.avatars.vip_male || [];
+  if (data?.settings) {
+    // Type assertion to handle the JSON structure
+    const settingsObj = data.settings as { avatars?: SettingsAvatars };
+    if (settingsObj.avatars) {
+      if (gender === "female") return settingsObj.avatars.vip_female || [];
+      return settingsObj.avatars.vip_male || [];
+    }
   }
   return [];
 };
