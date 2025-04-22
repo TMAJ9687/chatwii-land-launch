@@ -1,5 +1,6 @@
 
 import { Crown } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface UserListItemProps {
   name: string;
@@ -11,6 +12,7 @@ interface UserListItemProps {
   isSelected?: boolean;
   onClick?: () => void;
   avatar?: string;
+  profileTheme?: string;
 }
 
 export const UserListItem = ({ 
@@ -22,12 +24,34 @@ export const UserListItem = ({
   interests,
   isSelected = false,
   onClick,
-  avatar
+  avatar,
+  profileTheme = 'default'
 }: UserListItemProps) => {
-  // Get the first letter of the name for avatar
+  // Get the first letter of the name for avatar fallback
   const firstLetter = name.charAt(0).toUpperCase();
   
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
+  
+  // Set border color based on profile theme if VIP
+  let themeBorderClass = '';
+  if (isVip) {
+    switch (profileTheme) {
+      case 'gold':
+        themeBorderClass = 'border-2 border-yellow-500';
+        break;
+      case 'blue':
+        themeBorderClass = 'border-2 border-blue-400 shadow shadow-blue-300';
+        break;
+      case 'purple':
+        themeBorderClass = 'border-2 border-purple-500';
+        break;
+      case 'green':
+        themeBorderClass = 'border-2 border-green-500';
+        break;
+      default:
+        themeBorderClass = 'border-2 border-gray-300';
+    }
+  }
   
   return (
     <div 
@@ -37,12 +61,16 @@ export const UserListItem = ({
       onClick={onClick}
     >
       {/* Avatar */}
-      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
-        {avatar ? (
-          <img src={avatar} alt={name} className="w-full h-full rounded-full object-cover" />
-        ) : (
-          <span className="text-lg font-semibold">{firstLetter}</span>
-        )}
+      <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ''} rounded-full`}>
+        <Avatar className="w-10 h-10">
+          {avatar ? (
+            <AvatarImage src={avatar} alt={name} />
+          ) : (
+            <AvatarFallback className="bg-gray-200 dark:bg-gray-700">
+              {firstLetter}
+            </AvatarFallback>
+          )}
+        </Avatar>
       </div>
       
       {/* User info */}
@@ -70,7 +98,7 @@ export const UserListItem = ({
           {interests.map((interest, idx) => (
             <span 
               key={idx} 
-              className="px-2 py-0.5 text-xs bg-amber-100 dark:bg-amber-900 dark:text-amber-100 text-amber-800 rounded-sm"
+              className={`px-2 py-0.5 text-xs ${isVip ? 'bg-amber-100 dark:bg-amber-900 dark:text-amber-100 text-amber-800' : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-300 text-gray-600'} rounded-sm`}
             >
               {interest}
             </span>

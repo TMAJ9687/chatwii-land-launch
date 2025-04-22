@@ -15,6 +15,7 @@ import ProfileSetupPage from "./pages/ProfileSetupPage";
 import VipLoginPage from "./pages/VipLoginPage";
 import VipRegistrationPage from "./pages/VipRegistrationPage";
 import VipProfileSetupPage from "./pages/VipProfileSetupPage";
+import VipSettingsPage from "./pages/VipSettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/vip/login" element={<VipLoginPage />} />
             <Route path="/vip/register" element={<VipRegistrationPage />} />
             <Route path="/vip/profile-setup" element={<VipProfileSetupPage />} />
+            <Route path="/vip/settings" element={<VipSettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

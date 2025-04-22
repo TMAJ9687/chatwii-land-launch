@@ -12,8 +12,11 @@ interface Profile {
   gender: string;
   age: number;
   vip_status: boolean;
+  role: string;
   interests: string[];
   visibility: string;
+  avatar_url?: string;
+  profile_theme?: string;
 }
 
 interface UserListProps {
@@ -24,6 +27,19 @@ interface UserListProps {
 export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
   const [users, setUsers] = useState<Profile[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Get current user ID
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setCurrentUserId(session.user.id);
+      }
+    };
+
+    getCurrentUser();
+  }, []);
 
   useEffect(() => {
     const fetchOnlineUsers = async () => {
@@ -36,13 +52,15 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
           gender,
           age,
           vip_status,
+          role,
           visibility,
+          avatar_url,
+          profile_theme,
           user_interests (
             interests (name)
           )
         `)
-        .eq('visibility', 'online')
-        .order('nickname');
+        .order('role', { ascending: false }); // This will put 'vip' before 'standard' alphabetically
 
       if (error) {
         console.error('Error fetching online profiles:', error);
@@ -50,12 +68,36 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
       }
 
       // Transform the data to include interests as strings
-      const usersWithInterests = profiles.map(profile => ({
-        ...profile,
-        interests: profile.user_interests?.map((ui: any) => ui.interests.name) || []
-      }));
+      const usersWithInterests = profiles
+        .filter(profile => {
+          // Show everyone except users with 'invisible' visibility
+          // Exception: current user can always see themselves
+          return profile.visibility !== 'invisible' || profile.id === currentUserId;
+        })
+        .map(profile => ({
+          ...profile,
+          interests: profile.user_interests?.map((ui: any) => ui.interests.name) || []
+        }));
 
-      setUsers(usersWithInterests);
+      // Sort users: VIPs first (alphabetically by nickname), then standard users by country and nickname
+      const sortedUsers = [...usersWithInterests].sort((a, b) => {
+        // If one is VIP and the other isn't, VIP comes first
+        if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
+        if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
+
+        // If both are VIPs or both are standard, sort alphabetically by nickname
+        if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
+          return a.nickname.localeCompare(b.nickname);
+        }
+
+        // For standard users, sort by country first, then by nickname
+        if (a.country !== b.country) {
+          return (a.country || '').localeCompare(b.country || '');
+        }
+        return a.nickname.localeCompare(b.nickname);
+      });
+
+      setUsers(sortedUsers);
     };
 
     // Initial fetch of online users
@@ -83,13 +125,17 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
                     gender: payload.new.gender || '',
                     age: payload.new.age || 0,
                     vip_status: payload.new.vip_status || false,
-                    interests: [],  // We'll need to fetch interests separately if needed
-                    visibility: payload.new.visibility
+                    role: payload.new.role || 'standard',
+                    interests: [],
+                    visibility: payload.new.visibility,
+                    avatar_url: payload.new.avatar_url,
+                    profile_theme: payload.new.profile_theme,
                   };
                   
                   // Prevent duplicates
                   if (!currentUsers.some(u => u.id === newUser.id)) {
-                    return [...currentUsers, newUser];
+                    const updatedUsers = [...currentUsers, newUser];
+                    return sortUsers(updatedUsers);
                   }
                   return currentUsers;
                 });
@@ -97,13 +143,13 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
               break;
             case 'UPDATE':
               setUsers(currentUsers => {
-                // If user goes offline, remove from list
-                if (payload.new.visibility !== 'online') {
-                  return currentUsers.filter(u => u.id !== payload.new.id);
+                // Handle visibility changes
+                if (payload.new.visibility !== 'online' && payload.new.id !== currentUserId) {
+                  return sortUsers(currentUsers.filter(u => u.id !== payload.new.id));
                 }
                 
                 // Update user details if already in list
-                return currentUsers.map(user => {
+                const updatedUsers = currentUsers.map(user => {
                   if (user.id === payload.new.id) {
                     return {
                       ...user,
@@ -112,16 +158,21 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
                       gender: payload.new.gender || user.gender,
                       age: payload.new.age || user.age,
                       vip_status: payload.new.vip_status || user.vip_status,
-                      visibility: payload.new.visibility
+                      role: payload.new.role || user.role,
+                      visibility: payload.new.visibility,
+                      avatar_url: payload.new.avatar_url,
+                      profile_theme: payload.new.profile_theme,
                     };
                   }
                   return user;
                 });
+                
+                return sortUsers(updatedUsers);
               });
               break;
             case 'DELETE':
               setUsers(currentUsers => 
-                currentUsers.filter(u => u.id !== payload.old.id)
+                sortUsers(currentUsers.filter(u => u.id !== payload.old.id))
               );
               break;
           }
@@ -133,7 +184,27 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUserId]);
+
+  // Helper function to sort users
+  const sortUsers = (users: Profile[]) => {
+    return [...users].sort((a, b) => {
+      // VIPs first
+      if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
+      if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
+
+      // If both are VIPs, sort by nickname
+      if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
+        return a.nickname.localeCompare(b.nickname);
+      }
+
+      // For standard users, sort by country then nickname
+      if (a.country !== b.country) {
+        return (a.country || '').localeCompare(b.country || '');
+      }
+      return a.nickname.localeCompare(b.nickname);
+    });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -161,10 +232,12 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
             gender={user.gender}
             age={user.age}
             country={user.country}
-            isVip={user.vip_status}
+            isVip={user.role === 'vip' || user.vip_status}
             interests={user.interests}
             isSelected={selectedUserId === user.id}
             onClick={() => onUserSelect(user.id)}
+            avatar={user.avatar_url}
+            profileTheme={user.profile_theme}
           />
         ))}
       </div>

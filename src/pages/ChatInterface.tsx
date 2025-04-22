@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { History } from 'lucide-react';
+import { History, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { UserList } from '@/components/UserList';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 interface Message {
   id: number;
@@ -28,6 +29,7 @@ const ChatInterface = () => {
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isVipUser, setIsVipUser] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -38,13 +40,24 @@ const ChatInterface = () => {
       }
       setCurrentUserId(session.user.id);
 
-      const { error } = await supabase
+      // Check if user is VIP
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('vip_status, role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (!error && profile) {
+        setIsVipUser(profile.vip_status || profile.role === 'vip');
+      }
+
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ visibility: 'online' })
         .eq('id', session.user.id);
 
-      if (error) {
-        console.error('Error updating user visibility:', error);
+      if (updateError) {
+        console.error('Error updating user visibility:', updateError);
       }
 
       const rulesAccepted = localStorage.getItem('rulesAccepted');
@@ -172,6 +185,17 @@ const ChatInterface = () => {
           <Button variant="ghost" size="icon" className="rounded-full">
             <History className="h-5 w-5" />
           </Button>
+          {isVipUser && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-full"
+              onClick={() => navigate('/vip/settings')}
+              title="VIP Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+          )}
           <ThemeToggle />
           <VipButton />
           <LogoutButton />
