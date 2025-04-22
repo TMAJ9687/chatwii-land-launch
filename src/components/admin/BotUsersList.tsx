@@ -1,10 +1,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const BotUsersList = () => {
-  const { data: botUsers, isLoading } = useQuery({
+  const { toast } = useToast();
+  
+  const { data: botUsers, isLoading, refetch } = useQuery({
     queryKey: ["bot-users"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -22,6 +27,21 @@ export const BotUsersList = () => {
       return data;
     },
   });
+
+  const handleDelete = async (botId: string) => {
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", botId);
+
+    if (profileError) {
+      toast({ title: "Error", description: "Failed to delete bot", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "Bot deleted successfully" });
+    refetch();
+  };
 
   if (isLoading) {
     return <div className="text-center py-4">Loading bot users...</div>;
@@ -51,7 +71,35 @@ export const BotUsersList = () => {
               <TableCell>{user.gender || 'N/A'}</TableCell>
               <TableCell>{user.country || 'N/A'}</TableCell>
               <TableCell>
-                <span className="text-blue-500 cursor-pointer">Configure Bot</span>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => console.log('Edit bot:', user.id)}
+                  >
+                    Edit
+                  </Button>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm">Delete</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Bot</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete bot {user.nickname}? This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(user.id)}>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </TableCell>
             </TableRow>
           ))}
