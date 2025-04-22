@@ -1,12 +1,11 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { Flag } from "lucide-react";
+import { Flag, ChevronLeft, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ProfileSetupFormProps {
   nickname: string;
@@ -25,6 +24,7 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
   const [country, setCountry] = useState<string>("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const detectCountry = async () => {
@@ -51,6 +51,10 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
       }
       return prev;
     });
+  };
+
+  const handleBack = () => {
+    navigate('/');
   };
 
   const handleSubmit = async () => {
@@ -117,6 +121,15 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
 
   return (
     <div className="space-y-6">
+      <Button 
+        variant="ghost" 
+        className="flex items-center gap-2 mb-4 hover:bg-gray-100 dark:hover:bg-gray-800"
+        onClick={handleBack}
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back
+      </Button>
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Nickname
@@ -133,15 +146,22 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Gender
         </label>
-        <Select value={gender} onValueChange={setGender}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select gender" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Male">Male</SelectItem>
-            <SelectItem value="Female">Female</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-4">
+          <Button
+            variant={gender === 'Male' ? 'default' : 'outline'}
+            onClick={() => setGender('Male')}
+            className="flex-1"
+          >
+            Male
+          </Button>
+          <Button
+            variant={gender === 'Female' ? 'default' : 'outline'}
+            onClick={() => setGender('Female')}
+            className="flex-1"
+          >
+            Female
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -162,6 +182,14 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
         </Select>
       </div>
 
+      <Button
+        className="w-full"
+        onClick={handleSubmit}
+        disabled={!gender || isLoading}
+      >
+        {isLoading ? "Saving..." : "Continue to Chat"}
+      </Button>
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Country
@@ -172,37 +200,33 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Interests (Select up to 2)
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {interests.map(interest => (
-            <div key={interest} className="flex items-center space-x-2">
-              <Checkbox
-                id={interest}
-                checked={selectedInterests.includes(interest)}
-                onCheckedChange={() => handleInterestChange(interest)}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Interests (Select up to 2)
+          </label>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {interests.map(interest => (
+              <Button
+                key={interest}
+                variant={selectedInterests.includes(interest) ? 'default' : 'outline'}
+                onClick={() => handleInterestChange(interest)}
                 disabled={!selectedInterests.includes(interest) && selectedInterests.length >= 2}
-              />
-              <label
-                htmlFor={interest}
-                className="text-sm text-gray-700 dark:text-gray-300"
+                className="w-full"
               >
                 {interest}
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <Button
-        className="w-full"
-        onClick={handleSubmit}
-        disabled={!gender || isLoading}
-      >
-        {isLoading ? "Saving..." : "Continue to Chat"}
-      </Button>
+              </Button>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 };
