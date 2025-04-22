@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { History } from 'lucide-react';
+import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
+import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
+import { HistorySidebar } from '@/components/sidebar/HistorySidebar';
+import { BlockedUsersSidebar } from '@/components/sidebar/BlockedUsersSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { VipButton } from '@/components/VipButton';
 import { RulesPopup } from '@/components/RulesPopup';
@@ -21,6 +25,8 @@ interface Message {
   created_at: string;
 }
 
+type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
+
 const ChatInterface = () => {
   const navigate = useNavigate();
   const [showRules, setShowRules] = useState(true);
@@ -30,6 +36,7 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isVipUser, setIsVipUser] = useState(false);
+  const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -176,8 +183,29 @@ const ChatInterface = () => {
       <header className="border-b border-border py-3 px-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">Chatwii Chat</h1>
         <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full relative"
+            onClick={() => setActiveSidebar('inbox')}
+          >
+            <Mail className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setActiveSidebar('history')}
+          >
             <History className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setActiveSidebar('blocked')}
+          >
+            <Users className="h-5 w-5" />
           </Button>
           <VipSettingsButton isVipUser={isVipUser} />
           <ThemeToggle />
@@ -219,6 +247,36 @@ const ChatInterface = () => {
           )}
         </main>
       </div>
+
+      <SidebarContainer
+        isOpen={activeSidebar === 'inbox'}
+        onClose={() => setActiveSidebar('none')}
+        title="Inbox"
+      >
+        <InboxSidebar onUserSelect={(userId) => {
+          handleUserSelect(userId);
+          setActiveSidebar('none');
+        }} />
+      </SidebarContainer>
+
+      <SidebarContainer
+        isOpen={activeSidebar === 'history'}
+        onClose={() => setActiveSidebar('none')}
+        title="Chat History"
+      >
+        <HistorySidebar onUserSelect={(userId) => {
+          handleUserSelect(userId);
+          setActiveSidebar('none');
+        }} />
+      </SidebarContainer>
+
+      <SidebarContainer
+        isOpen={activeSidebar === 'blocked'}
+        onClose={() => setActiveSidebar('none')}
+        title="Blocked Users"
+      >
+        <BlockedUsersSidebar />
+      </SidebarContainer>
 
       {!acceptedRules && (
         <RulesPopup
