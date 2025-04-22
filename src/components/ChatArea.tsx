@@ -27,7 +27,7 @@ export const ChatArea = ({ messages, currentUserId }: ChatAreaProps) => {
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-180px)]">
       {messages.map((message) => (
         <div
           key={message.id}
