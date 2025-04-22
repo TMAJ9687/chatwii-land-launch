@@ -34,18 +34,27 @@ export const GeneralSettings = () => {
           ? data.settings 
           : {};
           
-        const adsense_links = Array.isArray(settingsObj.adsense_links)
-          ? settingsObj.adsense_links
-          : ["", "", ""];
+        // Make sure settingsObj is not an array before attempting to access properties
+        if (!Array.isArray(settingsObj)) {
+          const adsense_links = Array.isArray(settingsObj.adsense_links)
+            ? settingsObj.adsense_links
+            : ["", "", ""];
 
-        const maintenance_mode = typeof settingsObj.maintenance_mode === 'boolean'
-          ? settingsObj.maintenance_mode
-          : false;
+          const maintenance_mode = typeof settingsObj.maintenance_mode === 'boolean'
+            ? settingsObj.maintenance_mode
+            : false;
 
-        setSettings({
-          adsense_links,
-          maintenance_mode
-        });
+          setSettings({
+            adsense_links,
+            maintenance_mode
+          });
+        } else {
+          // Default values if settingsObj is an array
+          setSettings({
+            adsense_links: ["", "", ""],
+            maintenance_mode: false
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -77,9 +86,12 @@ export const GeneralSettings = () => {
       const existingSettings = typeof existingData?.settings === 'object' && existingData?.settings !== null 
         ? existingData.settings 
         : {};
+      
+      // Make sure existingSettings is not an array before spreading
+      const baseSettings = !Array.isArray(existingSettings) ? existingSettings : {};
 
       const newSettings = {
-        ...existingSettings,
+        ...baseSettings,
         adsense_links: settings.adsense_links,
         maintenance_mode: settings.maintenance_mode
       };
