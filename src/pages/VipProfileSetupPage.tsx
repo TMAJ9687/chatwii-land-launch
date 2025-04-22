@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+// Define profanity list for nickname validation
+const profanityList = ['fuck', 'shit', 'ass', 'bitch', 'dick', 'penis', 'vagina', 'sex'];
+
 const VipProfileSetupPage = () => {
   const navigate = useNavigate();
   const [nickname, setNickname] = useState('');
@@ -82,7 +85,7 @@ const VipProfileSetupPage = () => {
       
       toast({
         title: "Profile setup complete!",
-        description: "Welcome to ChatWii VIP.",
+        description: "Welcome to ChatWii VIP."
       });
       
       navigate('/chat');
@@ -90,7 +93,7 @@ const VipProfileSetupPage = () => {
       toast({
         title: "Profile setup failed",
         description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("Profile setup error:", error);
     } finally {

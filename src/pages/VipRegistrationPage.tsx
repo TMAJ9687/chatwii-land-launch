@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from "@/components/ui/input";
@@ -129,7 +130,7 @@ const VipRegistrationPage = () => {
       if (authData.user) {
         toast({
           title: "Registration successful!",
-          description: "Please set up your profile to continue.",
+          description: "Please set up your profile to continue."
         });
         
         navigate('/vip/profile-setup');
@@ -138,7 +139,7 @@ const VipRegistrationPage = () => {
       toast({
         title: "Registration failed",
         description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("Registration error:", error);
     } finally {
