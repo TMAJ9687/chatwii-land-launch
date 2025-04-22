@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,10 +17,8 @@ const interests = [
   "Food", "Technology", "Art", "Books", "Fashion"
 ];
 
-// Profanity filter - basic list
-const profanityList = ["badword", "offensive", "inappropriate", "vulgar", "rude"];
+let profanityList: string[] = [];
 
-// Nickname validation rules
 const validateNickname = (nickname: string) => {
   // Max 16 characters
   if (nickname.length > 16) {
@@ -39,7 +36,7 @@ const validateNickname = (nickname: string) => {
     return { valid: false, message: "Nickname cannot contain more than 3 consecutive same letters" };
   }
 
-  // Check against profanity list
+  // Check against profanity list (dynamically loaded)
   for (const word of profanityList) {
     if (nickname.toLowerCase().includes(word)) {
       return { valid: false, message: "Nickname contains inappropriate language" };
@@ -73,6 +70,28 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     };
 
     detectCountry();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfanity = async () => {
+      try {
+        const { data } = await supabase
+          .from("site_settings")
+          .select("settings")
+          .eq("id", 1)
+          .maybeSingle();
+        let arr: string[] = [];
+        if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
+          arr = Array.isArray(data.settings.profanity_nickname)
+            ? data.settings.profanity_nickname.map(String)
+            : [];
+        }
+        profanityList = arr;
+      } catch (e) {
+        profanityList = [];
+      }
+    };
+    fetchProfanity();
   }, []);
 
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {

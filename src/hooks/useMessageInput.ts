@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { EmojiClickData } from 'emoji-picker-react';
@@ -47,6 +46,27 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
     };
 
     fetchUserRole();
+
+    // Additionally, fetch chat profanity array and cache to variable
+    const fetchProfanityList = async () => {
+      try {
+        const { data } = await supabase
+          .from("site_settings")
+          .select("settings")
+          .eq("id", 1)
+          .maybeSingle();
+        let arr: string[] = [];
+        if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
+          arr = Array.isArray(data.settings.profanity_chat)
+            ? data.settings.profanity_chat.map(String)
+            : [];
+        }
+        chatProfanityList = arr;
+      } catch {
+        chatProfanityList = [];
+      }
+    };
+    fetchProfanityList();
   }, []);
 
   // Check for rate limiting
@@ -98,6 +118,12 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
         toast.error("Links and phone numbers are not allowed");
         return;
       }
+    }
+
+    // Chat profanity filter (all users)
+    if (chatProfanityList.some(word => message.toLowerCase().includes(word))) {
+      toast.error("Your message contains banned words");
+      return;
     }
 
     // Check for duplicate message (applies to all users)

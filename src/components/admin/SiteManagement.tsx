@@ -1,8 +1,9 @@
-
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GeneralSettings } from "./site-settings/GeneralSettings";
 import { ChatSettings } from "./site-settings/ChatSettings";
+import { ProfanitySettings } from "./site-settings/ProfanitySettings";
+import { VipPricesSettings } from "./site-settings/VipPricesSettings";
 
 export const SiteManagement = () => {
   return (
@@ -29,11 +30,11 @@ export const SiteManagement = () => {
         </TabsContent>
         
         <TabsContent value="profanity">
-          <div className="text-muted-foreground">Coming soon...</div>
+          <ProfanitySettings />
         </TabsContent>
         
         <TabsContent value="vip">
-          <div className="text-muted-foreground">Coming soon...</div>
+          <VipPricesSettings />
         </TabsContent>
         
         <TabsContent value="avatars">
