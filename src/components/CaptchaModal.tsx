@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Turnstile } from "react-turnstile";
+import Turnstile from "react-turnstile"; // Change from named import to default import
 
 interface CaptchaModalProps {
   open: boolean;
