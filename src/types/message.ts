@@ -18,5 +18,5 @@ export interface MessageMedia {
 }
 
 export interface MessageWithMedia extends Message {
-  media?: MessageMedia;
+  media?: MessageMedia | null;
 }

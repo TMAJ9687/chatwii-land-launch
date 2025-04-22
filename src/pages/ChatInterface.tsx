@@ -122,18 +122,21 @@ const ChatInterface = () => {
         },
         async (payload) => {
           console.log('New message received:', payload);
-          const newMessage = payload.new;
+          const newMessage = payload.new as MessageWithMedia; // Cast to MessageWithMedia
           
+          // Fetch message media if available
           const { data: mediaData } = await supabase
             .from('message_media')
             .select('*')
             .eq('message_id', newMessage.id);
 
-          const messageWithMedia = {
+          // Ensure the complete message structure is maintained
+          const messageWithMedia: MessageWithMedia = {
             ...newMessage,
             media: mediaData?.[0] || null
           };
           
+          // Add to messages if not already exists
           setMessages(current => {
             if (!current.some(msg => msg.id === messageWithMedia.id)) {
               return [...current, messageWithMedia];
