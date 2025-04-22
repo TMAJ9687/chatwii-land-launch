@@ -21,14 +21,20 @@ export const LogoutButton = () => {
 
   const handleLogout = async () => {
     try {
+      // Get current user
+      const { data } = await supabase.auth.getUser();
+      const userId = data?.user?.id;
+      
       // Update user's visibility to offline before signing out
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ visibility: 'offline' })
-        .eq('id', supabase.auth.getUser()?.data?.user?.id);
+      if (userId) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ visibility: 'offline' })
+          .eq('id', userId);
 
-      if (updateError) {
-        console.error('Error updating user visibility:', updateError);
+        if (updateError) {
+          console.error('Error updating user visibility:', updateError);
+        }
       }
 
       // Sign out

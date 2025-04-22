@@ -76,9 +76,21 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
             case 'INSERT':
               if (payload.new.visibility === 'online') {
                 setUsers(currentUsers => {
+                  // Process the new user to match our Profile interface
+                  const newUser: Profile = {
+                    id: payload.new.id,
+                    nickname: payload.new.nickname || '',
+                    country: payload.new.country || '',
+                    gender: payload.new.gender || '',
+                    age: payload.new.age || 0,
+                    vip_status: payload.new.vip_status || false,
+                    interests: [],  // We'll need to fetch interests separately if needed
+                    visibility: payload.new.visibility
+                  };
+                  
                   // Prevent duplicates
-                  if (!currentUsers.some(u => u.id === payload.new.id)) {
-                    return [...currentUsers, payload.new];
+                  if (!currentUsers.some(u => u.id === newUser.id)) {
+                    return [...currentUsers, newUser];
                   }
                   return currentUsers;
                 });
@@ -90,10 +102,22 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
                 if (payload.new.visibility !== 'online') {
                   return currentUsers.filter(u => u.id !== payload.new.id);
                 }
+                
                 // Update user details if already in list
-                return currentUsers.map(u => 
-                  u.id === payload.new.id ? payload.new : u
-                );
+                return currentUsers.map(user => {
+                  if (user.id === payload.new.id) {
+                    return {
+                      ...user,
+                      nickname: payload.new.nickname || user.nickname,
+                      country: payload.new.country || user.country,
+                      gender: payload.new.gender || user.gender,
+                      age: payload.new.age || user.age,
+                      vip_status: payload.new.vip_status || user.vip_status,
+                      visibility: payload.new.visibility
+                    };
+                  }
+                  return user;
+                });
               });
               break;
             case 'DELETE':
