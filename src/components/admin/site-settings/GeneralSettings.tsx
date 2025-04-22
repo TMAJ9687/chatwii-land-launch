@@ -36,16 +36,27 @@ export const GeneralSettings = () => {
           
         // Make sure settingsObj is not an array before attempting to access properties
         if (!Array.isArray(settingsObj)) {
-          const adsense_links = Array.isArray(settingsObj.adsense_links)
-            ? settingsObj.adsense_links
-            : ["", "", ""];
+          // Ensure adsense_links is an array of strings
+          let adsenseLinks = ["", "", ""];
+          
+          if (Array.isArray(settingsObj.adsense_links)) {
+            // Convert each item to string and ensure we have exactly 3 items
+            adsenseLinks = settingsObj.adsense_links
+              .map(link => String(link)) // Convert each item to string
+              .slice(0, 3); // Take only the first 3 items
+              
+            // If there are less than 3 items, fill the rest with empty strings
+            while (adsenseLinks.length < 3) {
+              adsenseLinks.push("");
+            }
+          }
 
           const maintenance_mode = typeof settingsObj.maintenance_mode === 'boolean'
             ? settingsObj.maintenance_mode
             : false;
 
           setSettings({
-            adsense_links,
+            adsense_links: adsenseLinks,
             maintenance_mode
           });
         } else {
