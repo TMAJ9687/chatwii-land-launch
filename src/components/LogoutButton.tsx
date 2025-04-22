@@ -43,8 +43,8 @@ export const LogoutButton = () => {
       // Sign out
       await supabase.auth.signOut();
       
-      // Redirect to feedback page instead of home page
-      navigate("/feedback");
+      // Redirect to admin login page after logout
+      navigate("/secretadminportal");
     } catch (error) {
       toast.error("Logout failed", {
         description: "An unexpected error occurred during logout."
@@ -69,7 +69,7 @@ export const LogoutButton = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Do you really want to leave? We'll miss you!
+              Do you really want to log out of the admin dashboard?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
