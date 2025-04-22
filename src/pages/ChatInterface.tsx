@@ -1,14 +1,25 @@
+
 import { useState, useEffect } from 'react';
 import { History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { VipButton } from '@/components/VipButton';
 import { RulesPopup } from '@/components/RulesPopup';
 import { UserList } from '@/components/UserList';
 import { LogoutButton } from '@/components/LogoutButton';
+import { ChatArea } from '@/components/ChatArea';
+import { MessageInput } from '@/components/MessageInput';
+import { toast } from '@/components/ui/sonner';
+
+interface Message {
+  id: number;
+  content: string;
+  sender_id: string;
+  receiver_id: string;
+  created_at: string;
+}
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -16,6 +27,8 @@ const ChatInterface = () => {
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -25,6 +38,7 @@ const ChatInterface = () => {
         navigate('/');
         return;
       }
+      setCurrentUserId(session.user.id);
 
       // Set user's visibility to online when entering chat
       const { error } = await supabase
@@ -47,8 +61,71 @@ const ChatInterface = () => {
     checkAuth();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!selectedUserId || !currentUserId) return;
+
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        toast.error("Failed to load messages");
+        console.error('Error fetching messages:', error);
+        return;
+      }
+
+      setMessages(data || []);
+    };
+
+    fetchMessages();
+
+    // Subscribe to new messages
+    const channel = supabase
+      .channel('chat_messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `or(and(sender_id=eq.${currentUserId},receiver_id=eq.${selectedUserId}),and(sender_id=eq.${selectedUserId},receiver_id=eq.${currentUserId}))`
+        },
+        (payload) => {
+          setMessages(current => [...current, payload.new as Message]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedUserId, currentUserId]);
+
+  const handleSendMessage = async (content: string) => {
+    if (!selectedUserId || !currentUserId) return;
+
+    const { error } = await supabase
+      .from('messages')
+      .insert([
+        {
+          content,
+          sender_id: currentUserId,
+          receiver_id: selectedUserId
+        }
+      ]);
+
+    if (error) {
+      toast.error("Failed to send message");
+      console.error('Error sending message:', error);
+    }
+  };
+
   const handleUserSelect = async (userId: string) => {
     setSelectedUserId(userId);
+    setMessages([]);
     
     // Fetch the selected user's nickname
     const { data, error } = await supabase
@@ -63,9 +140,9 @@ const ChatInterface = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 relative">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-gray-200 dark:border-gray-800 py-3 px-4 flex items-center justify-between">
+      <header className="border-b border-border py-3 px-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">Chatwii Chat</h1>
         <div className="flex items-center space-x-3">
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -79,7 +156,7 @@ const ChatInterface = () => {
       
       <div className="flex h-[calc(100vh-60px)]">
         {/* Left sidebar - User list */}
-        <aside className="w-full max-w-xs border-r border-gray-200 dark:border-gray-800">
+        <aside className="w-full max-w-xs border-r border-border">
           <UserList
             onUserSelect={handleUserSelect}
             selectedUserId={selectedUserId ?? undefined}
@@ -91,22 +168,24 @@ const ChatInterface = () => {
           {selectedUserId ? (
             <div className="flex-1 flex flex-col">
               {/* Selected user header */}
-              <div className="border-b border-gray-200 dark:border-gray-800 p-3">
+              <div className="border-b border-border p-3">
                 <h2 className="font-medium">{selectedUserNickname}</h2>
               </div>
               
-              {/* Chat messages area - placeholder for now */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  Start a conversation with {selectedUserNickname}!
-                </div>
-              </div>
+              {/* Chat messages area */}
+              <ChatArea 
+                messages={messages}
+                currentUserId={currentUserId || ''}
+              />
+
+              {/* Message input */}
+              <MessageInput onSendMessage={handleSendMessage} />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
               <div className="mb-6 text-5xl">👋</div>
               <h2 className="text-2xl font-bold mb-2">Welcome to Chatwii</h2>
-              <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              <p className="text-muted-foreground max-w-md">
                 Select a user from the list to start chatting
               </p>
             </div>
