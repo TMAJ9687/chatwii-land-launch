@@ -33,17 +33,41 @@ interface SettingsAvatars {
   standard_female: string | null;
 }
 
+// Utility function to ensure avatars object always has required structure
+const getCleanAvatars = (avatars: any): SettingsAvatars => ({
+  vip_male: Array.isArray(avatars?.vip_male) ? avatars.vip_male : [],
+  vip_female: Array.isArray(avatars?.vip_female) ? avatars.vip_female : [],
+  standard_male: typeof avatars?.standard_male === "string" ? avatars.standard_male : null,
+  standard_female: typeof avatars?.standard_female === "string" ? avatars.standard_female : null,
+});
+
 const getSiteAvatars = async (gender: string): Promise<string[]> => {
   const { data } = await supabase.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+
+  let avatars: SettingsAvatars = {
+    vip_male: [],
+    vip_female: [],
+    standard_male: null,
+    standard_female: null,
+  };
+
   if (data?.settings) {
-    // Type assertion to handle the JSON structure
-    const settingsObj = data.settings as { avatars?: SettingsAvatars };
-    if (settingsObj.avatars) {
-      if (gender === "female") return settingsObj.avatars.vip_female || [];
-      return settingsObj.avatars.vip_male || [];
+    // settings might be a string or object due to database possible types
+    let parsedSettings: any = data.settings;
+    if (typeof parsedSettings === "string") {
+      try {
+        parsedSettings = JSON.parse(parsedSettings);
+      } catch {
+        // fallback to default avatars structure
+      }
+    }
+    if (parsedSettings.avatars) {
+      avatars = getCleanAvatars(parsedSettings.avatars);
     }
   }
-  return [];
+
+  if (gender === "female") return avatars.vip_female || [];
+  return avatars.vip_male || [];
 };
 
 const VipSettingsPage = () => {
@@ -60,10 +84,10 @@ const VipSettingsPage = () => {
   useEffect(() => {
     if (!loading) {
       // Default to male/female, fallback to male for unknown
-      const gender = profileData?.gender?.toLowerCase() === "female" ? "female" : "male";
+      const gender = profileData.gender?.toLowerCase() === "female" ? "female" : "male";
       getSiteAvatars(gender).then(setAllowedAvatars);
     }
-  }, [loading, profileData?.gender]);
+  }, [loading, profileData.gender]);
 
   if (loading) {
     return (
@@ -208,3 +232,4 @@ const VipSettingsPage = () => {
 };
 
 export default VipSettingsPage;
+
