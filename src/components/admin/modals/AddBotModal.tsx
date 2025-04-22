@@ -32,37 +32,58 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
       return;
     }
 
-    // Let Supabase handle the ID generation by not specifying it 
-    // This works if the profiles table uses UUID default
-    const { error } = await supabase
-      .from("profiles")
-      .insert({
-        nickname: formData.nickname,
-        age: parseInt(formData.age),
-        gender: formData.gender,
-        country: formData.country,
-        role: "bot",
-        visibility: "online",
-      });
+    try {
+      // According to error message, we need to provide an id for profiles
+      // First, let's create a unique UUID using the crypto API
+      const getUUID = () => {
+        // This creates a UUID v4
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+      
+      const botId = getUUID();
+      
+      const { error } = await supabase
+        .from("profiles")
+        .insert({
+          id: botId, // Explicitly provide the UUID
+          nickname: formData.nickname,
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          country: formData.country,
+          role: "bot",
+          visibility: "online",
+        });
 
-    if (error) {
+      if (error) {
+        console.error("Error creating bot:", error);
+        toast({
+          title: "Error",
+          description: "Failed to create bot",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({ title: "Success", description: "Bot created successfully" });
+      setFormData({
+        nickname: "",
+        age: "25",
+        gender: "female",
+        country: "US",
+      });
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error("Unexpected error:", error);
       toast({
         title: "Error",
-        description: "Failed to create bot",
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
-      return;
     }
-
-    toast({ title: "Success", description: "Bot created successfully" });
-    setFormData({
-      nickname: "",
-      age: "25",
-      gender: "female",
-      country: "US",
-    });
-    onSuccess();
-    onClose();
   };
 
   return (
