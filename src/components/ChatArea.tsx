@@ -7,6 +7,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -117,9 +118,11 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                   : 'bg-muted'
               }`}
             >
+              {/* Standard text */}
               {message.content && <p className="break-words">{message.content}</p>}
-              
-              {message.media && (
+
+              {/* IMAGE MEDIA (retained) */}
+              {message.media && message.media.media_type === 'image' && (
                 <div className="mt-2 relative group">
                   <img 
                     src={message.media.file_url} 
@@ -147,6 +150,13 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                   >
                     {revealedImages.has(message.id) ? 'Hide Image' : 'Reveal Image'}
                   </Button>
+                </div>
+              )}
+
+              {/* VOICE MEDIA */}
+              {message.media && message.media.media_type === 'voice' && (
+                <div className="mt-2">
+                  <VoiceMessagePlayer src={message.media.file_url} />
                 </div>
               )}
               
