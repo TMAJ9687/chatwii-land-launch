@@ -23,6 +23,7 @@ import VipPlansPage from "./pages/VipPlansPage";
 import VipSuccessPage from "./pages/VipSuccessPage";
 import VipCancelPage from "./pages/VipCancelPage";
 
+// Stripe imports
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
