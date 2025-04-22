@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 // Define profanity list for nickname validation
@@ -83,17 +82,14 @@ const VipProfileSetupPage = () => {
       
       if (insertError) throw insertError;
       
-      toast({
-        title: "Profile setup complete!",
+      toast.success("Profile setup complete!", {
         description: "Welcome to ChatWii VIP."
       });
       
       navigate('/chat');
     } catch (error: any) {
-      toast({
-        title: "Profile setup failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive"
+      toast.error("Profile setup failed", {
+        description: error.message || "Something went wrong. Please try again."
       });
       console.error("Profile setup error:", error);
     } finally {

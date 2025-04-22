@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -128,18 +127,15 @@ const VipRegistrationPage = () => {
       if (authError) throw authError;
       
       if (authData.user) {
-        toast({
-          title: "Registration successful!",
+        toast.success("Registration successful!", {
           description: "Please set up your profile to continue."
         });
         
         navigate('/vip/profile-setup');
       }
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive"
+      toast.error("Registration failed", {
+        description: error.message || "Something went wrong. Please try again."
       });
       console.error("Registration error:", error);
     } finally {
