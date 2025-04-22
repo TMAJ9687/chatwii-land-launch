@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { useStripe } from "@stripe/react-stripe-js";  // Corrected import
+import { useStripe } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
