@@ -76,7 +76,6 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
             case 'INSERT':
               if (payload.new.visibility === 'online') {
                 setUsers(currentUsers => {
-                  // Process the new user to match our Profile interface
                   const newUser: Profile = {
                     id: payload.new.id,
                     nickname: payload.new.nickname || '',

@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "@/components/ui/sonner";
 
 export const LogoutButton = () => {
   const navigate = useNavigate();
@@ -22,17 +23,19 @@ export const LogoutButton = () => {
   const handleLogout = async () => {
     try {
       // Get current user
-      const { data } = await supabase.auth.getUser();
-      const userId = data?.user?.id;
+      const { data: { user } } = await supabase.auth.getUser();
       
-      // Update user's visibility to offline before signing out
-      if (userId) {
+      if (user) {
+        // Update user's visibility to offline before signing out
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ visibility: 'offline' })
-          .eq('id', userId);
+          .eq('id', user.id);
 
         if (updateError) {
+          toast.error("Could not update user status", {
+            description: "There was an issue updating your online status."
+          });
           console.error('Error updating user visibility:', updateError);
         }
       }
@@ -41,6 +44,9 @@ export const LogoutButton = () => {
       await supabase.auth.signOut();
       navigate("/");
     } catch (error) {
+      toast.error("Logout failed", {
+        description: "An unexpected error occurred during logout."
+      });
       console.error('Logout failed:', error);
     }
   };
