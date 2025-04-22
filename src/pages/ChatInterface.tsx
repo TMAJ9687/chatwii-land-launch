@@ -1,313 +1,38 @@
-import { useState, useEffect } from 'react';
-import { History, Mail, Users } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
 import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
 import { HistorySidebar } from '@/components/sidebar/HistorySidebar';
 import { BlockedUsersSidebar } from '@/components/sidebar/BlockedUsersSidebar';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { VipButton } from '@/components/VipButton';
-import { RulesPopup } from '@/components/RulesPopup';
 import { UserList } from '@/components/UserList';
-import { LogoutButton } from '@/components/LogoutButton';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
-import { VipSettingsButton } from '@/components/VipSettingsButton';
-import { toast } from 'sonner';
-import { MessageWithMedia, Message } from '@/types/message';
-
-type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
-
-declare global {
-  interface Window {
-    selectedUserId?: string;
-  }
-}
+import { RulesPopup } from '@/components/RulesPopup';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { WelcomeMessage } from '@/components/chat/WelcomeMessage';
+import { useChat } from '@/hooks/useChat';
 
 const ChatInterface = () => {
-  const navigate = useNavigate();
-  const [showRules, setShowRules] = useState(true);
-  const [acceptedRules, setAcceptedRules] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
-  const [messages, setMessages] = useState<MessageWithMedia[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [isVipUser, setIsVipUser] = useState(false);
-  const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/');
-        return;
-      }
-      setCurrentUserId(session.user.id);
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('vip_status, role')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (!error && profile) {
-        setIsVipUser(profile.vip_status || profile.role === 'vip');
-      }
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ visibility: 'online' })
-        .eq('id', session.user.id);
-
-      if (updateError) {
-        console.error('Error updating user visibility:', updateError);
-      }
-
-      const rulesAccepted = localStorage.getItem('rulesAccepted');
-      if (rulesAccepted === 'true') {
-        setShowRules(false);
-        setAcceptedRules(true);
-      }
-    };
-    
-    checkAuth();
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!selectedUserId || !currentUserId) return;
-    
-    window.selectedUserId = selectedUserId;
-
-    const fetchMessages = async () => {
-      console.log('Fetching initial messages...', {
-        currentUserId,
-        selectedUserId,
-        timestamp: new Date().toISOString()
-      });
-      
-      const { data, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          message_media (*)
-        `)
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching messages:', error);
-        toast.error("Failed to load messages");
-        return;
-      }
-
-      const messagesWithMedia = data.map(message => ({
-        ...message,
-        media: message.message_media?.[0] || null
-      }));
-      
-      setMessages(messagesWithMedia);
-    };
-
-    fetchMessages();
-
-    const channelName = `chat_${[currentUserId, selectedUserId].sort().join('_')}`;
-    console.log('Setting up subscription for channel:', {
-      channelName,
-      currentUserId,
-      selectedUserId,
-      timestamp: new Date().toISOString()
-    });
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
-        },
-        async (payload) => {
-          console.log('New message received:', {
-            payload,
-            timestamp: new Date().toISOString()
-          });
-          
-          const newMessage = payload.new as Message;
-          
-          // Add optimistic update for sent messages
-          setMessages(current => {
-            // Check if message already exists (either optimistic or real)
-            const exists = current.some(msg => 
-              (msg.id === newMessage.id) || // Real message
-              (msg.content === newMessage.content && 
-               msg.sender_id === newMessage.sender_id &&
-               Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000) // Optimistic message
-            );
-            
-            if (!exists) {
-              console.log('Adding new message to state:', {
-                messageId: newMessage.id,
-                timestamp: new Date().toISOString()
-              });
-              
-              return [...current, { ...newMessage, media: null }];
-            }
-            return current;
-          });
-          
-          // Fetch message media if available
-          const { data: mediaData } = await supabase
-            .from('message_media')
-            .select('*')
-            .eq('message_id', newMessage.id);
-
-          if (mediaData?.length) {
-            setMessages(current => 
-              current.map(msg => 
-                msg.id === newMessage.id 
-                  ? { ...msg, media: mediaData[0] }
-                  : msg
-              )
-            );
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('Cleaning up subscription:', {
-        channelName,
-        timestamp: new Date().toISOString()
-      });
-      window.selectedUserId = undefined;
-      supabase.removeChannel(channel);
-    };
-  }, [selectedUserId, currentUserId]);
-
-  const handleSendMessage = async (content: string, imageUrl?: string) => {
-    console.log('Attempting to send message:', {
-      hasContent: !!content,
-      hasImage: !!imageUrl,
-      timestamp: new Date().toISOString()
-    });
-
-    if (!selectedUserId || !currentUserId) return;
-
-    // Create optimistic message
-    const optimisticMessage: MessageWithMedia = {
-      id: Date.now(), // Temporary ID
-      content: content || (imageUrl ? '[Image]' : ''),
-      sender_id: currentUserId,
-      receiver_id: selectedUserId,
-      created_at: new Date().toISOString(),
-      is_read: false,
-      media: imageUrl ? {
-        id: Date.now(),
-        message_id: Date.now(),
-        user_id: currentUserId,
-        file_url: imageUrl,
-        media_type: 'image',
-        created_at: new Date().toISOString()
-      } : null
-    };
-
-    // Optimistically add message to state
-    setMessages(current => [...current, optimisticMessage]);
-
-    // Send the actual message
-    const { data: messageData, error: messageError } = await supabase
-      .from('messages')
-      .insert({
-        content: content || (imageUrl ? '[Image]' : ''),
-        sender_id: currentUserId,
-        receiver_id: selectedUserId,
-        is_read: false
-      })
-      .select()
-      .single();
-
-    if (messageError) {
-      // Remove optimistic message on error
-      setMessages(current => 
-        current.filter(msg => msg.id !== optimisticMessage.id)
-      );
-      toast.error("Failed to send message");
-      console.error('Error sending message:', messageError);
-      return;
-    }
-
-    // If there's an image URL, create the media record
-    if (imageUrl && messageData) {
-      const { error: mediaError } = await supabase
-        .from('message_media')
-        .insert({
-          message_id: messageData.id,
-          user_id: currentUserId,
-          file_url: imageUrl,
-          media_type: 'image'
-        });
-
-      if (mediaError) {
-        toast.error("Failed to attach image to message");
-        console.error('Error creating media record:', mediaError);
-      }
-    }
-  };
-
-  const handleUserSelect = async (userId: string) => {
-    setSelectedUserId(userId);
-    setMessages([]);
-    
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('nickname')
-      .eq('id', userId)
-      .single();
-    
-    if (data) {
-      setSelectedUserNickname(data.nickname);
-    }
-  };
+  const {
+    showRules,
+    setShowRules,
+    acceptedRules,
+    setAcceptedRules,
+    selectedUserId,
+    selectedUserNickname,
+    messages,
+    currentUserId,
+    isVipUser,
+    activeSidebar,
+    setActiveSidebar,
+    handleUserSelect
+  } = useChat();
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border py-3 px-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">Chatwii Chat</h1>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full relative"
-            onClick={() => setActiveSidebar('inbox')}
-          >
-            <Mail className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setActiveSidebar('history')}
-          >
-            <History className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setActiveSidebar('blocked')}
-          >
-            <Users className="h-5 w-5" />
-          </Button>
-          <VipSettingsButton isVipUser={isVipUser} />
-          <ThemeToggle />
-          <VipButton />
-          <LogoutButton />
-        </div>
-      </header>
+      <ChatHeader 
+        isVipUser={isVipUser}
+        onSidebarToggle={(sidebar) => setActiveSidebar(sidebar)} 
+      />
       
       <div className="flex h-[calc(100vh-60px)]">
         <aside className="w-full max-w-xs border-r border-border">
@@ -328,20 +53,13 @@ const ChatInterface = () => {
                   nickname: selectedUserNickname
                 }}
               />
-
               <MessageInput 
-                onSendMessage={handleSendMessage} 
+                onSendMessage={() => {}} 
                 currentUserId={currentUserId} 
               />
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-              <div className="mb-6 text-5xl">👋</div>
-              <h2 className="text-2xl font-bold mb-2">Welcome to Chatwii</h2>
-              <p className="text-muted-foreground max-w-md">
-                Select a user from the list to start chatting
-              </p>
-            </div>
+            <WelcomeMessage />
           )}
         </main>
       </div>
