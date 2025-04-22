@@ -79,6 +79,7 @@ const ChatInterface = () => {
     fetchMessages();
 
     const channelName = `chat_${[currentUserId, selectedUserId].sort().join('_')}`;
+    console.log('Setting up subscription for channel:', channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -88,18 +89,27 @@ const ChatInterface = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
+          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
         },
         (payload) => {
           console.log('New message received:', payload);
-          setMessages(current => [...current, payload.new as Message]);
+          const newMessage = payload.new as Message;
+          
+          // Only add message if it belongs to current conversation
+          if ((newMessage.sender_id === currentUserId && newMessage.receiver_id === selectedUserId) || 
+              (newMessage.sender_id === selectedUserId && newMessage.receiver_id === currentUserId)) {
+            setMessages(current => {
+              // Prevent duplicate messages
+              if (!current.some(msg => msg.id === newMessage.id)) {
+                return [...current, newMessage];
+              }
+              return current;
+            });
+          }
         }
       )
       .subscribe((status) => {
         console.log(`Subscription status for ${channelName}:`, status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to real-time updates');
-        }
       });
 
     return () => {
@@ -111,17 +121,29 @@ const ChatInterface = () => {
   const handleSendMessage = async (content: string) => {
     if (!selectedUserId || !currentUserId) return;
 
-    const newMessage = {
+    // Create optimistic message
+    const optimisticMessage: Message = {
+      id: Date.now(), // Temporary ID for optimistic update
       content,
       sender_id: currentUserId,
-      receiver_id: selectedUserId
+      receiver_id: selectedUserId,
+      created_at: new Date().toISOString()
     };
+
+    // Add message optimistically
+    setMessages(current => [...current, optimisticMessage]);
 
     const { error } = await supabase
       .from('messages')
-      .insert([newMessage]);
+      .insert([{
+        content,
+        sender_id: currentUserId,
+        receiver_id: selectedUserId
+      }]);
 
     if (error) {
+      // Remove optimistic message if send failed
+      setMessages(current => current.filter(msg => msg.id !== optimisticMessage.id));
       toast.error("Failed to send message");
       console.error('Error sending message:', error);
     }
