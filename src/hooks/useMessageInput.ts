@@ -91,7 +91,7 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
       if (hasConsecutiveNumbers(message)) {
         toast.error("Messages cannot contain more than 3 consecutive numbers");
         return;
-    }
+      }
 
       // Check for links or phone numbers
       if (hasLinkOrPhone(message)) {
