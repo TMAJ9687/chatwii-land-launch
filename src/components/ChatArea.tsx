@@ -1,9 +1,12 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Flag, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
+import { ImageModal } from './ImageModal';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   id: number;
@@ -11,6 +14,7 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   created_at: string;
+  media_url?: string;
 }
 
 interface ChatAreaProps {
@@ -25,6 +29,8 @@ interface ChatAreaProps {
 export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
   const { blockedUsers, blockUser } = useBlockedUsers();
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
@@ -36,6 +42,18 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const toggleImageReveal = (messageId: number) => {
+    setRevealedImages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -76,8 +94,38 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
                   : 'bg-muted'
               }`}
             >
-              <p className="break-words">{message.content}</p>
-              <span className={`text-xs ${
+              {/* Text message */}
+              {message.content && <p className="break-words">{message.content}</p>}
+              
+              {/* Image message */}
+              {message.media_url && (
+                <div 
+                  className="mt-2 relative cursor-pointer"
+                  onClick={() => {
+                    if (revealedImages.has(message.id)) {
+                      setFullScreenImage(message.media_url);
+                    }
+                  }}
+                >
+                  <img 
+                    src={message.media_url} 
+                    alt="Chat image" 
+                    className={`max-w-[300px] max-h-[300px] object-cover rounded-lg ${
+                      !revealedImages.has(message.id) ? 'filter blur-lg' : ''
+                    }`}
+                  />
+                  {!revealedImages.has(message.id) && (
+                    <Button
+                      onClick={() => toggleImageReveal(message.id)}
+                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+                    >
+                      Reveal
+                    </Button>
+                  )}
+                </div>
+              )}
+              
+              <span className={`text-xs block mt-1 ${
                 message.sender_id === currentUserId
                   ? 'text-primary-foreground/70'
                   : 'text-muted-foreground'
@@ -95,6 +143,14 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
         onClose={() => setShowReportPopup(false)}
         reportedUser={selectedUser}
       />
+
+      {/* Full Screen Image Modal */}
+      {fullScreenImage && (
+        <ImageModal 
+          imageUrl={fullScreenImage} 
+          onClose={() => setFullScreenImage(null)} 
+        />
+      )}
     </div>
   );
 };

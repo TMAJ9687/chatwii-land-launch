@@ -16,6 +16,7 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
+import { useMessageInput } from '@/hooks/useMessageInput';
 
 interface Message {
   id: number;
@@ -23,6 +24,7 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   created_at: string;
+  media_url?: string;
 }
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
@@ -135,7 +137,7 @@ const ChatInterface = () => {
     };
   }, [selectedUserId, currentUserId]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, imageUrl?: string) => {
     if (!selectedUserId || !currentUserId) return;
 
     const optimisticMessage: Message = {
@@ -143,7 +145,8 @@ const ChatInterface = () => {
       content,
       sender_id: currentUserId,
       receiver_id: selectedUserId,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      ...(imageUrl ? { media_url: imageUrl } : {})
     };
 
     setMessages(current => [...current, optimisticMessage]);
@@ -153,7 +156,8 @@ const ChatInterface = () => {
       .insert([{
         content,
         sender_id: currentUserId,
-        receiver_id: selectedUserId
+        receiver_id: selectedUserId,
+        ...(imageUrl ? { media_url: imageUrl } : {})
       }]);
 
     if (error) {
@@ -238,7 +242,10 @@ const ChatInterface = () => {
                 }}
               />
 
-              <MessageInput onSendMessage={handleSendMessage} />
+              <MessageInput 
+                onSendMessage={handleSendMessage} 
+                currentUserId={currentUserId} 
+              />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
