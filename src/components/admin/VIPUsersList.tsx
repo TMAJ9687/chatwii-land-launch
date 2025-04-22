@@ -1,9 +1,9 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { BanUserModal } from "./modals/BanUserModal";
+import { EditUserModal } from "./modals/EditUserModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,8 @@ export const VIPUsersList = () => {
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showBanModal, setShowBanModal] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<any>(null);
 
   const { data: vipUsers, isLoading, refetch } = useQuery({
     queryKey: ["vip-users"],
@@ -19,7 +21,7 @@ export const VIPUsersList = () => {
       const { data, error } = await supabase
         .from("profiles")
         .select(`
-          *,
+          *, 
           vip_subscriptions (
             end_date,
             is_active
@@ -110,6 +112,20 @@ export const VIPUsersList = () => {
     refetch();
   };
 
+  const handleEditUser = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (error) {
+      toast({ title: "Error", description: "Could not fetch user", variant: "destructive" });
+      return;
+    }
+    setUserToEdit(data);
+    setEditUserModalOpen(true);
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Loading VIP users...</div>;
   }
@@ -185,7 +201,7 @@ export const VIPUsersList = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => console.log('Edit user:', user.id)}
+                      onClick={() => handleEditUser(user.id)}
                     >
                       Edit
                     </Button>
@@ -226,6 +242,18 @@ export const VIPUsersList = () => {
           }}
           onConfirm={(reason, duration) => handleBan(selectedUser.id, reason, duration)}
           username={selectedUser.nickname}
+        />
+      )}
+
+      {editUserModalOpen && (
+        <EditUserModal
+          isOpen={editUserModalOpen}
+          onClose={() => {
+            setEditUserModalOpen(false);
+            setUserToEdit(null);
+          }}
+          user={userToEdit}
+          refreshList={refetch}
         />
       )}
     </>

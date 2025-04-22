@@ -1,10 +1,10 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { BanUserModal } from "./modals/BanUserModal";
 import { UpgradeUserModal } from "./modals/UpgradeUserModal";
+import { EditUserModal } from "./modals/EditUserModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,8 @@ export const StandardUsersList = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showBanModal, setShowBanModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<any>(null);
 
   const { data: standardUsers, isLoading, refetch } = useQuery({
     queryKey: ["online-standard-users"],
@@ -118,6 +120,20 @@ export const StandardUsersList = () => {
     refetch();
   };
 
+  const handleEditUser = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (error) {
+      toast({ title: "Error", description: "Could not fetch user", variant: "destructive" });
+      return;
+    }
+    setUserToEdit(data);
+    setEditUserModalOpen(true);
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Loading online users...</div>;
   }
@@ -182,7 +198,7 @@ export const StandardUsersList = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => console.log('Edit user:', user.id)}
+                      onClick={() => handleEditUser(user.id)}
                     >
                       Edit
                     </Button>
@@ -227,6 +243,18 @@ export const StandardUsersList = () => {
             username={selectedUser.nickname}
           />
         </>
+      )}
+
+      {editUserModalOpen && (
+        <EditUserModal
+          isOpen={editUserModalOpen}
+          onClose={() => {
+            setEditUserModalOpen(false);
+            setUserToEdit(null);
+          }}
+          user={userToEdit}
+          refreshList={refetch}
+        />
       )}
     </>
   );
