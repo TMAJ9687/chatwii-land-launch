@@ -10,6 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { UserManagement } from "@/components/admin/UserManagement"
 import { SiteManagement } from "@/components/admin/SiteManagement"
+import { ReportsFeedback } from "@/components/admin/ReportsFeedback"
 
 export const AdminDashboardPage = () => {
   const [currentView, setCurrentView] = useState("users");
@@ -60,7 +61,7 @@ export const AdminDashboardPage = () => {
         
         {currentView === "users" && <UserManagement />}
         {currentView === "site" && <SiteManagement />}
-        {currentView === "reports" && <div>Reports & Feedback (Coming soon...)</div>}
+        {currentView === "reports" && <ReportsFeedback />}
         {currentView === "settings" && <div>Admin Settings (Coming soon...)</div>}
       </div>
     </div>

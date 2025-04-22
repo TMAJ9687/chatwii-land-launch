@@ -42,7 +42,9 @@ export const LogoutButton = () => {
 
       // Sign out
       await supabase.auth.signOut();
-      navigate("/");
+      
+      // Redirect to feedback page instead of home page
+      navigate("/feedback");
     } catch (error) {
       toast.error("Logout failed", {
         description: "An unexpected error occurred during logout."
