@@ -7,15 +7,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { supabase } from '@/integrations/supabase/client';
-
-interface Message {
-  id: number;
-  content: string;
-  sender_id: string;
-  receiver_id: string;
-  created_at: string;
-  media_url?: string;
-}
+import { Message, MessageMedia, MessageWithMedia } from '@/types/message';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -26,23 +18,57 @@ interface ChatAreaProps {
   };
 }
 
-export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProps) => {
+export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUser }: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
+  const [messagesWithMedia, setMessagesWithMedia] = useState<MessageWithMedia[]>([]);
   const { blockedUsers, blockUser } = useBlockedUsers();
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
 
+  // Scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messagesWithMedia]);
 
+  // Load message media for each message
+  useEffect(() => {
+    const fetchMessageMedia = async () => {
+      if (!initialMessages.length) return;
+
+      // Get all message IDs
+      const messageIds = initialMessages.map(msg => msg.id);
+      
+      // Fetch media for these messages
+      const { data: mediaData, error } = await supabase
+        .from('message_media')
+        .select('*')
+        .in('message_id', messageIds)
+        .eq('media_type', 'image');
+
+      if (error) {
+        console.error('Error fetching message media:', error);
+      }
+
+      // Map media to messages
+      const messagesWithMediaData = initialMessages.map(message => {
+        const media = mediaData?.find(m => m.message_id === message.id);
+        return { ...message, media };
+      });
+
+      setMessagesWithMedia(messagesWithMediaData);
+    };
+
+    fetchMessageMedia();
+  }, [initialMessages]);
+
+  // Toggle image reveal
   const toggleImageReveal = (messageId: number) => {
     setRevealedImages(prev => {
       const newSet = new Set(prev);
@@ -82,7 +108,7 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messagesWithMedia.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}
@@ -98,17 +124,17 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
               {message.content && <p className="break-words">{message.content}</p>}
               
               {/* Image message */}
-              {message.media_url && (
+              {message.media && (
                 <div 
                   className="mt-2 relative cursor-pointer"
                   onClick={() => {
                     if (revealedImages.has(message.id)) {
-                      setFullScreenImage(message.media_url);
+                      setFullScreenImage(message.media!.file_url);
                     }
                   }}
                 >
                   <img 
-                    src={message.media_url} 
+                    src={message.media.file_url} 
                     alt="Chat image" 
                     className={`max-w-[300px] max-h-[300px] object-cover rounded-lg ${
                       !revealedImages.has(message.id) ? 'filter blur-lg' : ''
@@ -116,7 +142,10 @@ export const ChatArea = ({ messages, currentUserId, selectedUser }: ChatAreaProp
                   />
                   {!revealedImages.has(message.id) && (
                     <Button
-                      onClick={() => toggleImageReveal(message.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleImageReveal(message.id);
+                      }}
                       className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
                     >
                       Reveal

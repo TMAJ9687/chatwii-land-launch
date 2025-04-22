@@ -16,18 +16,15 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
-import { useMessageInput } from '@/hooks/useMessageInput';
-
-interface Message {
-  id: number;
-  content: string;
-  sender_id: string;
-  receiver_id: string;
-  created_at: string;
-  media_url?: string;
-}
+import { Message } from '@/types/message';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
+
+declare global {
+  interface Window {
+    selectedUserId?: string;
+  }
+}
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -80,6 +77,8 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (!selectedUserId || !currentUserId) return;
+    
+    window.selectedUserId = selectedUserId;
 
     const fetchMessages = async () => {
       const { data, error } = await supabase
@@ -133,6 +132,7 @@ const ChatInterface = () => {
 
     return () => {
       console.log('Cleaning up subscription for channel:', channelName);
+      window.selectedUserId = undefined;
       supabase.removeChannel(channel);
     };
   }, [selectedUserId, currentUserId]);
@@ -140,30 +140,19 @@ const ChatInterface = () => {
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     if (!selectedUserId || !currentUserId) return;
 
-    const optimisticMessage: Message = {
-      id: Date.now(),
-      content,
-      sender_id: currentUserId,
-      receiver_id: selectedUserId,
-      created_at: new Date().toISOString(),
-      ...(imageUrl ? { media_url: imageUrl } : {})
-    };
+    if (!imageUrl) {
+      const { error } = await supabase
+        .from('messages')
+        .insert([{
+          content,
+          sender_id: currentUserId,
+          receiver_id: selectedUserId
+        }]);
 
-    setMessages(current => [...current, optimisticMessage]);
-
-    const { error } = await supabase
-      .from('messages')
-      .insert([{
-        content,
-        sender_id: currentUserId,
-        receiver_id: selectedUserId,
-        ...(imageUrl ? { media_url: imageUrl } : {})
-      }]);
-
-    if (error) {
-      setMessages(current => current.filter(msg => msg.id !== optimisticMessage.id));
-      toast.error("Failed to send message");
-      console.error('Error sending message:', error);
+      if (error) {
+        toast.error("Failed to send message");
+        console.error('Error sending message:', error);
+      }
     }
   };
 
@@ -228,11 +217,7 @@ const ChatInterface = () => {
 
         <main className="flex-1 flex flex-col">
           {selectedUserId ? (
-            <div className="flex-1 flex flex-col">
-              <div className="border-b border-border p-3">
-                <h2 className="font-medium">{selectedUserNickname}</h2>
-              </div>
-              
+            <>
               <ChatArea 
                 messages={messages}
                 currentUserId={currentUserId || ''}
@@ -246,7 +231,7 @@ const ChatInterface = () => {
                 onSendMessage={handleSendMessage} 
                 currentUserId={currentUserId} 
               />
-            </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
               <div className="mb-6 text-5xl">👋</div>
