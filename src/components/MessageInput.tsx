@@ -24,6 +24,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
     setMessage,
     charLimit,
     inputRef,
+    handleSend,
     handleTextSend,
     handleKeyPress,
     handleEmojiClick
@@ -40,7 +41,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
     updateDailyUploadCount
   } = useImageUpload(currentUserId);
 
-  const handleSend = async () => {
+  const handleSendMessage = async () => {
     if (!currentUserId) {
       console.error('No current user ID available');
       return;
@@ -220,7 +221,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       </div>
       
       <Button 
-        onClick={handleSend}
+        onClick={handleSendMessage}
         size="icon"
         className="rounded-full"
         disabled={(!message.trim() && !selectedFile) || message.length > charLimit || isUploading || uploadingMessage}

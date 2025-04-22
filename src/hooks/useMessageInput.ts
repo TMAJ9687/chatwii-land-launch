@@ -91,7 +91,7 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
       if (hasConsecutiveNumbers(message)) {
         toast.error("Messages cannot contain more than 3 consecutive numbers");
         return;
-      }
+    }
 
       // Check for links or phone numbers
       if (hasLinkOrPhone(message)) {
@@ -121,6 +121,11 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
     
     onSendMessage(message.trim());
     setMessage('');
+  };
+
+  const handleTextSend = () => {
+    console.log('Text-only message being sent');
+    handleSend();
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -157,6 +162,7 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
     isUserVip,
     inputRef,
     handleSend,
+    handleTextSend,
     handleKeyPress,
     handleEmojiClick
   };
