@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
 import ChatPage from "./pages/ChatPage";
 import NotFound from "./pages/NotFound";
+import ProfileSetupPage from "./pages/ProfileSetupPage";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/profile-setup" element={<ProfileSetupPage />} />
             <Route path="/chat" element={<ChatPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
