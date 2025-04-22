@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -7,18 +8,26 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { UserManagement } from "@/components/admin/UserManagement"
 import { SiteManagement } from "@/components/admin/SiteManagement"
 import { ReportsFeedback } from "@/components/admin/ReportsFeedback"
+import { AdminSettings } from "@/components/admin/AdminSettings"
 
 export const AdminDashboardPage = () => {
   const [currentView, setCurrentView] = useState("users");
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <Button onClick={() => navigate("/")} variant="outline">
+            Connect to Chat
+          </Button>
+        </div>
         
         <NavigationMenu className="mb-8">
           <NavigationMenuList>
@@ -62,7 +71,7 @@ export const AdminDashboardPage = () => {
         {currentView === "users" && <UserManagement />}
         {currentView === "site" && <SiteManagement />}
         {currentView === "reports" && <ReportsFeedback />}
-        {currentView === "settings" && <div>Admin Settings (Coming soon...)</div>}
+        {currentView === "settings" && <AdminSettings />}
       </div>
     </div>
   );
