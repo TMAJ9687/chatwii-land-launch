@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { EmojiClickData } from 'emoji-picker-react';
@@ -26,6 +27,7 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
   const [lastSentMessage, setLastSentMessage] = useState<{content: string, timestamp: number} | null>(null);
   const [messageTimestamps, setMessageTimestamps] = useState<number[]>([]);
   const [charLimit, setCharLimit] = useState(getCharLimit(false));
+  const [chatProfanityList, setChatProfanityList] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user role on component mount
@@ -61,9 +63,9 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
             ? data.settings.profanity_chat.map(String)
             : [];
         }
-        chatProfanityList = arr;
+        setChatProfanityList(arr);
       } catch {
-        chatProfanityList = [];
+        setChatProfanityList([]);
       }
     };
     fetchProfanityList();

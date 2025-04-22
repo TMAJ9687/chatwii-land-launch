@@ -17,7 +17,11 @@ type SiteSettingsJson = {
 const DEFAULT_PRICES = { plan_1m: 4.99, plan_6m: 24.95, plan_1y: 35.99 };
 
 export const VipPricesSettings = () => {
-  const [prices, setPrices] = useState(DEFAULT_PRICES);
+  const [prices, setPrices] = useState<{
+    plan_1m: number | "";
+    plan_6m: number | "";
+    plan_1y: number | "";
+  }>(DEFAULT_PRICES);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +58,7 @@ export const VipPricesSettings = () => {
   const onPriceChange = (key: keyof typeof DEFAULT_PRICES, val: string) => {
     // Only valid positive numbers
     const num = val === "" ? "" : Number(val);
-    if (val !== "" && (isNaN(num) || num < 0)) return;
+    if (val !== "" && (isNaN(Number(num)) || Number(num) < 0)) return;
     setPrices(prev => ({ ...prev, [key]: num === "" ? "" : num }));
   };
 
