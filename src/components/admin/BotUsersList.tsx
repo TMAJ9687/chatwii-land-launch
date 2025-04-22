@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -48,7 +47,11 @@ export const BotUsersList = () => {
   }
 
   if (!botUsers?.length) {
-    return <div className="text-center py-4">No bot users found.</div>;
+    return (
+      <div className="text-center py-4">
+        No bot users found. Click "Add New Bot" above to create one.
+      </div>
+    );
   }
 
   return (
