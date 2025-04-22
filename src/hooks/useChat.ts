@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ export const useChat = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'none' | 'inbox' | 'history' | 'blocked'>('none');
+  const selectedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -57,7 +58,8 @@ export const useChat = () => {
   useEffect(() => {
     if (!selectedUserId || !currentUserId) return;
     
-    window.selectedUserId = selectedUserId;
+    // Update ref instead of using window
+    selectedUserIdRef.current = selectedUserId;
 
     const fetchMessages = async () => {
       const { data, error } = await supabase
@@ -139,7 +141,8 @@ export const useChat = () => {
       .subscribe();
 
     return () => {
-      window.selectedUserId = undefined;
+      // Clear ref instead of window
+      selectedUserIdRef.current = null;
       supabase.removeChannel(channel);
     };
   }, [selectedUserId, currentUserId]);
