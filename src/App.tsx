@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -16,6 +15,7 @@ import VipLoginPage from "./pages/VipLoginPage";
 import VipRegistrationPage from "./pages/VipRegistrationPage";
 import VipProfileSetupPage from "./pages/VipProfileSetupPage";
 import VipSettingsPage from "./pages/VipSettingsPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +34,7 @@ const App = () => (
             <Route path="/vip/register" element={<VipRegistrationPage />} />
             <Route path="/vip/profile-setup" element={<VipProfileSetupPage />} />
             <Route path="/vip/settings" element={<VipSettingsPage />} />
+            <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
