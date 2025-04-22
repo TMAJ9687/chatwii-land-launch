@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import countries from "@/constants/countries";
+import { COUNTRIES } from "@/constants/countries";
 import { Loader2 } from "lucide-react";
 
 type Role = "standard" | "vip";
@@ -226,7 +225,7 @@ export const EditUserModal = ({ isOpen, onClose, user, refreshList }: EditUserMo
                 <SelectValue placeholder="Country" />
               </SelectTrigger>
               <SelectContent>
-                {countries.map(country => (
+                {COUNTRIES.map(country => (
                   <SelectItem key={country} value={country}>{country}</SelectItem>
                 ))}
               </SelectContent>
