@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -23,8 +24,15 @@ export const useImageUpload = (currentUserId: string | null) => {
       .eq('id', 1)
       .single();
 
-    // Use settings from the database or fall back to default
-    const dailyLimit = siteSettings?.settings?.standard_photo_limit || 10;
+    // Use settings from the database with proper type safety
+    let dailyLimit = 10; // Default value
+    
+    if (siteSettings?.settings && 
+        typeof siteSettings.settings === 'object' && 
+        siteSettings.settings !== null &&
+        'standard_photo_limit' in siteSettings.settings) {
+      dailyLimit = Number(siteSettings.settings.standard_photo_limit) || 10;
+    }
 
     const { data: profile } = await supabase
       .from('profiles')

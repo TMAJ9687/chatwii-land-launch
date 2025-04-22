@@ -29,9 +29,22 @@ export const GeneralSettings = () => {
       if (error) throw error;
 
       if (data?.settings) {
+        // Safely access the settings object with proper type checking
+        const settingsObj = typeof data.settings === 'object' && data.settings !== null 
+          ? data.settings 
+          : {};
+          
+        const adsense_links = Array.isArray(settingsObj.adsense_links)
+          ? settingsObj.adsense_links
+          : ["", "", ""];
+
+        const maintenance_mode = typeof settingsObj.maintenance_mode === 'boolean'
+          ? settingsObj.maintenance_mode
+          : false;
+
         setSettings({
-          adsense_links: data.settings.adsense_links || ["", "", ""],
-          maintenance_mode: data.settings.maintenance_mode || false
+          adsense_links,
+          maintenance_mode
         });
       }
     } catch (error) {
@@ -60,8 +73,13 @@ export const GeneralSettings = () => {
         .eq('id', 1)
         .single();
 
+      // Ensure existingSettings is an object
+      const existingSettings = typeof existingData?.settings === 'object' && existingData?.settings !== null 
+        ? existingData.settings 
+        : {};
+
       const newSettings = {
-        ...(existingData?.settings || {}),
+        ...existingSettings,
         adsense_links: settings.adsense_links,
         maintenance_mode: settings.maintenance_mode
       };

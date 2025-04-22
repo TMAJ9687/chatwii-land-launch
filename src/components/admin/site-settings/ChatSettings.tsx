@@ -27,8 +27,15 @@ export const ChatSettings = () => {
       if (error) throw error;
 
       if (data?.settings) {
+        // Safely access the settings object with proper type checking
+        const settingsObj = typeof data.settings === 'object' && data.settings !== null 
+          ? data.settings 
+          : {};
+          
         setSettings({
-          standard_photo_limit: data.settings.standard_photo_limit || 10
+          standard_photo_limit: typeof settingsObj === 'object' && 'standard_photo_limit' in settingsObj
+            ? Number(settingsObj.standard_photo_limit) || 10
+            : 10
         });
       }
     } catch (error) {
@@ -52,8 +59,13 @@ export const ChatSettings = () => {
         .eq('id', 1)
         .single();
 
+      // Ensure existingSettings is an object
+      const existingSettings = typeof existingData?.settings === 'object' && existingData?.settings !== null 
+        ? existingData.settings 
+        : {};
+
       const newSettings = {
-        ...(existingData?.settings || {}),
+        ...existingSettings,
         standard_photo_limit: settings.standard_photo_limit
       };
 
