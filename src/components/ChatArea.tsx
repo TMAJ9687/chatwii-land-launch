@@ -120,7 +120,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
               {message.content && <p className="break-words">{message.content}</p>}
               
               {message.media && (
-                <div className="mt-2 relative">
+                <div className="mt-2 relative group">
                   <img 
                     src={message.media.file_url} 
                     alt="Chat image" 
@@ -142,7 +142,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                     }}
                     className={`absolute bottom-2 ${
                       message.sender_id === currentUserId ? 'right-2' : 'left-2'
-                    } z-10 bg-background/80 hover:bg-background/90 backdrop-blur-sm text-sm`}
+                    } opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background/90 backdrop-blur-sm text-sm z-10`}
                     size="sm"
                   >
                     {revealedImages.has(message.id) ? 'Hide Image' : 'Reveal Image'}

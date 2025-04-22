@@ -102,12 +102,6 @@ const ChatInterface = () => {
         return;
       }
 
-      console.log('Initial messages loaded:', {
-        messageCount: data?.length,
-        messagesWithMedia: data?.filter(m => m.message_media?.length > 0).length,
-        timestamp: new Date().toISOString()
-      });
-      
       const messagesWithMedia = data.map(message => ({
         ...message,
         media: message.message_media?.[0] || null
@@ -146,8 +140,13 @@ const ChatInterface = () => {
           
           // Add optimistic update for sent messages
           setMessages(current => {
-            // Check if message already exists
-            const exists = current.some(msg => msg.id === newMessage.id);
+            // Check if message already exists (either optimistic or real)
+            const exists = current.some(msg => 
+              (msg.id === newMessage.id) || // Real message
+              (msg.content === newMessage.content && 
+               msg.sender_id === newMessage.sender_id &&
+               Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000) // Optimistic message
+            );
             
             if (!exists) {
               console.log('Adding new message to state:', {
@@ -155,11 +154,7 @@ const ChatInterface = () => {
                 timestamp: new Date().toISOString()
               });
               
-              const optimisticMessage: MessageWithMedia = {
-                ...newMessage,
-                media: null
-              };
-              return [...current, optimisticMessage];
+              return [...current, { ...newMessage, media: null }];
             }
             return current;
           });
@@ -170,13 +165,6 @@ const ChatInterface = () => {
             .select('*')
             .eq('message_id', newMessage.id);
 
-          console.log('Media fetch result:', {
-            messageId: newMessage.id,
-            hasMedia: !!mediaData?.length,
-            timestamp: new Date().toISOString()
-          });
-
-          // Update message with media data
           if (mediaData?.length) {
             setMessages(current => 
               current.map(msg => 
@@ -188,13 +176,7 @@ const ChatInterface = () => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Subscription status update:', {
-          channelName,
-          status,
-          timestamp: new Date().toISOString()
-        });
-      });
+      .subscribe();
 
     return () => {
       console.log('Cleaning up subscription:', {
@@ -215,18 +197,63 @@ const ChatInterface = () => {
 
     if (!selectedUserId || !currentUserId) return;
 
-    if (!imageUrl) {
-      const { error } = await supabase
-        .from('messages')
-        .insert([{
-          content,
-          sender_id: currentUserId,
-          receiver_id: selectedUserId
-        }]);
+    // Create optimistic message
+    const optimisticMessage: MessageWithMedia = {
+      id: Date.now(), // Temporary ID
+      content: content || (imageUrl ? '[Image]' : ''),
+      sender_id: currentUserId,
+      receiver_id: selectedUserId,
+      created_at: new Date().toISOString(),
+      is_read: false,
+      media: imageUrl ? {
+        id: Date.now(),
+        message_id: Date.now(),
+        user_id: currentUserId,
+        file_url: imageUrl,
+        media_type: 'image',
+        created_at: new Date().toISOString()
+      } : null
+    };
 
-      if (error) {
-        toast.error("Failed to send message");
-        console.error('Error sending message:', error);
+    // Optimistically add message to state
+    setMessages(current => [...current, optimisticMessage]);
+
+    // Send the actual message
+    const { data: messageData, error: messageError } = await supabase
+      .from('messages')
+      .insert({
+        content: content || (imageUrl ? '[Image]' : ''),
+        sender_id: currentUserId,
+        receiver_id: selectedUserId,
+        is_read: false
+      })
+      .select()
+      .single();
+
+    if (messageError) {
+      // Remove optimistic message on error
+      setMessages(current => 
+        current.filter(msg => msg.id !== optimisticMessage.id)
+      );
+      toast.error("Failed to send message");
+      console.error('Error sending message:', messageError);
+      return;
+    }
+
+    // If there's an image URL, create the media record
+    if (imageUrl && messageData) {
+      const { error: mediaError } = await supabase
+        .from('message_media')
+        .insert({
+          message_id: messageData.id,
+          user_id: currentUserId,
+          file_url: imageUrl,
+          media_type: 'image'
+        });
+
+      if (mediaError) {
+        toast.error("Failed to attach image to message");
+        console.error('Error creating media record:', mediaError);
       }
     }
   };

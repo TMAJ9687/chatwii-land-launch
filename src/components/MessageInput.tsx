@@ -1,4 +1,3 @@
-
 import { Send, Smile, Paperclip } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -57,7 +56,8 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       // Handle regular text message
       if (!selectedFile) {
         console.log('Sending text-only message');
-        handleTextSend();
+        onSendMessage(message.trim());
+        setMessage('');
         return;
       }
       
@@ -71,67 +71,27 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       setUploadingMessage(true);
       console.log('Starting image upload process');
 
-      // First create a message record
-      const messageContent = message.trim() || "[Image]";
-      
-      const { data: messageData, error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          content: messageContent,
-          sender_id: currentUserId,
-          receiver_id: window.selectedUserId || "",
-          is_read: false
-        })
-        .select()
-        .single();
-      
-      if (messageError) {
-        console.error("Error creating message:", messageError);
-        toast.error("Failed to send message");
-        return;
-      }
-      
-      console.log('Message record created:', {
-        messageId: messageData?.id,
-        timestamp: new Date().toISOString()
-      });
-
       // Upload image to storage
       const imageUrl = await uploadImage();
       
-      if (!imageUrl || !messageData) {
+      if (!imageUrl) {
         toast.error("Failed to upload image");
         return;
       }
       
       console.log('Image uploaded successfully:', {
         imageUrl,
-        messageId: messageData.id,
         timestamp: new Date().toISOString()
       });
-      
-      // Create media record
-      const { error: mediaError } = await supabase
-        .from('message_media')
-        .insert({
-          message_id: messageData.id,
-          user_id: currentUserId,
-          file_url: imageUrl,
-          media_type: 'image'
-        });
-      
-      if (mediaError) {
-        console.error("Error creating media record:", mediaError);
-        toast.error("Failed to link image to message");
-        return;
-      }
 
-      console.log('Media record created successfully');
-
+      // Send message with image
+      const messageContent = message.trim() || "[Image]";
+      onSendMessage(messageContent, imageUrl);
+      
       // Update daily upload count
       await updateDailyUploadCount();
       
-      // Clear selection
+      // Clear selection and message
       clearFileSelection();
       setMessage('');
       
