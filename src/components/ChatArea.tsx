@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Flag, Ban } from 'lucide-react';
@@ -25,6 +24,13 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   const { blockedUsers, blockUser } = useBlockedUsers();
   const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set());
 
+  useEffect(() => {
+    const savedRevealedImages = localStorage.getItem('revealedImages');
+    if (savedRevealedImages) {
+      setRevealedImages(new Set(JSON.parse(savedRevealedImages)));
+    }
+  }, []);
+
   const isBlocked = blockedUsers.includes(selectedUser.id);
 
   const scrollToBottom = () => {
@@ -36,6 +42,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   }, [initialMessages]);
 
   const toggleImageReveal = (messageId: number) => {
+    console.log('Toggling image reveal for message:', messageId);
     setRevealedImages(prev => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
@@ -43,6 +50,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
       } else {
         newSet.add(messageId);
       }
+      localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
       return newSet;
     });
   };
@@ -97,14 +105,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
               {message.content && <p className="break-words">{message.content}</p>}
               
               {message.media && (
-                <div 
-                  className="mt-2 relative cursor-pointer"
-                  onClick={() => {
-                    if (revealedImages.has(message.id)) {
-                      setFullScreenImage(message.media!.file_url);
-                    }
-                  }}
-                >
+                <div className="mt-2 relative">
                   <img 
                     src={message.media.file_url} 
                     alt="Chat image" 
@@ -113,18 +114,21 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                     }`}
                     onLoad={() => handleImageLoad(message.id)}
                     style={{ display: loadingImages.has(message.id) ? 'none' : 'block' }}
+                    onClick={() => {
+                      if (revealedImages.has(message.id)) {
+                        setFullScreenImage(message.media!.file_url);
+                      }
+                    }}
                   />
-                  {!revealedImages.has(message.id) && (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleImageReveal(message.id);
-                      }}
-                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
-                    >
-                      Reveal Image
-                    </Button>
-                  )}
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleImageReveal(message.id);
+                    }}
+                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+                  >
+                    {revealedImages.has(message.id) ? 'Hide Image' : 'Reveal Image'}
+                  </Button>
                 </div>
               )}
               

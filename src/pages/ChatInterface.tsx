@@ -82,6 +82,7 @@ const ChatInterface = () => {
     window.selectedUserId = selectedUserId;
 
     const fetchMessages = async () => {
+      console.log('Fetching initial messages...');
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -92,11 +93,12 @@ const ChatInterface = () => {
         .order('created_at', { ascending: true });
 
       if (error) {
-        toast.error("Failed to load messages");
         console.error('Error fetching messages:', error);
+        toast.error("Failed to load messages");
         return;
       }
 
+      console.log('Initial messages loaded:', data);
       const messagesWithMedia = data.map(message => ({
         ...message,
         media: message.message_media?.[0] || null
@@ -124,24 +126,35 @@ const ChatInterface = () => {
           console.log('New message received:', payload);
           const newMessage = payload.new as Message;
           
+          // Add optimistic update for sent messages
+          const optimisticMessage: MessageWithMedia = {
+            ...newMessage,
+            media: null
+          };
+
+          setMessages(current => {
+            if (!current.some(msg => msg.id === optimisticMessage.id)) {
+              return [...current, optimisticMessage];
+            }
+            return current;
+          });
+          
           // Fetch message media if available
           const { data: mediaData } = await supabase
             .from('message_media')
             .select('*')
             .eq('message_id', newMessage.id);
 
-          // Add to messages if not already exists
-          setMessages(current => {
-            const messageWithMedia: MessageWithMedia = {
-              ...newMessage,
-              media: mediaData?.[0] || null
-            };
-            
-            if (!current.some(msg => msg.id === messageWithMedia.id)) {
-              return [...current, messageWithMedia];
-            }
-            return current;
-          });
+          console.log('Media data for new message:', mediaData);
+
+          // Update message with media data
+          setMessages(current => 
+            current.map(msg => 
+              msg.id === newMessage.id 
+                ? { ...msg, media: mediaData?.[0] || null }
+                : msg
+            )
+          );
         }
       )
       .subscribe((status) => {
