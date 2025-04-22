@@ -83,7 +83,10 @@ const ChatInterface = () => {
     const fetchMessages = async () => {
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select(`
+          *,
+          message_media (*)
+        `)
         .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
         .order('created_at', { ascending: true });
 
@@ -93,7 +96,12 @@ const ChatInterface = () => {
         return;
       }
 
-      setMessages(data || []);
+      const messagesWithMedia = data.map(message => ({
+        ...message,
+        media: message.message_media?.[0] || null
+      }));
+      
+      setMessages(messagesWithMedia);
     };
 
     fetchMessages();
@@ -109,21 +117,29 @@ const ChatInterface = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+          filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
         },
-        (payload) => {
+        async (payload) => {
           console.log('New message received:', payload);
           const newMessage = payload.new as Message;
           
-          if ((newMessage.sender_id === currentUserId && newMessage.receiver_id === selectedUserId) || 
-              (newMessage.sender_id === selectedUserId && newMessage.receiver_id === currentUserId)) {
-            setMessages(current => {
-              if (!current.some(msg => msg.id === newMessage.id)) {
-                return [...current, newMessage];
-              }
-              return current;
-            });
-          }
+          const { data: mediaData } = await supabase
+            .from('message_media')
+            .select('*')
+            .eq('message_id', newMessage.id)
+            .single();
+
+          const messageWithMedia = {
+            ...newMessage,
+            media: mediaData || null
+          };
+          
+          setMessages(current => {
+            if (!current.some(msg => msg.id === messageWithMedia.id)) {
+              return [...current, messageWithMedia];
+            }
+            return current;
+          });
         }
       )
       .subscribe((status) => {
