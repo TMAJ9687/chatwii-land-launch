@@ -13,14 +13,16 @@ export const BannedUsersList = () => {
   const { data: bannedUsers, isLoading, refetch } = useQuery({
     queryKey: ["banned-users"],
     queryFn: async () => {
+      // The previous query was ambiguous with relationships
+      // We'll use aliasing to be specific about the columns we want
       const { data, error } = await supabase
         .from("bans")
         .select(`
           *,
-          banned_user:user_id (
+          banned_user:profiles!bans_user_id_fkey (
             nickname
           ),
-          admin:admin_id (
+          admin:profiles!bans_admin_id_fkey (
             nickname
           )
         `)

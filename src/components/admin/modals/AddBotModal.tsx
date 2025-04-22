@@ -32,6 +32,8 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
       return;
     }
 
+    // Let Supabase handle the ID generation by not specifying it 
+    // This works if the profiles table uses UUID default
     const { error } = await supabase
       .from("profiles")
       .insert({
