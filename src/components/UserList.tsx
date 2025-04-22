@@ -13,6 +13,7 @@ interface Profile {
   age: number;
   vip_status: boolean;
   interests: string[];
+  visibility: string;
 }
 
 interface UserListProps {
@@ -25,7 +26,7 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchOnlineUsers = async () => {
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select(`
@@ -35,14 +36,16 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
           gender,
           age,
           vip_status,
+          visibility,
           user_interests (
             interests (name)
           )
         `)
+        .eq('visibility', 'online')
         .order('nickname');
 
       if (error) {
-        console.error('Error fetching profiles:', error);
+        console.error('Error fetching online profiles:', error);
         return;
       }
 
@@ -55,7 +58,58 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
       setUsers(usersWithInterests);
     };
 
-    fetchUsers();
+    // Initial fetch of online users
+    fetchOnlineUsers();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('online_users')
+      .on(
+        'postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'profiles' 
+        },
+        (payload) => {
+          switch (payload.eventType) {
+            case 'INSERT':
+              if (payload.new.visibility === 'online') {
+                setUsers(currentUsers => {
+                  // Prevent duplicates
+                  if (!currentUsers.some(u => u.id === payload.new.id)) {
+                    return [...currentUsers, payload.new];
+                  }
+                  return currentUsers;
+                });
+              }
+              break;
+            case 'UPDATE':
+              setUsers(currentUsers => {
+                // If user goes offline, remove from list
+                if (payload.new.visibility !== 'online') {
+                  return currentUsers.filter(u => u.id !== payload.new.id);
+                }
+                // Update user details if already in list
+                return currentUsers.map(u => 
+                  u.id === payload.new.id ? payload.new : u
+                );
+              });
+              break;
+            case 'DELETE':
+              setUsers(currentUsers => 
+                currentUsers.filter(u => u.id !== payload.old.id)
+              );
+              break;
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (

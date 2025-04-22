@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,17 +23,28 @@ const ChatInterface = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate('/');
+        return;
+      }
+
+      // Set user's visibility to online when entering chat
+      const { error } = await supabase
+        .from('profiles')
+        .update({ visibility: 'online' })
+        .eq('id', session.user.id);
+
+      if (error) {
+        console.error('Error updating user visibility:', error);
+      }
+
+      // Check if rules were accepted before
+      const rulesAccepted = localStorage.getItem('rulesAccepted');
+      if (rulesAccepted === 'true') {
+        setShowRules(false);
+        setAcceptedRules(true);
       }
     };
     
     checkAuth();
-    
-    // Check if rules were accepted before
-    const rulesAccepted = localStorage.getItem('rulesAccepted');
-    if (rulesAccepted === 'true') {
-      setShowRules(false);
-      setAcceptedRules(true);
-    }
   }, [navigate]);
 
   const handleUserSelect = async (userId: string) => {

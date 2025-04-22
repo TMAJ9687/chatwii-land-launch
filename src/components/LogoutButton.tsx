@@ -20,8 +20,23 @@ export const LogoutButton = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    try {
+      // Update user's visibility to offline before signing out
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ visibility: 'offline' })
+        .eq('id', supabase.auth.getUser()?.data?.user?.id);
+
+      if (updateError) {
+        console.error('Error updating user visibility:', updateError);
+      }
+
+      // Sign out
+      await supabase.auth.signOut();
+      navigate("/");
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   return (
