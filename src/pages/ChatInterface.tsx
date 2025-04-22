@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +17,7 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
-import { MessageWithMedia } from '@/types/message';
+import { MessageWithMedia, Message } from '@/types/message';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 

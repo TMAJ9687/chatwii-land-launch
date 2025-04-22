@@ -1,3 +1,4 @@
+
 import { Send, Smile, Paperclip } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -5,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import EmojiPicker from 'emoji-picker-react';
 import { useMessageInput } from '@/hooks/useMessageInput';
 import { useImageUpload } from '@/hooks/useImageUpload';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,6 +17,8 @@ interface MessageInputProps {
 
 export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMessage, setUploadingMessage] = useState(false);
+  
   const {
     message,
     setMessage,
@@ -54,7 +57,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         return;
       }
 
-      setIsUploading(true);
+      setUploadingMessage(true);
 
       // First create a message record
       const messageContent = message.trim() || "[Image]";
@@ -111,7 +114,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       console.error("Error in handleSend:", error);
       toast.error("An error occurred while sending your message");
     } finally {
-      setIsUploading(false);
+      setUploadingMessage(false);
     }
   };
 
@@ -169,7 +172,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         size="icon" 
         className="rounded-full"
         onClick={triggerFileInput}
-        disabled={isUploading}
+        disabled={isUploading || uploadingMessage}
       >
         <Paperclip className="h-5 w-5" />
       </Button>
@@ -183,7 +186,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
           placeholder="Type a message..."
           className="pr-16"
           maxLength={charLimit}
-          disabled={isUploading}
+          disabled={isUploading || uploadingMessage}
         />
         <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
           message.length > charLimit ? 'text-destructive' : 'text-muted-foreground'
@@ -196,7 +199,7 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         onClick={handleSend}
         size="icon"
         className="rounded-full"
-        disabled={(!message.trim() && !selectedFile) || message.length > charLimit || isUploading}
+        disabled={(!message.trim() && !selectedFile) || message.length > charLimit || isUploading || uploadingMessage}
       >
         <Send className="h-5 w-5" />
       </Button>
