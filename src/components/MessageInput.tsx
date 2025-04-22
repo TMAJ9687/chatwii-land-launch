@@ -1,4 +1,3 @@
-
 import { Send, Smile, Paperclip } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -39,16 +38,15 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
   } = useImageUpload(currentUserId);
 
   const handleSend = async () => {
-    // Handle regular text message
-    if (!selectedFile) {
-      handleTextSend();
-      return;
-    }
-    
-    // Handle image upload
     if (!currentUserId) return;
-
+    
     try {
+      // Handle regular text message
+      if (!selectedFile) {
+        handleTextSend();
+        return;
+      }
+      
       // Check daily upload limit
       const isWithinLimit = await checkDailyUploadLimit();
       if (!isWithinLimit) {
@@ -56,15 +54,17 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
         return;
       }
 
+      setIsUploading(true);
+
       // First create a message record
-      const messageContent = "[Image]"; // Or use message if you want to allow caption
+      const messageContent = message.trim() || "[Image]";
       
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
           content: messageContent,
           sender_id: currentUserId,
-          receiver_id: window.selectedUserId || "", // This is a bit of a hack, better to pass this as a prop
+          receiver_id: window.selectedUserId || "",
           is_read: false
         })
         .select()
@@ -105,12 +105,13 @@ export const MessageInput = ({ onSendMessage, currentUserId }: MessageInputProps
       
       // Clear selection
       clearFileSelection();
+      setMessage('');
       
-      // Notify parent component
-      onSendMessage(messageContent, imageUrl);
     } catch (error) {
       console.error("Error in handleSend:", error);
       toast.error("An error occurred while sending your message");
+    } finally {
+      setIsUploading(false);
     }
   };
 

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
-import { supabase } from '@/integrations/supabase/client';
 import { MessageWithMedia } from '@/types/message';
 
 interface ChatAreaProps {
@@ -24,6 +23,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
   const { blockedUsers, blockUser } = useBlockedUsers();
+  const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set());
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
 
@@ -43,6 +43,14 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
       } else {
         newSet.add(messageId);
       }
+      return newSet;
+    });
+  };
+
+  const handleImageLoad = (messageId: number) => {
+    setLoadingImages(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(messageId);
       return newSet;
     });
   };
@@ -100,9 +108,11 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
                   <img 
                     src={message.media.file_url} 
                     alt="Chat image" 
-                    className={`max-w-[300px] max-h-[300px] object-cover rounded-lg ${
+                    className={`max-w-[300px] max-h-[300px] object-cover rounded-lg transition-all duration-300 ${
                       !revealedImages.has(message.id) ? 'filter blur-lg' : ''
                     }`}
+                    onLoad={() => handleImageLoad(message.id)}
+                    style={{ display: loadingImages.has(message.id) ? 'none' : 'block' }}
                   />
                   {!revealedImages.has(message.id) && (
                     <Button

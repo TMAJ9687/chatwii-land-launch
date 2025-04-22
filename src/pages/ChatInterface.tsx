@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -122,7 +121,7 @@ const ChatInterface = () => {
         },
         async (payload) => {
           console.log('New message received:', payload);
-          const newMessage = payload.new as MessageWithMedia; // Cast to MessageWithMedia
+          const newMessage = payload.new as Message;
           
           // Fetch message media if available
           const { data: mediaData } = await supabase
@@ -130,14 +129,13 @@ const ChatInterface = () => {
             .select('*')
             .eq('message_id', newMessage.id);
 
-          // Ensure the complete message structure is maintained
-          const messageWithMedia: MessageWithMedia = {
-            ...newMessage,
-            media: mediaData?.[0] || null
-          };
-          
           // Add to messages if not already exists
           setMessages(current => {
+            const messageWithMedia: MessageWithMedia = {
+              ...newMessage,
+              media: mediaData?.[0] || null
+            };
+            
             if (!current.some(msg => msg.id === messageWithMedia.id)) {
               return [...current, messageWithMedia];
             }
