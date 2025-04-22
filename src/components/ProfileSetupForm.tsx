@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,14 +18,47 @@ const interests = [
   "Food", "Technology", "Art", "Books", "Fashion"
 ];
 
-export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
+// Profanity filter - basic list
+const profanityList = ["badword", "offensive", "inappropriate", "vulgar", "rude"];
+
+// Nickname validation rules
+const validateNickname = (nickname: string) => {
+  // Max 16 characters
+  if (nickname.length > 16) {
+    return { valid: false, message: "Nickname must be 16 characters or less" };
+  }
+
+  // Max 2 numbers
+  const numberCount = (nickname.match(/\d/g) || []).length;
+  if (numberCount > 2) {
+    return { valid: false, message: "Nickname can contain at most 2 numbers" };
+  }
+
+  // Max 3 consecutive same letters
+  if (/(.)\1{3,}/.test(nickname)) {
+    return { valid: false, message: "Nickname cannot contain more than 3 consecutive same letters" };
+  }
+
+  // Check against profanity list
+  for (const word of profanityList) {
+    if (nickname.toLowerCase().includes(word)) {
+      return { valid: false, message: "Nickname contains inappropriate language" };
+    }
+  }
+
+  return { valid: true, message: "" };
+};
+
+export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupFormProps) => {
   const navigate = useNavigate();
+  const [nickname, setNickname] = useState(initialNickname);
   const [gender, setGender] = useState<string>("");
   const [age, setAge] = useState<string>("");
   const [country, setCountry] = useState<string>("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [nickNameError, setNickNameError] = useState("");
 
   useEffect(() => {
     const detectCountry = async () => {
@@ -40,6 +74,18 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
 
     detectCountry();
   }, []);
+
+  const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const validationResult = validateNickname(newValue);
+    
+    if (validationResult.valid) {
+      setNickname(newValue);
+      setNickNameError("");
+    } else {
+      setNickNameError(validationResult.message);
+    }
+  };
 
   const handleInterestChange = (interest: string) => {
     setSelectedInterests(prev => {
@@ -75,12 +121,13 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
 
       const { error: profileError } = await supabase
         .from("profiles")
-        .insert({
+        .upsert({
           id: user.id,
           nickname,
           gender,
           age: age ? parseInt(age) : null,
           country,
+          role: 'standard'
         });
 
       if (profileError) throw profileError;
@@ -92,7 +139,13 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
           .select("id, name")
           .in("name", selectedInterests);
 
-        if (interestsData) {
+        if (interestsData && interestsData.length > 0) {
+          // Clear existing interests first
+          await supabase
+            .from("user_interests")
+            .delete()
+            .eq("user_id", user.id);
+            
           const userInterests = interestsData.map(interest => ({
             user_id: user.id,
             interest_id: interest.id
@@ -137,9 +190,12 @@ export const ProfileSetupForm = ({ nickname }: ProfileSetupFormProps) => {
         <input
           type="text"
           value={nickname}
-          disabled
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 rounded-md"
+          onChange={handleNicknameChange}
+          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
         />
+        {nickNameError && (
+          <p className="text-sm text-red-500">{nickNameError}</p>
+        )}
       </div>
 
       <div className="space-y-2">
