@@ -1,3 +1,10 @@
+
+/**
+ * List of all supported countries as a string array.
+ * Usage: import { COUNTRIES } from "@/constants/countries"
+ * 
+ * Also exports COUNTRY_SET for O(1) lookup by country name.
+ */
 export const COUNTRIES = [
   'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Argentina', 'Armenia', 'Australia',
   'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium',
@@ -22,3 +29,5 @@ export const COUNTRIES = [
   'United States', 'Uruguay', 'Uzbekistan', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen',
   'Zambia', 'Zimbabwe'
 ];
+
+export const COUNTRY_SET = new Set(COUNTRIES);
