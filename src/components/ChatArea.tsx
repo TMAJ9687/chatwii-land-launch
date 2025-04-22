@@ -26,6 +26,9 @@ export const ChatArea = ({ messages, currentUserId }: ChatAreaProps) => {
     scrollToBottom();
   }, [messages]);
 
+  // We don't need to make any special changes for emoji rendering
+  // since modern browsers handle emoji display natively
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-180px)]">
       {messages.map((message) => (
