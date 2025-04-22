@@ -1,0 +1,96 @@
+
+import { useEffect, useState } from 'react';
+import { supabase } from "@/integrations/supabase/client";
+import { Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { UserListItem } from "@/components/UserListItem";
+
+interface Profile {
+  id: string;
+  nickname: string;
+  country: string;
+  gender: string;
+  age: number;
+  vip_status: boolean;
+  interests: string[];
+}
+
+interface UserListProps {
+  onUserSelect: (userId: string) => void;
+  selectedUserId?: string;
+}
+
+export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          nickname,
+          country,
+          gender,
+          age,
+          vip_status,
+          user_interests (
+            interests (name)
+          )
+        `)
+        .order('nickname');
+
+      if (error) {
+        console.error('Error fetching profiles:', error);
+        return;
+      }
+
+      // Transform the data to include interests as strings
+      const usersWithInterests = profiles.map(profile => ({
+        ...profile,
+        interests: profile.user_interests?.map((ui: any) => ui.interests.name) || []
+      }));
+
+      setUsers(usersWithInterests);
+    };
+
+    fetchUsers();
+  }, []);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header with filter */}
+      <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          People ({users.length})
+        </span>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => setShowFilters(!showFilters)}
+          className="rounded-full"
+        >
+          <Filter className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* User list */}
+      <div className="overflow-y-auto flex-1">
+        {users.map((user) => (
+          <UserListItem
+            key={user.id}
+            name={user.nickname}
+            gender={user.gender}
+            age={user.age}
+            country={user.country}
+            isVip={user.vip_status}
+            interests={user.interests}
+            isSelected={selectedUserId === user.id}
+            onClick={() => onUserSelect(user.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
