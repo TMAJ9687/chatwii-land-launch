@@ -19,6 +19,11 @@ export default {
 		},
 		extend: {
 			colors: {
+				chatwii: {
+					orange: "#F8A977",
+					green: "#4AD295",
+					peach: "#FFB98A",
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
