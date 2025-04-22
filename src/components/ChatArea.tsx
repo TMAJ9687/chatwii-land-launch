@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { Flag, Ban } from 'lucide-react';
@@ -6,10 +7,10 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { supabase } from '@/integrations/supabase/client';
-import { Message, MessageMedia, MessageWithMedia } from '@/types/message';
+import { MessageWithMedia } from '@/types/message';
 
 interface ChatAreaProps {
-  messages: Message[];
+  messages: MessageWithMedia[];
   currentUserId: string;
   selectedUser: {
     id: string;

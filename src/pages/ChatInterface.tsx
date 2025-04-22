@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +17,7 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
-import { Message } from '@/types/message';
+import { MessageWithMedia } from '@/types/message';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -32,7 +33,7 @@ const ChatInterface = () => {
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageWithMedia[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
@@ -121,17 +122,16 @@ const ChatInterface = () => {
         },
         async (payload) => {
           console.log('New message received:', payload);
-          const newMessage = payload.new as Message;
+          const newMessage = payload.new;
           
           const { data: mediaData } = await supabase
             .from('message_media')
             .select('*')
-            .eq('message_id', newMessage.id)
-            .single();
+            .eq('message_id', newMessage.id);
 
           const messageWithMedia = {
             ...newMessage,
-            media: mediaData || null
+            media: mediaData?.[0] || null
           };
           
           setMessages(current => {
