@@ -23,7 +23,11 @@ export const useImageUpload = (currentUserId: string | null) => {
       .select('settings')
       .single();
 
-    const dailyLimit = siteSettings?.settings?.dailyPhotoUploadLimit || 10;
+    // Use optional chaining and provide a default value
+    // Cast settings as any to safely access properties
+    const dailyLimit = siteSettings?.settings 
+      ? (siteSettings.settings as any).dailyPhotoUploadLimit || 10 
+      : 10;
 
     const { data: profile } = await supabase
       .from('profiles')
