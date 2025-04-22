@@ -1,4 +1,3 @@
-
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,8 +20,19 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowLeft, Save } from 'lucide-react';
 import { useVipSettings } from '@/hooks/useVipSettings';
-import { AVATAR_OPTIONS, THEME_OPTIONS, COUNTRY_OPTIONS } from '@/constants/vipSettings';
+import { THEME_OPTIONS, COUNTRY_OPTIONS } from '@/constants/vipSettings';
 import { ProfileTheme } from '@/types/profile';
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+const getSiteAvatars = async (gender: string): Promise<string[]> => {
+  const { data } = await supabase.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+  if (data?.settings?.avatars) {
+    if (gender === "female") return data.settings.avatars.vip_female || [];
+    return data.settings.avatars.vip_male || [];
+  }
+  return [];
+};
 
 const VipSettingsPage = () => {
   const {
@@ -33,7 +43,16 @@ const VipSettingsPage = () => {
     handleSave,
     handleVisibilityChange
   } = useVipSettings();
-  
+  const [allowedAvatars, setAllowedAvatars] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!loading) {
+      // Default to male/female, fallback to male for unknown
+      const gender = profileData?.gender?.toLowerCase() === "female" ? "female" : "male";
+      getSiteAvatars(gender).then(setAllowedAvatars);
+    }
+  }, [loading, profileData?.gender]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -41,7 +60,7 @@ const VipSettingsPage = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
@@ -54,7 +73,6 @@ const VipSettingsPage = () => {
           </Link>
           <h1 className="text-2xl font-bold">VIP Profile Settings</h1>
         </div>
-        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Avatar Selection */}
           <Card>
@@ -75,11 +93,13 @@ const VipSettingsPage = () => {
                   </Avatar>
                 </div>
               </div>
-              
               <div className="grid grid-cols-3 gap-4">
-                {AVATAR_OPTIONS.map((url, index) => (
+                {allowedAvatars.length === 0 && (
+                  <div className="col-span-3 text-xs text-muted-foreground">No avatars found (contact admin)</div>
+                )}
+                {allowedAvatars.map((url, index) => (
                   <div 
-                    key={index}
+                    key={url}
                     className={`cursor-pointer rounded-md p-2 border-2 ${profileData.avatar_url === url ? 'border-primary' : 'border-transparent'}`}
                     onClick={() => setProfileData(prev => ({ ...prev, avatar_url: url }))}
                   >
@@ -92,7 +112,6 @@ const VipSettingsPage = () => {
               </div>
             </CardContent>
           </Card>
-          
           {/* Theme Selection */}
           <Card>
             <CardHeader>

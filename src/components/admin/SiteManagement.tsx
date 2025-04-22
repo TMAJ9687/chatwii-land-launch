@@ -4,6 +4,7 @@ import { GeneralSettings } from "./site-settings/GeneralSettings";
 import { ChatSettings } from "./site-settings/ChatSettings";
 import { ProfanitySettings } from "./site-settings/ProfanitySettings";
 import { VipPricesSettings } from "./site-settings/VipPricesSettings";
+import { AvatarSettings } from "./site-settings/AvatarSettings";
 
 export const SiteManagement = () => {
   return (
@@ -38,7 +39,7 @@ export const SiteManagement = () => {
         </TabsContent>
         
         <TabsContent value="avatars">
-          <div className="text-muted-foreground">Coming soon...</div>
+          <AvatarSettings />
         </TabsContent>
       </Tabs>
     </div>
