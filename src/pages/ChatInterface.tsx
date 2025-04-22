@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,7 @@ import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
 import { MessageWithMedia, Message } from '@/types/message';
+import { useBot } from '@/hooks/useBot';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -36,6 +37,7 @@ const ChatInterface = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
+  const { handleBotResponse } = useBot();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -197,9 +199,16 @@ const ChatInterface = () => {
 
     if (!selectedUserId || !currentUserId) return;
 
+    // Check if recipient is a bot
+    const { data: recipientProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', selectedUserId)
+      .single();
+
     // Create optimistic message
-    const optimisticMessage: MessageWithMedia = {
-      id: Date.now(), // Temporary ID
+    const optimisticMessage = {
+      id: Date.now(),
       content: content || (imageUrl ? '[Image]' : ''),
       sender_id: currentUserId,
       receiver_id: selectedUserId,
@@ -240,7 +249,12 @@ const ChatInterface = () => {
       return;
     }
 
-    // If there's an image URL, create the media record
+    // If recipient is a bot, trigger bot response
+    if (recipientProfile?.role === 'bot' && content) {
+      handleBotResponse(selectedUserId, currentUserId, content);
+    }
+
+    // Handle image upload if present
     if (imageUrl && messageData) {
       const { error: mediaError } = await supabase
         .from('message_media')

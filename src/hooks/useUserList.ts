@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/profile';
@@ -9,7 +8,6 @@ export const useUserList = (onUserSelect: (userId: string) => void, selectedUser
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get current user ID
     const getCurrentUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -39,34 +37,31 @@ export const useUserList = (onUserSelect: (userId: string) => void, selectedUser
             interests (name)
           )
         `)
-        .order('role', { ascending: false }); // This will put 'vip' before 'standard' alphabetically
+        .order('role', { ascending: false });
 
       if (error) {
         console.error('Error fetching online profiles:', error);
         return;
       }
 
-      // Transform the data to include interests as strings
       const usersWithInterests = profiles
         .filter(profile => {
-          // Show everyone except users with 'invisible' visibility
-          // Exception: current user can always see themselves
-          return profile.visibility !== 'invisible' || profile.id === currentUserId;
+          if (profile.visibility !== 'invisible' || profile.id === currentUserId) {
+            return true;
+          }
+          return false;
         })
         .map(profile => ({
           ...profile,
           interests: profile.user_interests?.map((ui: any) => ui.interests.name) || []
         }));
 
-      // Sort users based on VIP status, country, and nickname
       const sortedUsers = sortUsers(usersWithInterests);
       setUsers(sortedUsers);
     };
 
-    // Initial fetch of online users
     fetchOnlineUsers();
 
-    // Set up real-time subscription
     const channel = supabase
       .channel('online_users')
       .on(
@@ -95,7 +90,6 @@ export const useUserList = (onUserSelect: (userId: string) => void, selectedUser
                     profile_theme: payload.new.profile_theme,
                   };
                   
-                  // Prevent duplicates
                   if (!currentUsers.some(u => u.id === newUser.id)) {
                     const updatedUsers = [...currentUsers, newUser];
                     return sortUsers(updatedUsers);
@@ -106,12 +100,10 @@ export const useUserList = (onUserSelect: (userId: string) => void, selectedUser
               break;
             case 'UPDATE':
               setUsers(currentUsers => {
-                // Handle visibility changes
                 if (payload.new.visibility !== 'online' && payload.new.id !== currentUserId) {
                   return sortUsers(currentUsers.filter(u => u.id !== payload.new.id));
                 }
                 
-                // Update user details if already in list
                 const updatedUsers = currentUsers.map(user => {
                   if (user.id === payload.new.id) {
                     return {
@@ -143,25 +135,23 @@ export const useUserList = (onUserSelect: (userId: string) => void, selectedUser
       )
       .subscribe();
 
-    // Cleanup subscription on component unmount
     return () => {
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
 
-  // Helper function to sort users
   const sortUsers = (users: Profile[]) => {
     return [...users].sort((a, b) => {
-      // VIPs first
       if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
       if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
 
-      // If both are VIPs, sort by nickname
       if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
         return a.nickname.localeCompare(b.nickname);
       }
 
-      // For standard users, sort by country then nickname
+      if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
+      if (a.role !== 'bot' && b.role === 'bot' && !a.vip_status) return 1;
+
       if (a.country !== b.country) {
         return (a.country || '').localeCompare(b.country || '');
       }

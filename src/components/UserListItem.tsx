@@ -1,4 +1,4 @@
-import { Crown } from "lucide-react";
+import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +15,7 @@ interface UserListItemProps {
   profileTheme?: string;
   isBlocked?: boolean;
   onUnblock?: () => void;
+  role?: string;
 }
 
 export const UserListItem = ({ 
@@ -29,8 +30,9 @@ export const UserListItem = ({
   avatar,
   profileTheme = 'default',
   isBlocked = false,
-  onUnblock
-}: UserListItemProps) => {
+  onUnblock,
+  role = 'standard'
+}: UserListItemProps & { role?: string }) => {
   const firstLetter = name.charAt(0).toUpperCase();
   
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
@@ -82,6 +84,12 @@ export const UserListItem = ({
               <span className="flex items-center text-xs font-bold text-yellow-500">
                 <Crown className="h-3 w-3 mr-0.5" />
                 VIP
+              </span>
+            )}
+            {role === 'bot' && (
+              <span className="flex items-center text-xs font-bold text-blue-500">
+                <Bot className="h-3 w-3 mr-0.5" />
+                BOT
               </span>
             )}
           </div>
