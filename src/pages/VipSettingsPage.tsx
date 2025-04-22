@@ -1,8 +1,5 @@
 
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -23,137 +20,18 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowLeft, Save } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
-// Predefined avatar URLs
-const AVATAR_OPTIONS = [
-  '/avatars/avatar1.png',
-  '/avatars/avatar2.png',
-  '/avatars/avatar3.png',
-  '/avatars/avatar4.png',
-  '/avatars/avatar5.png',
-  '/avatars/avatar6.png',
-];
-
-// Predefined theme options
-const THEME_OPTIONS = [
-  { id: 'default', name: 'Default', className: 'bg-white dark:bg-gray-800 border-gray-200' },
-  { id: 'gold', name: 'Gold Border', className: 'bg-white dark:bg-gray-800 border-yellow-500' },
-  { id: 'blue', name: 'Blue Glow', className: 'bg-white dark:bg-gray-800 border-blue-400 shadow-blue-300 shadow-sm' },
-  { id: 'purple', name: 'Purple Accent', className: 'bg-white dark:bg-gray-800 border-purple-500' },
-  { id: 'green', name: 'Green Accent', className: 'bg-white dark:bg-gray-800 border-green-500' },
-];
-
-// Country options
-const COUNTRY_OPTIONS = [
-  'United States',
-  'United Kingdom',
-  'Canada',
-  'Australia',
-  'Germany',
-  'France',
-  'Spain',
-  'Italy',
-  'Japan',
-  'China',
-  'Brazil',
-  'India',
-  'Russia',
-  'Mexico',
-  'South Korea',
-];
+import { useVipSettings } from '@/hooks/useVipSettings';
+import { AVATAR_OPTIONS, THEME_OPTIONS, COUNTRY_OPTIONS } from '@/constants/vipSettings';
 
 const VipSettingsPage = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [profileData, setProfileData] = useState({
-    avatar_url: '',
-    profile_theme: 'default',
-    visibility: 'online',
-    country: '',
-  });
-  
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate('/vip/login');
-        return;
-      }
-      
-      // Fetch user profile
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching profile:', error);
-        toast.error('Failed to load profile data');
-        navigate('/chat');
-        return;
-      }
-      
-      // Check if user is a VIP
-      if (!profile.vip_status) {
-        toast.error('This page is for VIP users only');
-        navigate('/chat');
-        return;
-      }
-      
-      // Set profile data
-      setProfileData({
-        avatar_url: profile.avatar_url || '',
-        profile_theme: profile.profile_theme || 'default',
-        visibility: profile.visibility || 'online',
-        country: profile.country || '',
-      });
-      
-      setLoading(false);
-    };
-    
-    checkAuth();
-  }, [navigate]);
-  
-  const handleSave = async () => {
-    setSaving(true);
-    
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/vip/login');
-      return;
-    }
-    
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        avatar_url: profileData.avatar_url,
-        profile_theme: profileData.profile_theme,
-        visibility: profileData.visibility,
-        country: profileData.country,
-      })
-      .eq('id', session.user.id);
-    
-    if (error) {
-      console.error('Error updating profile:', error);
-      toast.error('Failed to save settings');
-      setSaving(false);
-      return;
-    }
-    
-    toast.success('Settings saved successfully');
-    setSaving(false);
-  };
-  
-  const handleVisibilityChange = (checked: boolean) => {
-    setProfileData(prev => ({
-      ...prev,
-      visibility: checked ? 'online' : 'invisible',
-    }));
-  };
+  const {
+    profileData,
+    setProfileData,
+    loading,
+    saving,
+    handleSave,
+    handleVisibilityChange
+  } = useVipSettings();
   
   if (loading) {
     return (

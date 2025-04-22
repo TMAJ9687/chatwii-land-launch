@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { History, Settings } from 'lucide-react';
+import { History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { UserList } from '@/components/UserList';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
+import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
 
 interface Message {
@@ -40,7 +40,6 @@ const ChatInterface = () => {
       }
       setCurrentUserId(session.user.id);
 
-      // Check if user is VIP
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('vip_status, role')
@@ -108,11 +107,9 @@ const ChatInterface = () => {
           console.log('New message received:', payload);
           const newMessage = payload.new as Message;
           
-          // Only add message if it belongs to current conversation
           if ((newMessage.sender_id === currentUserId && newMessage.receiver_id === selectedUserId) || 
               (newMessage.sender_id === selectedUserId && newMessage.receiver_id === currentUserId)) {
             setMessages(current => {
-              // Prevent duplicate messages
               if (!current.some(msg => msg.id === newMessage.id)) {
                 return [...current, newMessage];
               }
@@ -134,16 +131,14 @@ const ChatInterface = () => {
   const handleSendMessage = async (content: string) => {
     if (!selectedUserId || !currentUserId) return;
 
-    // Create optimistic message
     const optimisticMessage: Message = {
-      id: Date.now(), // Temporary ID for optimistic update
+      id: Date.now(),
       content,
       sender_id: currentUserId,
       receiver_id: selectedUserId,
       created_at: new Date().toISOString()
     };
 
-    // Add message optimistically
     setMessages(current => [...current, optimisticMessage]);
 
     const { error } = await supabase
@@ -155,7 +150,6 @@ const ChatInterface = () => {
       }]);
 
     if (error) {
-      // Remove optimistic message if send failed
       setMessages(current => current.filter(msg => msg.id !== optimisticMessage.id));
       toast.error("Failed to send message");
       console.error('Error sending message:', error);
@@ -185,17 +179,7 @@ const ChatInterface = () => {
           <Button variant="ghost" size="icon" className="rounded-full">
             <History className="h-5 w-5" />
           </Button>
-          {isVipUser && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="rounded-full"
-              onClick={() => navigate('/vip/settings')}
-              title="VIP Settings"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-          )}
+          <VipSettingsButton isVipUser={isVipUser} />
           <ThemeToggle />
           <VipButton />
           <LogoutButton />
