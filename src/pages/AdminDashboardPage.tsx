@@ -1,4 +1,3 @@
-
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -8,8 +7,11 @@ import {
 } from "@/components/ui/navigation-menu"
 import { Separator } from "@/components/ui/separator"
 import { UserManagement } from "@/components/admin/UserManagement"
+import { SiteManagement } from "@/components/admin/SiteManagement"
 
 export const AdminDashboardPage = () => {
+  const [currentView, setCurrentView] = useState("users");
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8">
@@ -18,22 +20,34 @@ export const AdminDashboardPage = () => {
         <NavigationMenu className="mb-8">
           <NavigationMenuList>
             <NavigationMenuItem>
-              <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+              <NavigationMenuLink 
+                className={navigationMenuTriggerStyle()} 
+                onClick={() => setCurrentView("users")}
+              >
                 User Management
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
-              <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+              <NavigationMenuLink 
+                className={navigationMenuTriggerStyle()} 
+                onClick={() => setCurrentView("site")}
+              >
                 Site Management
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
-              <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
-                Report & Feedback
+              <NavigationMenuLink 
+                className={navigationMenuTriggerStyle()} 
+                onClick={() => setCurrentView("reports")}
+              >
+                Reports & Feedback
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
-              <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+              <NavigationMenuLink 
+                className={navigationMenuTriggerStyle()} 
+                onClick={() => setCurrentView("settings")}
+              >
                 Admin Settings
               </NavigationMenuLink>
             </NavigationMenuItem>
@@ -42,8 +56,10 @@ export const AdminDashboardPage = () => {
         
         <Separator className="mb-8" />
         
-        {/* Default to User Management view */}
-        <UserManagement />
+        {currentView === "users" && <UserManagement />}
+        {currentView === "site" && <SiteManagement />}
+        {currentView === "reports" && <div>Reports & Feedback (Coming soon...)</div>}
+        {currentView === "settings" && <div>Admin Settings (Coming soon...)</div>}
       </div>
     </div>
   );
