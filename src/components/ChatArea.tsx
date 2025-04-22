@@ -25,6 +25,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   const [loadingImages, setLoadingImages] = useState<Set<number>>(new Set());
 
   useEffect(() => {
+    console.log('Loading saved revealed images from localStorage');
     const savedRevealedImages = localStorage.getItem('revealedImages');
     if (savedRevealedImages) {
       setRevealedImages(new Set(JSON.parse(savedRevealedImages)));
@@ -42,7 +43,12 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   }, [initialMessages]);
 
   const toggleImageReveal = (messageId: number) => {
-    console.log('Toggling image reveal for message:', messageId);
+    console.log('Toggling image reveal:', {
+      messageId,
+      wasRevealed: revealedImages.has(messageId),
+      timestamp: new Date().toISOString()
+    });
+    
     setRevealedImages(prev => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
@@ -56,6 +62,10 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
   };
 
   const handleImageLoad = (messageId: number) => {
+    console.log('Image loaded:', {
+      messageId,
+      timestamp: new Date().toISOString()
+    });
     setLoadingImages(prev => {
       const newSet = new Set(prev);
       newSet.delete(messageId);

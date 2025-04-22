@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,7 +81,12 @@ const ChatInterface = () => {
     window.selectedUserId = selectedUserId;
 
     const fetchMessages = async () => {
-      console.log('Fetching initial messages...');
+      console.log('Fetching initial messages...', {
+        currentUserId,
+        selectedUserId,
+        timestamp: new Date().toISOString()
+      });
+      
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -98,7 +102,12 @@ const ChatInterface = () => {
         return;
       }
 
-      console.log('Initial messages loaded:', data);
+      console.log('Initial messages loaded:', {
+        messageCount: data?.length,
+        messagesWithMedia: data?.filter(m => m.message_media?.length > 0).length,
+        timestamp: new Date().toISOString()
+      });
+      
       const messagesWithMedia = data.map(message => ({
         ...message,
         media: message.message_media?.[0] || null
@@ -110,7 +119,12 @@ const ChatInterface = () => {
     fetchMessages();
 
     const channelName = `chat_${[currentUserId, selectedUserId].sort().join('_')}`;
-    console.log('Setting up subscription for channel:', channelName);
+    console.log('Setting up subscription for channel:', {
+      channelName,
+      currentUserId,
+      selectedUserId,
+      timestamp: new Date().toISOString()
+    });
 
     const channel = supabase
       .channel(channelName)
@@ -123,7 +137,12 @@ const ChatInterface = () => {
           filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
         },
         async (payload) => {
-          console.log('New message received:', payload);
+          console.log('New message received:', {
+            payload,
+            timestamp: new Date().toISOString(),
+            currentMessages: messages.length
+          });
+          
           const newMessage = payload.new as Message;
           
           // Add optimistic update for sent messages
@@ -134,6 +153,10 @@ const ChatInterface = () => {
 
           setMessages(current => {
             if (!current.some(msg => msg.id === optimisticMessage.id)) {
+              console.log('Adding new message to state:', {
+                messageId: optimisticMessage.id,
+                timestamp: new Date().toISOString()
+              });
               return [...current, optimisticMessage];
             }
             return current;
@@ -145,7 +168,11 @@ const ChatInterface = () => {
             .select('*')
             .eq('message_id', newMessage.id);
 
-          console.log('Media data for new message:', mediaData);
+          console.log('Media fetch result:', {
+            messageId: newMessage.id,
+            hasMedia: !!mediaData?.length,
+            timestamp: new Date().toISOString()
+          });
 
           // Update message with media data
           setMessages(current => 
@@ -158,17 +185,30 @@ const ChatInterface = () => {
         }
       )
       .subscribe((status) => {
-        console.log(`Subscription status for ${channelName}:`, status);
+        console.log('Subscription status update:', {
+          channelName,
+          status,
+          timestamp: new Date().toISOString()
+        });
       });
 
     return () => {
-      console.log('Cleaning up subscription for channel:', channelName);
+      console.log('Cleaning up subscription:', {
+        channelName,
+        timestamp: new Date().toISOString()
+      });
       window.selectedUserId = undefined;
       supabase.removeChannel(channel);
     };
-  }, [selectedUserId, currentUserId]);
+  }, [selectedUserId, currentUserId, messages.length]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
+    console.log('Attempting to send message:', {
+      hasContent: !!content,
+      hasImage: !!imageUrl,
+      timestamp: new Date().toISOString()
+    });
+
     if (!selectedUserId || !currentUserId) return;
 
     if (!imageUrl) {
