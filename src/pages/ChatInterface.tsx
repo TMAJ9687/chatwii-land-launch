@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,7 +30,6 @@ const ChatInterface = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is authenticated
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -40,7 +38,6 @@ const ChatInterface = () => {
       }
       setCurrentUserId(session.user.id);
 
-      // Set user's visibility to online when entering chat
       const { error } = await supabase
         .from('profiles')
         .update({ visibility: 'online' })
@@ -50,7 +47,6 @@ const ChatInterface = () => {
         console.error('Error updating user visibility:', error);
       }
 
-      // Check if rules were accepted before
       const rulesAccepted = localStorage.getItem('rulesAccepted');
       if (rulesAccepted === 'true') {
         setShowRules(false);
@@ -82,24 +78,32 @@ const ChatInterface = () => {
 
     fetchMessages();
 
-    // Subscribe to new messages
+    const channelName = `chat_${[currentUserId, selectedUserId].sort().join('_')}`;
+
     const channel = supabase
-      .channel('chat_messages')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `or(and(sender_id=eq.${currentUserId},receiver_id=eq.${selectedUserId}),and(sender_id=eq.${selectedUserId},receiver_id=eq.${currentUserId}))`
+          filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
         },
         (payload) => {
+          console.log('New message received:', payload);
           setMessages(current => [...current, payload.new as Message]);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Subscription status for ${channelName}:`, status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to real-time updates');
+        }
+      });
 
     return () => {
+      console.log('Cleaning up subscription for channel:', channelName);
       supabase.removeChannel(channel);
     };
   }, [selectedUserId, currentUserId]);
@@ -107,15 +111,15 @@ const ChatInterface = () => {
   const handleSendMessage = async (content: string) => {
     if (!selectedUserId || !currentUserId) return;
 
+    const newMessage = {
+      content,
+      sender_id: currentUserId,
+      receiver_id: selectedUserId
+    };
+
     const { error } = await supabase
       .from('messages')
-      .insert([
-        {
-          content,
-          sender_id: currentUserId,
-          receiver_id: selectedUserId
-        }
-      ]);
+      .insert([newMessage]);
 
     if (error) {
       toast.error("Failed to send message");
@@ -127,7 +131,6 @@ const ChatInterface = () => {
     setSelectedUserId(userId);
     setMessages([]);
     
-    // Fetch the selected user's nickname
     const { data, error } = await supabase
       .from('profiles')
       .select('nickname')
@@ -141,7 +144,6 @@ const ChatInterface = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border py-3 px-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">Chatwii Chat</h1>
         <div className="flex items-center space-x-3">
@@ -155,7 +157,6 @@ const ChatInterface = () => {
       </header>
       
       <div className="flex h-[calc(100vh-60px)]">
-        {/* Left sidebar - User list */}
         <aside className="w-full max-w-xs border-r border-border">
           <UserList
             onUserSelect={handleUserSelect}
@@ -163,22 +164,18 @@ const ChatInterface = () => {
           />
         </aside>
 
-        {/* Main chat area */}
         <main className="flex-1 flex flex-col">
           {selectedUserId ? (
             <div className="flex-1 flex flex-col">
-              {/* Selected user header */}
               <div className="border-b border-border p-3">
                 <h2 className="font-medium">{selectedUserNickname}</h2>
               </div>
               
-              {/* Chat messages area */}
               <ChatArea 
                 messages={messages}
                 currentUserId={currentUserId || ''}
               />
 
-              {/* Message input */}
               <MessageInput onSendMessage={handleSendMessage} />
             </div>
           ) : (
@@ -193,7 +190,6 @@ const ChatInterface = () => {
         </main>
       </div>
 
-      {/* Rules popup */}
       {!acceptedRules && (
         <RulesPopup
           open={showRules}
