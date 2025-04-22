@@ -232,6 +232,10 @@ const ChatInterface = () => {
               <ChatArea 
                 messages={messages}
                 currentUserId={currentUserId || ''}
+                selectedUser={{
+                  id: selectedUserId,
+                  nickname: selectedUserNickname
+                }}
               />
 
               <MessageInput onSendMessage={handleSendMessage} />
