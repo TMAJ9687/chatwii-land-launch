@@ -22,6 +22,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowLeft, Save } from 'lucide-react';
 import { useVipSettings } from '@/hooks/useVipSettings';
 import { AVATAR_OPTIONS, THEME_OPTIONS, COUNTRY_OPTIONS } from '@/constants/vipSettings';
+import { ProfileTheme } from '@/types/profile';
 
 const VipSettingsPage = () => {
   const {
@@ -106,7 +107,10 @@ const VipSettingsPage = () => {
                     className={`p-4 rounded-md border-2 cursor-pointer ${theme.className} ${
                       profileData.profile_theme === theme.id ? 'ring-2 ring-primary' : ''
                     }`}
-                    onClick={() => setProfileData(prev => ({ ...prev, profile_theme: theme.id }))}
+                    onClick={() => setProfileData(prev => ({ 
+                      ...prev, 
+                      profile_theme: theme.id as ProfileTheme 
+                    }))}
                   >
                     <p className="font-medium">{theme.name}</p>
                   </div>
