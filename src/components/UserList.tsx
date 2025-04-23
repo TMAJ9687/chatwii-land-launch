@@ -22,6 +22,13 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     return users.find(user => user.is_current_user)?.user_id;
   }, [users]);
 
+  const hasActiveFilters = useMemo(() => {
+    return filters.selectedGenders.length > 0 ||
+      filters.selectedCountries.length > 0 ||
+      filters.ageRange.min !== DEFAULT_FILTERS.ageRange.min ||
+      filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
+  }, [filters]);
+
   const filteredUsers = useMemo(() => {
     // First filter out the current user
     const withoutCurrentUser = users.filter(user => !user.is_current_user);
