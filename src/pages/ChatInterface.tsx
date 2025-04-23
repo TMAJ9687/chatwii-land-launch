@@ -42,10 +42,10 @@ const ChatInterface = () => {
     selectedUserId,
     selectedUserNickname,
     showRules,
+    setShowRules,
     acceptedRules,
     activeSidebar,
     setActiveSidebar,
-    setShowRules,
     handleCloseChat,
     handleUserSelect,
     handleAcceptRules,
@@ -54,12 +54,14 @@ const ChatInterface = () => {
 
   const { 
     messages, 
-    setMessages, 
-    fetchMessages 
+    setMessages,
+    fetchMessages,
+    isLoading 
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   const globalChannelRef = useRef<any>(null);
 
+  // Check auth session and load user profile
   useEffect(() => {
     const checkAuthAndLoadProfile = async () => {
       const {
@@ -100,6 +102,7 @@ const ChatInterface = () => {
     checkAuthAndLoadProfile();
   }, [navigate, checkRulesAccepted]);
 
+  // Set up global message subscription
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -114,8 +117,6 @@ const ChatInterface = () => {
           filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
         },
         async (payload) => {
-          console.log('New message detected in global subscription:', payload);
-          
           if (selectedUserId && 
              ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
               (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
@@ -131,10 +132,6 @@ const ChatInterface = () => {
               );
               
               if (!exists) {
-                console.log('Adding new message to state from global subscription:', {
-                  messageId: newMessage.id,
-                  timestamp: new Date().toISOString()
-                });
                 return [...current, { ...newMessage, media: null }];
               }
               return current;
@@ -169,12 +166,12 @@ const ChatInterface = () => {
     };
   }, [currentUserId, selectedUserId, setMessages]);
 
-  // Load messages when a user is selected
+  // Load messages when a user is selected - with dependency on isLoading to prevent loops
   useEffect(() => {
-    if (selectedUserId && currentUserId) {
+    if (selectedUserId && currentUserId && !isLoading) {
       fetchMessages();
     }
-  }, [selectedUserId, currentUserId, fetchMessages]);
+  }, [selectedUserId, currentUserId, fetchMessages, isLoading]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     if (!selectedUserId || !currentUserId) return;
@@ -209,6 +206,7 @@ const ChatInterface = () => {
 
     setMessages(current => [...current, optimisticMessage]);
 
+    // Insert message to database
     const { data: messageData, error: messageError } = await supabase
       .from('messages')
       .insert({
@@ -229,10 +227,12 @@ const ChatInterface = () => {
       return;
     }
 
+    // Handle bot response if applicable
     if (recipientProfile?.role === 'bot' && content) {
       handleBotResponse(selectedUserId, currentUserId, content);
     }
 
+    // Insert media record if needed
     if (imageUrl && messageData) {
       const { error: mediaError } = await supabase
         .from('message_media')

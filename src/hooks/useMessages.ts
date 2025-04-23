@@ -21,51 +21,65 @@ export const useMessages = (
   markMessagesAsRead: (userId: string) => Promise<void>
 ) => {
   const [messages, setMessages] = useState<MessageWithMedia[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchCount, setFetchCount] = useState(0); // Add a counter to track fetch calls
 
   const fetchMessages = useCallback(async () => {
-    if (!selectedUserId || !currentUserId) return;
+    // Return early if already loading or if userIds are missing
+    if (!selectedUserId || !currentUserId || isLoading) return;
     
+    setIsLoading(true);
     const cutoffTime = getCutoffTimestamp(currentUserRole);
-
-    console.log('Fetching initial messages...', {
+    
+    // Log with counter to track how many times this gets called
+    console.log(`[useMessages] Fetching messages (call #${fetchCount + 1})`, {
       currentUserId,
       selectedUserId,
       cutoffTime,
-      role: currentUserRole,
       timestamp: new Date().toISOString()
     });
     
-    const { data, error } = await supabase
-      .from('messages')
-      .select(`
-        *,
-        message_media (*)
-      `)
-      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
-      .gte('created_at', cutoffTime)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching messages:', error);
-      toast.error("Failed to load messages");
-      return;
-    }
-
-    const messagesWithMedia = data.map(message => ({
-      ...message,
-      media: message.message_media?.[0] || null,
-    }));
+    setFetchCount(prev => prev + 1);
     
-    setMessages(messagesWithMedia);
-    
-    if (selectedUserId) {
-      await markMessagesAsRead(selectedUserId);
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          message_media (*)
+        `)
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
+        .gte('created_at', cutoffTime)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching messages:', error);
+        toast.error("Failed to load messages");
+        return;
+      }
+
+      const messagesWithMedia = data.map(message => ({
+        ...message,
+        media: message.message_media?.[0] || null,
+      }));
+      
+      setMessages(messagesWithMedia);
+      
+      // Mark messages as read after fetching
+      if (selectedUserId) {
+        await markMessagesAsRead(selectedUserId);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching messages:', err);
+    } finally {
+      setIsLoading(false);
     }
-  }, [selectedUserId, currentUserId, currentUserRole, markMessagesAsRead]);
+  }, [selectedUserId, currentUserId, currentUserRole, markMessagesAsRead, isLoading, fetchCount]);
 
   return {
     messages,
     setMessages,
-    fetchMessages
+    fetchMessages,
+    isLoading
   };
 };
