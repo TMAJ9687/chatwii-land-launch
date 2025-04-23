@@ -35,7 +35,7 @@ const ChatInterface = () => {
   
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
-  const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
+  const { unreadCount, fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
   
   const { 
@@ -60,6 +60,11 @@ const ChatInterface = () => {
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   const globalChannelRef = useRef<any>(null);
+
+  // Update selected user ID in useGlobalMessages when it changes
+  useEffect(() => {
+    updateSelectedUserId(selectedUserId);
+  }, [selectedUserId, updateSelectedUserId]);
 
   // Check auth session and load user profile
   useEffect(() => {

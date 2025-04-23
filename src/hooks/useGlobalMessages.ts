@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 export const useGlobalMessages = (currentUserId: string | null) => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [newMessageReceived, setNewMessageReceived] = useState<boolean>(false);
+  const [currentSelectedUserId, setCurrentSelectedUserId] = useState<string | null>(null);
 
   // Function to fetch unread message count
   const fetchUnreadCount = async () => {
@@ -61,7 +62,6 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           filter: `receiver_id=eq.${currentUserId}`,
         },
         async (payload) => {
-          // console.log('New message received globally:', payload); // Remove spam
           // Extract the sender's information
           const { data: senderProfile } = await supabase
             .from('profiles')
@@ -72,7 +72,7 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           const senderName = senderProfile?.nickname || 'Someone';
 
           // Show toast notification for new message only if not chatting with this sender
-          if (!window.selectedUserId || window.selectedUserId !== payload.new.sender_id) {
+          if (!currentSelectedUserId || currentSelectedUserId !== payload.new.sender_id) {
             toast(`New message from ${senderName}`);
             setNewMessageReceived(true);
             // Update the unread count
@@ -88,13 +88,19 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUserId]);
+  }, [currentUserId, currentSelectedUserId]);
+
+  // Update the current selected user ID
+  const updateSelectedUserId = (userId: string | null) => {
+    setCurrentSelectedUserId(userId);
+  };
 
   return { 
     unreadCount, 
     fetchUnreadCount, 
     markMessagesAsRead, 
     newMessageReceived,
-    setNewMessageReceived
+    setNewMessageReceived,
+    updateSelectedUserId
   };
 };
