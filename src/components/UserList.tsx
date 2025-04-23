@@ -76,7 +76,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
       {/* Header with filter */}
       <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          People ({sortedUsers.length})
+          Online users ({sortedUsers.length})
         </span>
         <div className="relative">
           <Button

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,7 +39,7 @@ const getCutoffTimestamp = (role: string) => {
 
 const ChatInterface = () => {
   const navigate = useNavigate();
-  const [showRules, setShowRules] = useState(true);
+  const [showRules, setShowRules] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
@@ -52,7 +51,6 @@ const ChatInterface = () => {
   const [profile, setProfile] = useState<any>(null);
   const { handleBotResponse } = useBot();
 
-  // New: online user state and reference to channel
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const presenceChannelRef = useRef<any>(null);
 
@@ -70,7 +68,6 @@ const ChatInterface = () => {
       }
       setCurrentUserId(session.user.id);
 
-      // Fetch full profile (for nickname, role, avatar, etc)
       const { data: dbProfile, error } = await supabase
         .from('profiles')
         .select('id, nickname, vip_status, role, avatar_url, country, gender, age, profile_theme')
@@ -97,9 +94,11 @@ const ChatInterface = () => {
       if (rulesAccepted === 'true') {
         setShowRules(false);
         setAcceptedRules(true);
+      } else {
+        setShowRules(true);
+        setAcceptedRules(false);
       }
 
-      // SUBSCRIBE TO PRESENCE CHANNEL
       presenceChannel = supabase.channel('online_users', {
         config: {
           presence: {
@@ -108,10 +107,8 @@ const ChatInterface = () => {
         }
       });
 
-      // SYNC EVENT: set the onlineUsers state to the current presence state
       presenceChannel.on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState();
-        // Flatten all user arrays (by user id) into one array of users
         let users: any[] = [];
         Object.values(state).forEach((arr: any) => {
           if (Array.isArray(arr)) {
@@ -121,27 +118,22 @@ const ChatInterface = () => {
         setOnlineUsers(users);
       });
 
-      // JOIN EVENT: merge newPresences into state
       presenceChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
         setOnlineUsers(prev => {
-          // Avoid duplicates using id
           const existingIds = new Set(prev.map(u => u.user_id));
           const newOnes = newPresences.filter((p: any) => !existingIds.has(p.user_id));
           return [...prev, ...newOnes];
         });
       });
 
-      // LEAVE EVENT: remove any leftPresences from state
       presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
         setOnlineUsers(prev =>
           prev.filter(user => !leftPresences.some((left: any) => left.user_id === user.user_id))
         );
       });
 
-      // Subscribe THEN track presence (to avoid ghosting)
       presenceChannel.subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          // Track current user presence and profile info (expand as needed)
           await presenceChannel.track({
             user_id: myProfile.id,
             nickname: myProfile.nickname,
@@ -152,22 +144,18 @@ const ChatInterface = () => {
             age: myProfile.age,
             vip_status: !!myProfile.vip_status,
             profile_theme: myProfile.profile_theme
-            // add other profile fields if needed
           });
         }
       });
 
-      // Save reference for cleanup
       presenceChannelRef.current = presenceChannel;
     };
 
     checkAuthAndJoinPresence();
 
     return () => {
-      // Untrack our user and clean up channel/listeners
       (async () => {
         try {
-          // Remove from presence channel
           if (presenceChannelRef.current) {
             await presenceChannelRef.current.untrack();
             supabase.removeChannel(presenceChannelRef.current);
@@ -187,11 +175,6 @@ const ChatInterface = () => {
 
     const fetchMessages = async () => {
       const cutoffTime = getCutoffTimestamp(currentUserRole);
-
-      /* 
-        NOTE: This cutoff only limits message visibility in the frontend.
-        Actual deletion or backend retention of older messages would require a separate backend process.
-      */
 
       console.log('Fetching initial messages...', {
         currentUserId,
@@ -265,7 +248,6 @@ const ChatInterface = () => {
             }
             return current;
           });
-          // Fetch message media if available
           const { data: mediaData } = await supabase
             .from('message_media')
             .select('*')
@@ -291,7 +273,7 @@ const ChatInterface = () => {
       supabase.removeChannel(channel);
       window.selectedUserId = undefined;
     };
-  }, [selectedUserId, currentUserId, currentUserRole]); // add currentUserRole dep
+  }, [selectedUserId, currentUserId, currentUserRole]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     console.log('Attempting to send message:', {
@@ -302,14 +284,12 @@ const ChatInterface = () => {
 
     if (!selectedUserId || !currentUserId) return;
 
-    // Check if recipient is a bot
     const { data: recipientProfile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', selectedUserId)
       .single();
 
-    // Create optimistic message
     const optimisticMessage = {
       id: Date.now(),
       content: content || (imageUrl ? '[Image]' : ''),
@@ -327,10 +307,8 @@ const ChatInterface = () => {
       } : null
     };
 
-    // Optimistically add message to state
     setMessages(current => [...current, optimisticMessage]);
 
-    // Send the actual message
     const { data: messageData, error: messageError } = await supabase
       .from('messages')
       .insert({
@@ -343,7 +321,6 @@ const ChatInterface = () => {
       .single();
 
     if (messageError) {
-      // Remove optimistic message on error
       setMessages(current =>
         current.filter(msg => msg.id !== optimisticMessage.id)
       );
@@ -352,12 +329,10 @@ const ChatInterface = () => {
       return;
     }
 
-    // If recipient is a bot, trigger bot response
     if (recipientProfile?.role === 'bot' && content) {
       handleBotResponse(selectedUserId, currentUserId, content);
     }
 
-    // Handle image upload if present
     if (imageUrl && messageData) {
       const { error: mediaError } = await supabase
         .from('message_media')
@@ -421,7 +396,6 @@ const ChatInterface = () => {
           </Button>
           <VipSettingsButton isVipUser={isVipUser} />
           <ThemeToggle />
-          <VipButton />
           <LogoutButton />
         </div>
       </header>
@@ -497,10 +471,11 @@ const ChatInterface = () => {
       {!acceptedRules && (
         <RulesPopup
           open={showRules}
-          onOpenChange={setShowRules}
+          onOpenChange={open => setShowRules(open)}
           onAccept={() => {
             setAcceptedRules(true);
             localStorage.setItem('rulesAccepted', 'true');
+            setShowRules(false);
           }}
         />
       )}

@@ -97,13 +97,8 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     const validationResult = validateNickname(newValue);
-    
-    if (validationResult.valid) {
-      setNickname(newValue);
-      setNickNameError("");
-    } else {
-      setNickNameError(validationResult.message);
-    }
+    setNickname(newValue);
+    setNickNameError(validationResult.valid ? "" : validationResult.message);
   };
 
   const handleInterestChange = (interest: string) => {
