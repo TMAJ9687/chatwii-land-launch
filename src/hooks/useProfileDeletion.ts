@@ -1,16 +1,17 @@
 
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 export const useProfileDeletion = () => {
   const deleteUserProfile = async (userId: string) => {
     try {
-      // We'll just mark the profile as deleted instead of actually deleting it
-      // This prevents errors with references to the profile
+      // Update the profile to mark it as deleted instead of changing the nickname
+      // This allows the nickname to be reused in the future
       const { error } = await supabase
         .from('profiles')
         .update({ 
           visibility: 'offline',
-          nickname: `deleted_${Date.now()}_${userId.substring(0, 8)}` // Make nickname unique
+          deleted_at: new Date().toISOString() // Mark when the profile was deleted
         })
         .eq('id', userId);
 

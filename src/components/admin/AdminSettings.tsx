@@ -19,7 +19,6 @@ export const AdminSettings = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
-  const { handleFileSelect, selectedFile, previewUrl, uploadImage, clearFileSelection, isUploading } = useImageUpload(userId);
   
   // Track component mounted state
   useEffect(() => {
@@ -29,6 +28,16 @@ export const AdminSettings = () => {
       abortControllerRef.current?.abort();
     };
   }, []);
+  
+  // Initialize the image upload hook only after userId is set
+  const { 
+    handleFileSelect, 
+    selectedFile, 
+    previewUrl, 
+    uploadImage, 
+    clearFileSelection, 
+    isUploading 
+  } = useImageUpload(userId || '');
   
   // Fetch admin profile data
   useEffect(() => {
@@ -43,7 +52,9 @@ export const AdminSettings = () => {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
-          setIsLoading(false);
+          if (isMountedRef.current) {
+            setIsLoading(false);
+          }
           return;
         }
         

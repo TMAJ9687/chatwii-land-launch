@@ -38,6 +38,7 @@ const FeedbackPage = () => {
     
     setSubmitting(true);
     try {
+      // Insert feedback with optional user_id
       await supabase.from("feedback").insert({
         user_id: userId, // May be null for anonymous feedback
         rating,
