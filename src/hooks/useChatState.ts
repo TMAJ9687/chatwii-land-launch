@@ -39,6 +39,7 @@ export const useChatState = () => {
     selectedUserId,
     selectedUserNickname,
     showRules,
+    setShowRules,
     acceptedRules,
     activeSidebar,
     setActiveSidebar,

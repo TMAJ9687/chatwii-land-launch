@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +45,7 @@ const ChatInterface = () => {
     acceptedRules,
     activeSidebar,
     setActiveSidebar,
+    setShowRules,
     handleCloseChat,
     handleUserSelect,
     handleAcceptRules,
@@ -349,7 +351,7 @@ const ChatInterface = () => {
       {!acceptedRules && (
         <RulesPopup
           open={showRules}
-          onOpenChange={open => setShowRules(open)}
+          onOpenChange={setShowRules}
           onAccept={handleAcceptRules}
         />
       )}
