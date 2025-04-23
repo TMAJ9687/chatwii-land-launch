@@ -45,6 +45,17 @@ const VipProfileSetupPage = () => {
     setIsSubmitting(true);
     
     try {
+      // Check nickname availability first
+      const { data: isAvailable } = await supabase.rpc('is_nickname_available', { 
+        check_nickname: nickname 
+      });
+
+      if (!isAvailable) {
+        toast.error("This nickname is already taken. Please choose another one.");
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error: insertError } = await supabase
         .from('profiles')
         .insert([{
