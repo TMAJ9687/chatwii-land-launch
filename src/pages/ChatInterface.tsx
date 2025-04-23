@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +28,16 @@ declare global {
   }
 }
 
+const getCutoffTimestamp = (role: string) => {
+  const now = new Date();
+  let hoursAgo = 1;
+  if (role === 'vip' || role === 'admin') {
+    hoursAgo = 10;
+  }
+  now.setHours(now.getHours() - hoursAgo);
+  return now.toISOString();
+};
+
 const ChatInterface = () => {
   const navigate = useNavigate();
   const [showRules, setShowRules] = useState(true);
@@ -35,6 +46,7 @@ const ChatInterface = () => {
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
   const [messages, setMessages] = useState<MessageWithMedia[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
   const { handleBotResponse } = useBot();
@@ -56,6 +68,9 @@ const ChatInterface = () => {
       
       if (!error && profile) {
         setIsVipUser(profile.vip_status || profile.role === 'vip');
+        setCurrentUserRole(profile.role || 'standard');
+      } else {
+        setCurrentUserRole('standard');
       }
 
       const { error: updateError } = await supabase
@@ -83,9 +98,19 @@ const ChatInterface = () => {
     window.selectedUserId = selectedUserId;
 
     const fetchMessages = async () => {
+      // Calculate cutoff time according to user role
+      const cutoffTime = getCutoffTimestamp(currentUserRole);
+
+      /* 
+        NOTE: This cutoff only limits message visibility in the frontend.
+        Actual deletion or backend retention of older messages would require a separate backend process.
+      */
+
       console.log('Fetching initial messages...', {
         currentUserId,
         selectedUserId,
+        cutoffTime,
+        role: currentUserRole,
         timestamp: new Date().toISOString()
       });
       
@@ -96,6 +121,7 @@ const ChatInterface = () => {
           message_media (*)
         `)
         .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
+        .gte('created_at', cutoffTime)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -188,7 +214,7 @@ const ChatInterface = () => {
       window.selectedUserId = undefined;
       supabase.removeChannel(channel);
     };
-  }, [selectedUserId, currentUserId]);
+  }, [selectedUserId, currentUserId, currentUserRole]); // add currentUserRole dep
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     console.log('Attempting to send message:', {
@@ -405,3 +431,4 @@ const ChatInterface = () => {
 };
 
 export default ChatInterface;
+
