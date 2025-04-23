@@ -101,6 +101,7 @@ const App = () => (
                   <AdminDashboardPage />
                 </ProtectedAdminRoute>
               } />
+              <Route path="/feedback" element={<FeedbackPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
