@@ -49,37 +49,48 @@ const ChatInterface = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
+  const [profile, setProfile] = useState<any>(null);
   const { handleBotResponse } = useBot();
 
+  // New: online user state and reference to channel
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const presenceChannelRef = useRef<any>(null);
+
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    let presenceChannel: any = null;
+    let myProfile: any = null;
+
+    const checkAuthAndJoinPresence = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
       if (!session) {
         navigate('/');
         return;
       }
       setCurrentUserId(session.user.id);
 
-      const { data: profile, error } = await supabase
+      // Fetch full profile (for nickname, role, avatar, etc)
+      const { data: dbProfile, error } = await supabase
         .from('profiles')
-        .select('vip_status, role')
+        .select('id, nickname, vip_status, role, avatar_url, country, gender, age, profile_theme')
         .eq('id', session.user.id)
         .single();
-      
-      if (!error && profile) {
-        setIsVipUser(profile.vip_status || profile.role === 'vip');
-        setCurrentUserRole(profile.role || 'standard');
+      if (!error && dbProfile) {
+        setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
+        setCurrentUserRole(dbProfile.role || 'standard');
+        setProfile(dbProfile);
+        myProfile = dbProfile;
       } else {
         setCurrentUserRole('standard');
-      }
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ visibility: 'online' })
-        .eq('id', session.user.id);
-
-      if (updateError) {
-        console.error('Error updating user visibility:', updateError);
+        myProfile = {
+          id: session.user.id,
+          nickname: "Unknown",
+          role: "standard",
+          avatar_url: null,
+          vip_status: false,
+        };
+        setProfile(myProfile);
       }
 
       const rulesAccepted = localStorage.getItem('rulesAccepted');
@@ -87,18 +98,94 @@ const ChatInterface = () => {
         setShowRules(false);
         setAcceptedRules(true);
       }
+
+      // SUBSCRIBE TO PRESENCE CHANNEL
+      presenceChannel = supabase.channel('online_users', {
+        config: {
+          presence: {
+            key: myProfile.id
+          }
+        }
+      });
+
+      // SYNC EVENT: set the onlineUsers state to the current presence state
+      presenceChannel.on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        // Flatten all user arrays (by user id) into one array of users
+        let users: any[] = [];
+        Object.values(state).forEach((arr: any) => {
+          if (Array.isArray(arr)) {
+            users = users.concat(arr);
+          }
+        });
+        setOnlineUsers(users);
+      });
+
+      // JOIN EVENT: merge newPresences into state
+      presenceChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
+        setOnlineUsers(prev => {
+          // Avoid duplicates using id
+          const existingIds = new Set(prev.map(u => u.user_id));
+          const newOnes = newPresences.filter((p: any) => !existingIds.has(p.user_id));
+          return [...prev, ...newOnes];
+        });
+      });
+
+      // LEAVE EVENT: remove any leftPresences from state
+      presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        setOnlineUsers(prev =>
+          prev.filter(user => !leftPresences.some((left: any) => left.user_id === user.user_id))
+        );
+      });
+
+      // Subscribe THEN track presence (to avoid ghosting)
+      presenceChannel.subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          // Track current user presence and profile info (expand as needed)
+          await presenceChannel.track({
+            user_id: myProfile.id,
+            nickname: myProfile.nickname,
+            role: myProfile.role,
+            avatar_url: myProfile.avatar_url,
+            country: myProfile.country,
+            gender: myProfile.gender,
+            age: myProfile.age,
+            vip_status: !!myProfile.vip_status,
+            profile_theme: myProfile.profile_theme
+            // add other profile fields if needed
+          });
+        }
+      });
+
+      // Save reference for cleanup
+      presenceChannelRef.current = presenceChannel;
     };
-    
-    checkAuth();
+
+    checkAuthAndJoinPresence();
+
+    return () => {
+      // Untrack our user and clean up channel/listeners
+      (async () => {
+        try {
+          // Remove from presence channel
+          if (presenceChannelRef.current) {
+            await presenceChannelRef.current.untrack();
+            supabase.removeChannel(presenceChannelRef.current);
+            presenceChannelRef.current = null;
+          }
+        } catch (e) {
+          console.warn('Presence cleanup failed:', e);
+        }
+      })();
+      window.selectedUserId = undefined;
+    };
   }, [navigate]);
 
   useEffect(() => {
     if (!selectedUserId || !currentUserId) return;
-    
     window.selectedUserId = selectedUserId;
 
     const fetchMessages = async () => {
-      // Calculate cutoff time according to user role
       const cutoffTime = getCutoffTimestamp(currentUserRole);
 
       /* 
@@ -113,7 +200,6 @@ const ChatInterface = () => {
         role: currentUserRole,
         timestamp: new Date().toISOString()
       });
-      
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -132,9 +218,8 @@ const ChatInterface = () => {
 
       const messagesWithMedia = data.map(message => ({
         ...message,
-        media: message.message_media?.[0] || null
+        media: message.message_media?.[0] || null,
       }));
-      
       setMessages(messagesWithMedia);
     };
 
@@ -163,40 +248,32 @@ const ChatInterface = () => {
             payload,
             timestamp: new Date().toISOString()
           });
-          
           const newMessage = payload.new as Message;
-          
-          // Add optimistic update for sent messages
           setMessages(current => {
-            // Check if message already exists (either optimistic or real)
-            const exists = current.some(msg => 
-              (msg.id === newMessage.id) || // Real message
-              (msg.content === newMessage.content && 
-               msg.sender_id === newMessage.sender_id &&
-               Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000) // Optimistic message
+            const exists = current.some(msg =>
+              (msg.id === newMessage.id) ||
+              (msg.content === newMessage.content &&
+                msg.sender_id === newMessage.sender_id &&
+                Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
             );
-            
             if (!exists) {
               console.log('Adding new message to state:', {
                 messageId: newMessage.id,
                 timestamp: new Date().toISOString()
               });
-              
               return [...current, { ...newMessage, media: null }];
             }
             return current;
           });
-          
           // Fetch message media if available
           const { data: mediaData } = await supabase
             .from('message_media')
             .select('*')
             .eq('message_id', newMessage.id);
-
           if (mediaData?.length) {
-            setMessages(current => 
-              current.map(msg => 
-                msg.id === newMessage.id 
+            setMessages(current =>
+              current.map(msg =>
+                msg.id === newMessage.id
                   ? { ...msg, media: mediaData[0] }
                   : msg
               )
@@ -211,8 +288,8 @@ const ChatInterface = () => {
         channelName,
         timestamp: new Date().toISOString()
       });
-      window.selectedUserId = undefined;
       supabase.removeChannel(channel);
+      window.selectedUserId = undefined;
     };
   }, [selectedUserId, currentUserId, currentUserRole]); // add currentUserRole dep
 
@@ -267,7 +344,7 @@ const ChatInterface = () => {
 
     if (messageError) {
       // Remove optimistic message on error
-      setMessages(current => 
+      setMessages(current =>
         current.filter(msg => msg.id !== optimisticMessage.id)
       );
       toast.error("Failed to send message");
@@ -301,13 +378,13 @@ const ChatInterface = () => {
   const handleUserSelect = async (userId: string) => {
     setSelectedUserId(userId);
     setMessages([]);
-    
+
     const { data, error } = await supabase
       .from('profiles')
       .select('nickname')
       .eq('id', userId)
       .single();
-    
+
     if (data) {
       setSelectedUserNickname(data.nickname);
     }
@@ -348,10 +425,11 @@ const ChatInterface = () => {
           <LogoutButton />
         </div>
       </header>
-      
+
       <div className="flex h-[calc(100vh-60px)]">
         <aside className="w-full max-w-xs border-r border-border">
           <UserList
+            users={onlineUsers}
             onUserSelect={handleUserSelect}
             selectedUserId={selectedUserId ?? undefined}
           />
@@ -360,7 +438,7 @@ const ChatInterface = () => {
         <main className="flex-1 flex flex-col">
           {selectedUserId ? (
             <>
-              <ChatArea 
+              <ChatArea
                 messages={messages}
                 currentUserId={currentUserId || ''}
                 selectedUser={{
@@ -369,9 +447,9 @@ const ChatInterface = () => {
                 }}
               />
 
-              <MessageInput 
-                onSendMessage={handleSendMessage} 
-                currentUserId={currentUserId} 
+              <MessageInput
+                onSendMessage={handleSendMessage}
+                currentUserId={currentUserId}
               />
             </>
           ) : (
@@ -431,4 +509,3 @@ const ChatInterface = () => {
 };
 
 export default ChatInterface;
-

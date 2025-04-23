@@ -1,28 +1,28 @@
+
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
-import { useUserList } from "@/hooks/useUserList";
 import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 interface UserListProps {
+  users: any[]; // online users array, now required
   onUserSelect: (userId: string) => void;
   selectedUserId?: string;
 }
 
-export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
-  const { users } = useUserList(onUserSelect, selectedUserId);
+export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps) => {
   const { blockedUsers, unblockUser } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const hasActiveFilters = useMemo(() => {
     return filters.selectedGenders.length > 0 ||
-           filters.selectedCountries.length > 0 ||
-           filters.ageRange.min !== DEFAULT_FILTERS.ageRange.min ||
-           filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
+      filters.selectedCountries.length > 0 ||
+      filters.ageRange.min !== DEFAULT_FILTERS.ageRange.min ||
+      filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
   }, [filters]);
 
   const filteredUsers = useMemo(() => {
@@ -31,20 +31,34 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
       if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
         return false;
       }
-
       // Age filter
-      if (user.age < filters.ageRange.min || user.age > filters.ageRange.max) {
+      if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) {
         return false;
       }
-
       // Country filter
       if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) {
         return false;
       }
-
       return true;
     });
   }, [users, filters, blockedUsers]);
+
+  // Sort VIP and bots first as before
+  const sortedUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
+      if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
+      if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
+        return (a.nickname || '').localeCompare(b.nickname || '');
+      }
+      if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
+      if ((a.role !== 'bot' && b.role === 'bot' && !a.vip_status)) return 1;
+      if ((a.country || '') !== (b.country || '')) {
+        return (a.country || '').localeCompare(b.country || '');
+      }
+      return (a.nickname || '').localeCompare(b.nickname || '');
+    });
+  }, [filteredUsers]);
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({
@@ -62,12 +76,12 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
       {/* Header with filter */}
       <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          People ({filteredUsers.length})
+          People ({sortedUsers.length})
         </span>
         <div className="relative">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setShowFilters(!showFilters)}
             className="rounded-full relative"
           >
@@ -86,28 +100,28 @@ export const UserList = ({ onUserSelect, selectedUserId }: UserListProps) => {
           )}
         </div>
       </div>
-
       {/* User list */}
       <div className="overflow-y-auto flex-1">
-        {filteredUsers.map((user) => (
+        {sortedUsers.map((user) => (
           <UserListItem
-            key={user.id}
+            key={user.user_id}
             name={user.nickname}
             gender={user.gender}
             age={user.age}
             country={user.country}
             isVip={user.role === 'vip' || user.vip_status}
-            interests={user.interests}
-            isSelected={selectedUserId === user.id}
-            onClick={() => onUserSelect(user.id)}
+            interests={user.interests || []}
+            isSelected={selectedUserId === user.user_id}
+            onClick={() => onUserSelect(user.user_id)}
             avatar={user.avatar_url}
             profileTheme={user.profile_theme}
-            isBlocked={blockedUsers.includes(user.id)}
+            isBlocked={blockedUsers.includes(user.user_id)}
             onUnblock={
-              blockedUsers.includes(user.id) 
-                ? () => unblockUser(user.id)
+              blockedUsers.includes(user.user_id)
+                ? () => unblockUser(user.user_id)
                 : undefined
             }
+            role={user.role}
           />
         ))}
       </div>
