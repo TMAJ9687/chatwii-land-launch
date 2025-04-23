@@ -16,6 +16,20 @@ export interface VipUser {
   }[];
 }
 
+interface RawVipUserData {
+  id: string;
+  nickname: string;
+  visibility: string;
+  role: string;
+  gender?: string;
+  age?: number;
+  country?: string;
+  vip_subscriptions: {
+    end_date: string;
+    is_active: boolean;
+  };
+}
+
 export const useVipUsers = () => {
   const { data: vipUsers, isLoading, refetch } = useQuery({
     queryKey: ["vip-users"],
@@ -33,7 +47,13 @@ export const useVipUsers = () => {
         .order("nickname");
 
       if (error) throw error;
-      return data as VipUser[];
+      
+      // Transform the data to match the VipUser interface
+      return (data as RawVipUserData[]).map(user => ({
+        ...user,
+        // Ensure vip_subscriptions is always an array
+        vip_subscriptions: user.vip_subscriptions ? [user.vip_subscriptions] : []
+      })) as VipUser[];
     },
   });
 

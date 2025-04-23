@@ -22,7 +22,9 @@ export const useLogout = (redirectTo: string = "/") => {
           .eq('id', user.id);
 
         if (updateError) {
-          toast.error("Could not update user status", {
+          toast({
+            variant: "destructive",
+            title: "Could not update user status",
             description: "There was an issue updating your online status."
           });
           console.error('Error updating user visibility:', updateError);
@@ -35,7 +37,9 @@ export const useLogout = (redirectTo: string = "/") => {
       // Redirect to specified page after logout
       navigate(redirectTo);
     } catch (error) {
-      toast.error("Logout failed", {
+      toast({
+        variant: "destructive",
+        title: "Logout failed",
         description: "An unexpected error occurred during logout."
       });
       console.error('Logout failed:', error);
