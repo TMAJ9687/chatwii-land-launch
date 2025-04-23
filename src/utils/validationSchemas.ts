@@ -35,10 +35,7 @@ export const registerSchema = z.object({
     .string()
     .min(1, "Nickname is required")
     .refine(
-      (value) => {
-        const validationResult = validateNickname(value);
-        return validationResult === null;
-      },
+      (value): value is string => validateNickname(value) === null,
       {
         message: (val) => validateNickname(val) || "Invalid nickname"
       }
@@ -59,10 +56,7 @@ export const profileSchema = z.object({
     .string()
     .min(1, "Nickname is required")
     .refine(
-      (value) => {
-        const validationResult = validateNickname(value);
-        return validationResult === null;
-      },
+      (value): value is string => validateNickname(value) === null,
       {
         message: (val) => validateNickname(val) || "Invalid nickname"
       }
