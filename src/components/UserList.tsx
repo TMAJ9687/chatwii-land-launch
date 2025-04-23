@@ -1,4 +1,3 @@
-
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -9,7 +8,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { toast } from "sonner";
 
 interface UserListProps {
-  users: any[]; // online users array, now required
+  users: any[];
   onUserSelect: (userId: string) => void;
   selectedUserId?: string;
 }
@@ -20,14 +19,12 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const currentUserId = useMemo(() => {
-    // Find the current user by looking for is_current_user flag
     const currentUser = users.find(user => user.is_current_user);
     return currentUser?.user_id;
   }, [users]);
 
   const handleUserSelect = (userId: string) => {
     if (userId === currentUserId) {
-      toast.error("You cannot chat with yourself");
       return;
     }
     onUserSelect(userId);

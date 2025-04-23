@@ -38,7 +38,6 @@ export const UserListItem = ({
   isCurrentUser = false
 }: UserListItemProps) => {
   const firstLetter = name.charAt(0).toUpperCase();
-  
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
   
   let themeBorderClass = '';
@@ -61,7 +60,6 @@ export const UserListItem = ({
     }
   }
 
-  // Get the country code from the country name (simplified version)
   const getCountryCode = (countryName: string): string => {
     // This is a simplified mapping for common countries
     const countryMapping: Record<string, string> = {
@@ -84,18 +82,18 @@ export const UserListItem = ({
   };
   
   const countryCode = getCountryCode(country);
-  
+
   return (
-    <div 
-      className={`flex items-start p-3 gap-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-        isSelected ? 'bg-gray-100 dark:bg-gray-800' : ''
+    <div
+      className={`flex items-start p-4 gap-4 ${
+        isSelected ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
       } ${isBlocked ? 'opacity-50 grayscale' : ''} ${
-        isCurrentUser ? 'cursor-not-allowed opacity-70' : ''
-      }`}
+        isCurrentUser ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+      } transition-all`}
       onClick={isCurrentUser ? undefined : onClick}
     >
       <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ''} rounded-full`}>
-        <Avatar className="w-10 h-10">
+        <Avatar className="w-12 h-12">
           {avatar ? (
             <AvatarImage src={avatar} alt={name} />
           ) : (
@@ -106,44 +104,54 @@ export const UserListItem = ({
         </Avatar>
       </div>
       
-      <div className="flex flex-col flex-grow min-w-0">
-        <div className="flex items-center gap-1">
-          <h3 className="font-semibold">{name}</h3>
-          <span className={`${genderColor} text-sm`}>{gender}, {age}</span>
-          {isVip && (
-            <span className="flex items-center text-xs font-bold text-yellow-500">
-              <Crown className="h-3 w-3 mr-0.5" />
-              VIP
+      <div className="flex flex-col flex-grow min-w-0 gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3 className="font-semibold text-base">{name}</h3>
+            <span className={`${genderColor} text-sm font-medium`}>
+              {gender}, {age}
             </span>
-          )}
-          {role === 'bot' && (
-            <span className="flex items-center text-xs font-bold text-blue-500">
-              <Bot className="h-3 w-3 mr-0.5" />
-              BOT
-            </span>
-          )}
+            {isVip && (
+              <span className="flex items-center text-xs font-bold text-yellow-500">
+                <Crown className="h-3.5 w-3.5 mr-0.5" />
+                VIP
+              </span>
+            )}
+            {role === 'bot' && (
+              <span className="flex items-center text-xs font-bold text-blue-500">
+                <Bot className="h-3.5 w-3.5 mr-0.5" />
+                BOT
+              </span>
+            )}
+          </div>
         </div>
         
-        <div className="flex items-center mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {countryCode && (
-            <img 
-              src={getFlagUrl(countryCode)} 
-              alt={`${country} flag`}
-              className="w-5 h-4 mr-1.5" 
-            />
-          )}
-          <span>{country}</span>
-        </div>
-        
-        <div className="flex flex-wrap gap-1 mt-1">
-          {interests.map((interest, idx) => (
-            <span 
-              key={idx} 
-              className={`px-2 py-0.5 text-xs ${isVip ? 'bg-amber-100 dark:bg-amber-900 dark:text-amber-100 text-amber-800' : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-300 text-gray-600'} rounded-sm`}
-            >
-              {interest}
-            </span>
-          ))}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+            {countryCode && (
+              <img 
+                src={getFlagUrl(countryCode)} 
+                alt={`${country} flag`}
+                className="w-5 h-4 mr-2 rounded-sm shadow-sm" 
+              />
+            )}
+            <span>{country}</span>
+          </div>
+          
+          <div className="flex flex-wrap gap-1.5">
+            {interests.map((interest, idx) => (
+              <span 
+                key={idx} 
+                className={`px-2.5 py-1 text-xs rounded-full ${
+                  isVip 
+                    ? 'bg-amber-50 dark:bg-amber-900/30 dark:text-amber-200 text-amber-800' 
+                    : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-300 text-gray-600'
+                }`}
+              >
+                {interest}
+              </span>
+            ))}
+          </div>
         </div>
         
         {isBlocked && onUnblock && (
