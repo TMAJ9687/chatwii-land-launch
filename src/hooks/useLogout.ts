@@ -31,6 +31,9 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
       
+      // Clean up all Supabase subscriptions
+      await supabase.removeAllChannels();
+      
       navigate(redirectTo);
     } catch (error) {
       console.error('Logout process failed:', error);

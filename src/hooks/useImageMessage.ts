@@ -23,6 +23,11 @@ export const useImageMessage = (
   } = useImageUpload(currentUserId);
 
   const triggerFileInput = () => {
+    if (!currentUserId) {
+      toast.error("You must be logged in to send images");
+      return;
+    }
+    
     if (!canSendToUser) {
       toast.error("You cannot send messages to this user");
       return;
@@ -37,6 +42,11 @@ export const useImageMessage = (
   };
 
   const handleImageUpload = async () => {
+    if (!currentUserId) {
+      toast.error("You must be logged in to send images");
+      return null;
+    }
+    
     if (hasReachedLimit && !isVip) {
       toast.error(`You've reached your daily limit of ${dailyLimit} images`);
       return null;
