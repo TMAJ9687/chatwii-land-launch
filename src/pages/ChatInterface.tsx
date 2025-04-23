@@ -17,7 +17,7 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
-import { MessageWithMedia, Message } from '@/types/message';
+import { Message } from '@/types/message';
 import { useBot } from '@/hooks/useBot';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
@@ -44,15 +44,15 @@ const ChatInterface = () => {
   const [isVipUser, setIsVipUser] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
   const [profile, setProfile] = useState<any>(null);
+  
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
   const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
   
-  const presenceChannelRef = useRef<any>(null);
   const globalChannelRef = useRef<any>(null);
 
-  // Using the new useMessages hook
+  // Using the messages hook
   const { 
     messages, 
     setMessages, 
@@ -60,7 +60,6 @@ const ChatInterface = () => {
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   useEffect(() => {
-    let presenceChannel: any = null;
     let myProfile: any = null;
 
     const checkAuthAndJoinPresence = async () => {
@@ -71,6 +70,7 @@ const ChatInterface = () => {
         navigate('/');
         return;
       }
+      
       setCurrentUserId(session.user.id);
 
       const { data: dbProfile, error } = await supabase
@@ -78,12 +78,15 @@ const ChatInterface = () => {
         .select('id, nickname, vip_status, role, avatar_url, country, gender, age, profile_theme')
         .eq('id', session.user.id)
         .single();
+      
       if (!error && dbProfile) {
         setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
         setCurrentUserRole(dbProfile.role || 'standard');
         setProfile(dbProfile);
         myProfile = dbProfile;
+        console.log("Profile loaded:", dbProfile);
       } else {
+        console.error("Error loading profile:", error);
         setCurrentUserRole('standard');
         myProfile = {
           id: session.user.id,
@@ -103,61 +106,11 @@ const ChatInterface = () => {
         setShowRules(true);
         setAcceptedRules(false);
       }
-
-      presenceChannel = supabase.channel('online_users', {
-        config: {
-          presence: {
-            key: myProfile.id
-          }
-        }
-      });
-
-      presenceChannel.on('presence', { event: 'sync' }, () => {
-        console.log('Presence sync event in ChatInterface');
-      });
-
-      presenceChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
-        console.log('Presence join event in ChatInterface');
-      });
-
-      presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        console.log('Presence leave event in ChatInterface');
-      });
-
-      presenceChannel.subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await presenceChannel.track({
-            user_id: myProfile.id,
-            nickname: myProfile.nickname,
-            role: myProfile.role,
-            avatar_url: myProfile.avatar_url,
-            country: myProfile.country,
-            gender: myProfile.gender,
-            age: myProfile.age,
-            vip_status: !!myProfile.vip_status,
-            profile_theme: myProfile.profile_theme,
-            is_current_user: true
-          });
-        }
-      });
-
-      presenceChannelRef.current = presenceChannel;
     };
 
     checkAuthAndJoinPresence();
 
     return () => {
-      (async () => {
-        try {
-          if (presenceChannelRef.current) {
-            await presenceChannelRef.current.untrack();
-            supabase.removeChannel(presenceChannelRef.current);
-            presenceChannelRef.current = null;
-          }
-        } catch (e) {
-          console.warn('Presence cleanup failed:', e);
-        }
-      })();
       window.selectedUserId = undefined;
     };
   }, [navigate]);
@@ -229,9 +182,9 @@ const ChatInterface = () => {
         globalChannelRef.current = null;
       }
     };
-  }, [currentUserId, selectedUserId]);
+  }, [currentUserId, selectedUserId, setMessages]);
 
-  // Re-add the missing effect that loads messages when a user is selected
+  // Load messages when a user is selected
   useEffect(() => {
     if (selectedUserId && currentUserId) {
       window.selectedUserId = selectedUserId;
