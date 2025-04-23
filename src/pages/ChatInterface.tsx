@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +19,7 @@ import { VipSettingsButton } from '@/components/VipSettingsButton';
 import { toast } from 'sonner';
 import { MessageWithMedia, Message } from '@/types/message';
 import { useBot } from '@/hooks/useBot';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -50,6 +52,7 @@ const ChatInterface = () => {
   const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
   const [profile, setProfile] = useState<any>(null);
   const { handleBotResponse } = useBot();
+  const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
 
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const presenceChannelRef = useRef<any>(null);
@@ -284,6 +287,12 @@ const ChatInterface = () => {
 
     if (!selectedUserId || !currentUserId) return;
 
+    // Check if user can interact with recipient
+    if (!canInteractWithUser(selectedUserId)) {
+      toast.error("You cannot send messages to this user");
+      return;
+    }
+
     const { data: recipientProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -302,7 +311,7 @@ const ChatInterface = () => {
         message_id: Date.now(),
         user_id: currentUserId,
         file_url: imageUrl,
-        media_type: 'image',
+        media_type: imageUrl.includes('voice') ? 'voice' : 'image',
         created_at: new Date().toISOString()
       } : null
     };
@@ -340,11 +349,11 @@ const ChatInterface = () => {
           message_id: messageData.id,
           user_id: currentUserId,
           file_url: imageUrl,
-          media_type: 'image'
+          media_type: imageUrl.includes('voice') ? 'voice' : 'image'
         });
 
       if (mediaError) {
-        toast.error("Failed to attach image to message");
+        toast.error("Failed to attach media to message");
         console.error('Error creating media record:', mediaError);
       }
     }
@@ -363,6 +372,11 @@ const ChatInterface = () => {
     if (data) {
       setSelectedUserNickname(data.nickname);
     }
+  };
+
+  const handleCloseChat = () => {
+    setSelectedUserId(null);
+    setMessages([]);
   };
 
   return (
@@ -419,11 +433,13 @@ const ChatInterface = () => {
                   id: selectedUserId,
                   nickname: selectedUserNickname
                 }}
+                onClose={handleCloseChat}
               />
 
               <MessageInput
                 onSendMessage={handleSendMessage}
                 currentUserId={currentUserId}
+                receiverId={selectedUserId}
               />
             </>
           ) : (

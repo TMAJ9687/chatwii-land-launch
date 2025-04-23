@@ -21,10 +21,10 @@ export const LogoutButton = () => {
   return (
     <>
       <Button
-        variant="ghost"
+        variant="destructive"
         size="icon"
         onClick={() => setShowConfirmation(true)}
-        className="rounded-full"
+        className="rounded-full bg-red-600 hover:bg-red-700" 
       >
         <LogOut className="h-5 w-5" />
       </Button>
@@ -39,7 +39,7 @@ export const LogoutButton = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>No</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLogout}>Yes</AlertDialogAction>
+            <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">Yes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

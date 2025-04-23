@@ -1,13 +1,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { Flag, Ban } from 'lucide-react';
+import { Flag, Ban, X, MoreVertical, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -16,9 +22,15 @@ interface ChatAreaProps {
     id: string;
     nickname: string;
   };
+  onClose?: () => void;
 }
 
-export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUser }: ChatAreaProps) => {
+export const ChatArea = ({ 
+  messages: initialMessages, 
+  currentUserId, 
+  selectedUser,
+  onClose 
+}: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
@@ -79,29 +91,50 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
     });
   };
 
+  const handleBlockUser = () => {
+    if (!isBlocked) {
+      blockUser(selectedUser.id);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-4 border-b flex items-center justify-between">
         <h2 className="font-medium">{selectedUser.nickname}</h2>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowReportPopup(true)}
-          >
-            <Flag className="h-4 w-4 mr-2" />
-            Report
-          </Button>
-          {!isBlocked && (
+          {onClose && (
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => blockUser(selectedUser.id)}
+              size="icon"
+              onClick={onClose}
+              className="rounded-full"
             >
-              <Ban className="h-4 w-4 mr-2" />
-              Block
+              <X className="h-4 w-4" />
             </Button>
           )}
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="rounded-full"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowReportPopup(true)}>
+                <Flag className="h-4 w-4 mr-2" /> Report User
+              </DropdownMenuItem>
+              
+              {!isBlocked && (
+                <DropdownMenuItem onClick={handleBlockUser}>
+                  <Ban className="h-4 w-4 mr-2" /> Block User
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -121,7 +154,7 @@ export const ChatArea = ({ messages: initialMessages, currentUserId, selectedUse
               {/* Standard text */}
               {message.content && <p className="break-words">{message.content}</p>}
 
-              {/* IMAGE MEDIA (retained) */}
+              {/* IMAGE MEDIA */}
               {message.media && message.media.media_type === 'image' && (
                 <div className="mt-2 relative group">
                   <img 

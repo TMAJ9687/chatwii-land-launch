@@ -1,147 +1,53 @@
-import React, { useState } from 'react';
+
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
-
-const profanityList = ['fuck', 'shit', 'ass', 'bitch', 'dick', 'penis', 'vagina', 'sex'];
+import { useHookForm } from '@/hooks/useHookForm';
+import { registerSchema } from '@/utils/validationSchemas';
+import { Form } from '@/components/ui/form';
+import { FormField } from '@/components/form/FormField';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const VipRegistrationPage = () => {
   const navigate = useNavigate();
   
-  const [formData, setFormData] = useState({
-    nickname: "",
-    email: "",
-    password: "",
-    confirmPassword: ""
-  });
-  
-  const [errors, setErrors] = useState({
-    nickname: "",
-    email: "",
-    password: "",
-    confirmPassword: ""
-  });
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const validateNickname = (value: string): string => {
-    if (!value) return "Nickname is required";
-    if (value.length > 16) return "Nickname must be max 16 characters";
-    
-    const numberCount = (value.match(/\d/g) || []).length;
-    if (numberCount > 2) return "Nickname can contain maximum 2 numbers";
-    
-    if (/(.)\1\1\1/.test(value)) return "Nickname cannot contain more than 3 consecutive same letters";
-    
-    if (!/^[a-zA-Z0-9\s]*$/.test(value)) return "Nickname can only contain letters, numbers, and spaces";
-    
-    const lowerCaseValue = value.toLowerCase();
-    for (const word of profanityList) {
-      if (lowerCaseValue.includes(word)) return "Nickname contains inappropriate language";
-    }
-    
-    return "";
-  };
-
-  const validateEmail = (value: string): string => {
-    if (!value) return "Email is required";
-    
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) return "Please enter a valid email address";
-    
-    return "";
-  };
-
-  const validatePassword = (value: string): string => {
-    if (!value) return "Password is required";
-    if (value.length < 8) return "Password must be at least 8 characters";
-    return "";
-  };
-
-  const validateConfirmPassword = (value: string, password: string): string => {
-    if (!value) return "Please confirm your password";
-    if (value !== password) return "Passwords don't match";
-    return "";
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    let errorMsg = "";
-    switch (name) {
-      case "nickname":
-        errorMsg = validateNickname(value);
-        break;
-      case "email":
-        errorMsg = validateEmail(value);
-        break;
-      case "password":
-        errorMsg = validatePassword(value);
-        if (formData.confirmPassword) {
-          setErrors(prev => ({
-            ...prev,
-            confirmPassword: validateConfirmPassword(formData.confirmPassword, value)
-          }));
+  const {
+    form,
+    handleSubmit,
+    isSubmitting,
+    submitError
+  } = useHookForm(
+    registerSchema,
+    {
+      nickname: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    },
+    async (data) => {
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            nickname: data.nickname
+          }
         }
-        break;
-      case "confirmPassword":
-        errorMsg = validateConfirmPassword(value, formData.password);
-        break;
-    }
-    
-    setErrors(prev => ({ ...prev, [name]: errorMsg }));
-  };
-
-  const isFormValid = () => {
-    return (
-      formData.nickname &&
-      formData.email &&
-      formData.password &&
-      formData.confirmPassword &&
-      !errors.nickname &&
-      !errors.email &&
-      !errors.password &&
-      !errors.confirmPassword
-    );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!isFormValid()) return;
-    
-    setIsSubmitting(true);
-    
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
       });
       
-      if (authError) throw authError;
+      if (error) throw error;
       
-      if (authData.user) {
-        toast.success("Registration successful!", {
-          description: "Please set up your profile to continue."
-        });
-        
-        navigate('/vip/profile-setup');
-      }
-    } catch (error: any) {
-      toast.error("Registration failed", {
-        description: error.message || "Something went wrong. Please try again."
+      toast.success("Registration successful!", {
+        description: "Please set up your profile to continue."
       });
-      console.error("Registration error:", error);
-    } finally {
-      setIsSubmitting(false);
+      
+      navigate('/vip/profile-setup');
     }
-  };
+  );
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center px-4 py-12">
@@ -158,77 +64,64 @@ const VipRegistrationPage = () => {
             Register as <span className="text-chatwii-peach">VIP</span>
           </h1>
           
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nickname">Nickname</Label>
-              <Input
-                id="nickname"
+          {submitError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+          
+          <Form {...form}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <FormField
+                form={form}
                 name="nickname"
-                value={formData.nickname}
-                onChange={handleChange}
+                label="Nickname"
                 placeholder="Enter your nickname"
-                className={errors.nickname ? "border-red-500" : ""}
               />
-              {errors.nickname && <p className="text-sm text-red-500">{errors.nickname}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+              
+              <FormField
+                form={form}
                 name="email"
+                label="Email"
                 type="email"
-                value={formData.email}
-                onChange={handleChange}
                 placeholder="Enter your email"
-                className={errors.email ? "border-red-500" : ""}
+                autoComplete="email"
               />
-              {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
+              
+              <FormField
+                form={form}
                 name="password"
+                label="Password"
                 type="password"
-                value={formData.password}
-                onChange={handleChange}
                 placeholder="Create a password"
-                className={errors.password ? "border-red-500" : ""}
+                autoComplete="new-password"
               />
-              {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
+              
+              <FormField
+                form={form}
                 name="confirmPassword"
+                label="Confirm Password"
                 type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
                 placeholder="Confirm your password"
-                className={errors.confirmPassword ? "border-red-500" : ""}
+                autoComplete="new-password"
               />
-              {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword}</p>}
-            </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full bg-chatwii-peach hover:bg-chatwii-orange"
-              disabled={!isFormValid() || isSubmitting}
-            >
-              {isSubmitting ? "Registering..." : "Register"}
-            </Button>
-            
-            <p className="text-sm text-center mt-4">
-              Already have an account?{" "}
-              <Link to="/vip/login" className="text-chatwii-orange hover:underline">
-                Login
-              </Link>
-            </p>
-          </form>
+              
+              <Button 
+                type="submit" 
+                className="w-full bg-chatwii-peach hover:bg-chatwii-orange"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Registering..." : "Register"}
+              </Button>
+              
+              <p className="text-sm text-center mt-4">
+                Already have an account?{" "}
+                <Link to="/vip/login" className="text-chatwii-orange hover:underline">
+                  Login
+                </Link>
+              </p>
+            </form>
+          </Form>
         </div>
       </div>
     </div>
