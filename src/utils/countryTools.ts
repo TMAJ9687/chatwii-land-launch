@@ -34,6 +34,7 @@ const COUNTRY_CODE_TO_NAME: Record<string, string> = {
   US: "United States", UY: "Uruguay", UZ: "Uzbekistan", VA: "Vatican City", VE: "Venezuela", VN: "Vietnam", YE: "Yemen",
   ZM: "Zambia", ZW: "Zimbabwe"
 };
+
 // Converts a country code (e.g. "US") to the matching country name in COUNTRIES array if found
 export function getCountryNameFromCode(code: string) {
   if (!code) return "Unknown";
@@ -43,11 +44,17 @@ export function getCountryNameFromCode(code: string) {
   return name || "Unknown";
 }
 
-// New detection function using country.is API v2 endpoint which returns JSON
+// New detection function using ipinfo.io instead of country.is
 export async function detectUserCountry(): Promise<{ country: string, countryCode: string }> {
   try {
     // Use ipinfo.io instead of country.is which is returning HTML
     const response = await fetch("https://ipinfo.io/json");
+    
+    // Check if response is ok
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
     
     if (data && data.country) {

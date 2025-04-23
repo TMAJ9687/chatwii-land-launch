@@ -1,18 +1,17 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { VipNicknameInput } from "@/components/vip/VipNicknameInput";
 
-// Define profanity list for nickname validation
+// Simple profanity list for client-side validation (server will also check)
 const profanityList = ['fuck', 'shit', 'ass', 'bitch', 'dick', 'penis', 'vagina', 'sex'];
 
 const VipProfileSetupPage = () => {
   const navigate = useNavigate();
   const [nickname, setNickname] = useState('');
-  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -40,33 +39,8 @@ const VipProfileSetupPage = () => {
     checkAuth();
   }, [navigate]);
 
-  const validateNickname = (value: string): string => {
-    if (!value) return "Nickname is required";
-    if (value.length > 16) return "Nickname must be max 16 characters";
-    
-    const numberCount = (value.match(/\d/g) || []).length;
-    if (numberCount > 2) return "Nickname can contain maximum 2 numbers";
-    
-    if (/(.)\1\1\1/.test(value)) return "Nickname cannot contain more than 3 consecutive same letters";
-    
-    if (!/^[a-zA-Z0-9\s]*$/.test(value)) return "Nickname can only contain letters, numbers, and spaces";
-    
-    const lowerCaseValue = value.toLowerCase();
-    for (const word of profanityList) {
-      if (lowerCaseValue.includes(word)) return "Nickname contains inappropriate language";
-    }
-    
-    return "";
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const validationError = validateNickname(nickname);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
     
     setIsSubmitting(true);
     
@@ -106,25 +80,16 @@ const VipProfileSetupPage = () => {
           </h1>
           
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nickname">Choose your Nickname</Label>
-              <Input
-                id="nickname"
-                value={nickname}
-                onChange={(e) => {
-                  setNickname(e.target.value);
-                  setError(validateNickname(e.target.value));
-                }}
-                placeholder="Enter your nickname"
-                className={error ? "border-red-500" : ""}
-              />
-              {error && <p className="text-sm text-red-500">{error}</p>}
-            </div>
+            <VipNicknameInput
+              value={nickname}
+              onChange={setNickname}
+              profanityList={profanityList}
+            />
             
             <Button 
               type="submit" 
               className="w-full bg-chatwii-peach hover:bg-chatwii-orange"
-              disabled={!!error || !nickname || isSubmitting}
+              disabled={!nickname || isSubmitting}
             >
               {isSubmitting ? "Setting up..." : "Continue to Chat"}
             </Button>

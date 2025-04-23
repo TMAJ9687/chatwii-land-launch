@@ -3,19 +3,9 @@ import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { EmojiClickData } from 'emoji-picker-react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  hasConsecutiveSameLetters, 
-  hasConsecutiveNumbers, 
-  hasLinkOrPhone, 
-  getCharLimit 
-} from '@/utils/messageValidation';
-
-// Rate limit: maximum number of messages
-const MAX_MESSAGES = 10;
-// Rate limit: time window in seconds
-const TIME_WINDOW = 10;
-// Duplicate message cooldown in seconds
-const DUPLICATE_COOLDOWN = 60;
+import { getCharLimit } from '@/utils/messageValidation';
+import { useMessageValidation } from '@/hooks/useMessageValidation';
+import { useProfanityList } from '@/hooks/useProfanityList';
 
 interface UseMessageInputProps {
   onSendMessage: (content: string) => void;
@@ -24,10 +14,9 @@ interface UseMessageInputProps {
 export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
   const [message, setMessage] = useState('');
   const [isUserVip, setIsUserVip] = useState(false);
-  const [lastSentMessage, setLastSentMessage] = useState<{content: string, timestamp: number} | null>(null);
-  const [messageTimestamps, setMessageTimestamps] = useState<number[]>([]);
   const [charLimit, setCharLimit] = useState(getCharLimit(false));
-  const [chatProfanityList, setChatProfanityList] = useState<string[]>([]);
+  const { profanityList: chatProfanityList } = useProfanityList('chat');
+  const { validateMessage, recordMessage } = useMessageValidation(isUserVip);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user role on component mount
@@ -48,104 +37,20 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
     };
 
     fetchUserRole();
-
-    // Additionally, fetch chat profanity array and cache to variable
-    const fetchProfanityList = async () => {
-      try {
-        const { data } = await supabase
-          .from("site_settings")
-          .select("settings")
-          .eq("id", 1)
-          .maybeSingle();
-        let arr: string[] = [];
-        if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
-          arr = Array.isArray(data.settings.profanity_chat)
-            ? data.settings.profanity_chat.map(String)
-            : [];
-        }
-        setChatProfanityList(arr);
-      } catch {
-        setChatProfanityList([]);
-      }
-    };
-    fetchProfanityList();
   }, []);
-
-  // Check for rate limiting
-  const isRateLimited = (): boolean => {
-    const now = Date.now();
-    const windowStart = now - (TIME_WINDOW * 1000);
-    
-    // Count messages sent within the time window
-    const recentMessages = messageTimestamps.filter(timestamp => timestamp > windowStart);
-    return recentMessages.length >= MAX_MESSAGES;
-  };
-
-  // Check for duplicate message
-  const isDuplicateMessage = (content: string): boolean => {
-    if (!lastSentMessage) return false;
-    
-    const now = Date.now();
-    const timeSinceLastMessage = now - lastSentMessage.timestamp;
-    
-    return content === lastSentMessage.content && 
-           timeSinceLastMessage < (DUPLICATE_COOLDOWN * 1000);
-  };
 
   const handleSend = () => {
     if (!message.trim()) return;
     
-    // Check message length for all users
-    if (message.length > charLimit) {
-      toast.error(`Message exceeds ${charLimit} character limit`);
+    // Validate the message
+    const { valid, message: errorMessage } = validateMessage(message, chatProfanityList);
+    if (!valid) {
+      toast.error(errorMessage);
       return;
     }
-
-    // Check for consecutive same letters (applies to both standard and VIP)
-    if (hasConsecutiveSameLetters(message)) {
-      toast.error("Messages cannot contain more than 3 consecutive same letters");
-      return;
-    }
-
-    // For standard users, apply additional restrictions
-    if (!isUserVip) {
-      // Check for consecutive numbers
-      if (hasConsecutiveNumbers(message)) {
-        toast.error("Messages cannot contain more than 3 consecutive numbers");
-        return;
-      }
-
-      // Check for links or phone numbers
-      if (hasLinkOrPhone(message)) {
-        toast.error("Links and phone numbers are not allowed");
-        return;
-      }
-    }
-
-    // Chat profanity filter (all users)
-    if (chatProfanityList.some(word => message.toLowerCase().includes(word))) {
-      toast.error("Your message contains banned words");
-      return;
-    }
-
-    // Check for duplicate message (applies to all users)
-    if (isDuplicateMessage(message)) {
-      toast.error("Please wait before sending the same message again");
-      return;
-    }
-
-    // Check for rate limiting (applies to all users)
-    if (isRateLimited()) {
-      toast.error(`You're sending messages too quickly. Please wait a moment.`);
-      return;
-    }
-
-    // Record this message for rate limiting
-    const now = Date.now();
-    setMessageTimestamps(prev => [...prev, now]);
     
-    // Record last sent message for duplicate detection
-    setLastSentMessage({ content: message.trim(), timestamp: now });
+    // Record this message for rate limiting and duplicate detection
+    recordMessage(message);
     
     onSendMessage(message.trim());
     setMessage('');
