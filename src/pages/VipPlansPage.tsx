@@ -1,18 +1,15 @@
-
 import React, { useState } from "react";
 import { useStripe } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// Placeholders for Stripe Price IDs
 const PRICEIDS = {
-  YEARLY: "price_YEARLY", // Replace with your actual Stripe Price ID
-  SIX_MONTHS: "price_6MONTHS", // Replace with your actual Stripe Price ID
-  MONTHLY: "price_MONTHLY", // Replace with your actual Stripe Price ID
+  YEARLY: "price_YEARLY",
+  SIX_MONTHS: "price_6MONTHS",
+  MONTHLY: "price_MONTHLY",
 };
 
-// These would normally come from site_settings.vip_prices, but we'll hardcode for this demo.
 const VIP_PRICES = {
   monthly: 4.99,
   sixMonths: 24.95,
@@ -79,7 +76,6 @@ const PLAN_DETAILS = [
   },
 ];
 
-// Styled card inspired by your sample image
 function PlanCard({
   plan,
   selected,
@@ -114,12 +110,11 @@ function PlanCard({
 }
 
 const VipPlansPage: React.FC = () => {
-  const [selectedPlanIdx, setSelectedPlanIdx] = useState(2); // Preselect Yearly
+  const [selectedPlanIdx, setSelectedPlanIdx] = useState(2);
   const [loading, setLoading] = useState(false);
   const stripe = useStripe();
   const navigate = useNavigate();
 
-  // Plan switching UI: left/right selection
   const handlePlanSwitch = (direction: "prev" | "next") => {
     setSelectedPlanIdx((idx) =>
       direction === "next"
@@ -128,40 +123,12 @@ const VipPlansPage: React.FC = () => {
     );
   };
 
-  // On Subscribe: simulate backend session creation, redirect to Stripe
   const handleSubscribe = async () => {
-    const chosen = PLAN_DETAILS[selectedPlanIdx];
-    setLoading(true);
-
-    // TODO: Make API call to backend endpoint '/create-checkout-session' with { priceId: chosen.priceId, userId: currentUser.id }
-    // Replace 'currentUser.id' with actual user id if authenticated
-
-    // Simulate waiting for backend response and Stripe sessionId
-    const dummySessionId = "cs_test_DUMMY_SESSION_ID";
-    console.log("[Stripe Integration Simulated] Would POST to /create-checkout-session with:", {
-      priceId: chosen.priceId,
-      /* userId: currentUser.id */
-    });
-    console.log("[Simulated] Stripe session id returned from backend:", dummySessionId);
-
-    try {
-      if (!stripe) {
-        alert("Stripe is not loaded yet. Please try again.");
-        setLoading(false);
-        return;
-      }
-      // This will fail because sessionId is dummy, but this matches real logic
-      await stripe.redirectToCheckout({ sessionId: dummySessionId });
-      // After redirect, Stripe will return user to /vip-success or /vip-cancel according to config
-    } catch (err) {
-      alert("Error redirecting to Stripe Checkout: " + (err as any)?.message);
-      setLoading(false);
-    }
+    navigate("/vip/register");
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-orange-100 dark:from-gray-900 dark:to-gray-800 py-10 px-4">
-      {/* REMEMBER: Replace Stripe Publishable Key and Price IDs below with live values. */}
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-4">
         Choose your <span className="text-chatwii-peach">VIP Plan</span>
       </h1>

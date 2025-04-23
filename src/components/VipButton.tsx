@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Crown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const VipButton = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,7 +49,7 @@ export const VipButton = () => {
               Login
             </Link>
             <Link 
-              to="/vip/register" 
+              to="/vip-plans" // <-- UPDATE: now routes to plans instead of register
               className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
               onClick={() => setIsOpen(false)}
             >
