@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -82,7 +81,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       />
 
       <Button
-        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+        className="w-full bg-[#F97316] hover:bg-orange-600 text-white"
         onClick={handleSubmit}
         disabled={!gender || !age || isLoading}
       >

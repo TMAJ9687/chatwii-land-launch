@@ -13,9 +13,9 @@ export const useLogout = (redirectTo: string = "/feedback") => {
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
-        // Delete the user's profile (remove for nickname re-use)
+        // Forcefully remove the user's entire profile so nickname can be reused
         const { error: deleteProfileError } = await supabase
           .from('profiles')
           .delete()
@@ -28,9 +28,13 @@ export const useLogout = (redirectTo: string = "/feedback") => {
             description: "There was an issue deleting your profile info.",
           });
           console.error('Error deleting user profile:', deleteProfileError);
+        } else {
+          // Optionally delete user interests if needed
+          await supabase
+            .from('user_interests')
+            .delete()
+            .eq('user_id', user.id);
         }
-
-        // Optionally you may want to also clear their interests, etc...
       }
 
       // Sign out

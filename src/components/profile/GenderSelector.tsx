@@ -30,7 +30,7 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ gender, onChange
           onClick={() => onChange('Female')}
           className={`flex-1 ${
             gender === 'Female'
-              ? 'bg-[#D946EF] text-white border-none hover:bg-[#D946EF]/90'
+              ? 'bg-[#E89EB8] text-white border-none hover:bg-[#E89EB8]/90'
               : ''
           }`}
         >

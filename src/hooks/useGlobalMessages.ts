@@ -10,16 +10,15 @@ export const useGlobalMessages = (currentUserId: string | null) => {
   // Function to fetch unread message count
   const fetchUnreadCount = async () => {
     if (!currentUserId) return;
-    
     try {
       const { count, error } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('receiver_id', currentUserId)
         .eq('is_read', false);
-      
+
       if (error) throw error;
-      
+
       setUnreadCount(count || 0);
     } catch (error) {
       console.error('Error fetching unread count:', error);
@@ -29,7 +28,6 @@ export const useGlobalMessages = (currentUserId: string | null) => {
   // Mark messages as read when opening a chat
   const markMessagesAsRead = async (senderId: string) => {
     if (!currentUserId) return;
-    
     try {
       const { error } = await supabase
         .from('messages')
@@ -37,9 +35,9 @@ export const useGlobalMessages = (currentUserId: string | null) => {
         .eq('sender_id', senderId)
         .eq('receiver_id', currentUserId)
         .eq('is_read', false);
-      
+
       if (error) throw error;
-      
+
       // Update the unread count after marking messages as read
       fetchUnreadCount();
     } catch (error) {
@@ -63,22 +61,20 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           filter: `receiver_id=eq.${currentUserId}`,
         },
         async (payload) => {
-          console.log('New message received globally:', payload);
-          
+          // console.log('New message received globally:', payload); // Remove spam
           // Extract the sender's information
           const { data: senderProfile } = await supabase
             .from('profiles')
             .select('nickname')
             .eq('id', payload.new.sender_id)
             .single();
-            
+
           const senderName = senderProfile?.nickname || 'Someone';
-          
-          // Show toast notification for new message
+
+          // Show toast notification for new message only if not chatting with this sender
           if (!window.selectedUserId || window.selectedUserId !== payload.new.sender_id) {
             toast(`New message from ${senderName}`);
             setNewMessageReceived(true);
-            
             // Update the unread count
             fetchUnreadCount();
           }
