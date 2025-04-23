@@ -273,6 +273,7 @@ export type Database = {
           avatar_url: string | null
           country: string | null
           created_at: string
+          deleted_at: string | null
           gender: string | null
           id: string
           ip_country: string | null
@@ -288,6 +289,7 @@ export type Database = {
           avatar_url?: string | null
           country?: string | null
           created_at?: string
+          deleted_at?: string | null
           gender?: string | null
           id: string
           ip_country?: string | null
@@ -303,6 +305,7 @@ export type Database = {
           avatar_url?: string | null
           country?: string | null
           created_at?: string
+          deleted_at?: string | null
           gender?: string | null
           id?: string
           ip_country?: string | null
@@ -462,6 +465,10 @@ export type Database = {
     Functions: {
       can_message_user: {
         Args: { sender_id: string; receiver_id: string }
+        Returns: boolean
+      }
+      is_nickname_available: {
+        Args: { check_nickname: string }
         Returns: boolean
       }
     }
