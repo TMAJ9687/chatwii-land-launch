@@ -6,7 +6,6 @@ import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
-import { toast } from "sonner";
 
 interface UserListProps {
   users: any[];
@@ -23,23 +22,12 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     return users.find(user => user.is_current_user)?.user_id;
   }, [users]);
 
-  const handleUserSelect = (userId: string) => {
-    if (userId === currentUserId) {
-      toast.error("You cannot chat with yourself");
-      return;
-    }
-    onUserSelect(userId);
-  };
-
-  const hasActiveFilters = useMemo(() => {
-    return filters.selectedGenders.length > 0 ||
-      filters.selectedCountries.length > 0 ||
-      filters.ageRange.min !== DEFAULT_FILTERS.ageRange.min ||
-      filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
-  }, [filters]);
-
   const filteredUsers = useMemo(() => {
-    return users.filter(user => {
+    // First filter out the current user
+    const withoutCurrentUser = users.filter(user => !user.is_current_user);
+    
+    // Then apply the rest of the filters
+    return withoutCurrentUser.filter(user => {
       if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
         return false;
       }
@@ -51,7 +39,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
       }
       return true;
     });
-  }, [users, filters, blockedUsers]);
+  }, [users, filters]);
 
   const sortedUsers = useMemo(() => {
     return [...filteredUsers]
@@ -68,7 +56,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
         }
         return (a.nickname || '').localeCompare(b.nickname || '');
       });
-  }, [filteredUsers, currentUserId]);
+  }, [filteredUsers]);
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({
@@ -120,7 +108,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             isVip={user.role === 'vip' || user.vip_status}
             interests={user.interests || []}
             isSelected={selectedUserId === user.user_id}
-            onClick={() => handleUserSelect(user.user_id)}
+            onClick={() => onUserSelect(user.user_id)}
             avatar={user.avatar_url}
             profileTheme={user.profile_theme}
             isBlocked={blockedUsers.includes(user.user_id)}
@@ -130,7 +118,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
                 : undefined
             }
             role={user.role}
-            isCurrentUser={user.user_id === currentUserId}
+            isCurrentUser={false}
           />
         ))}
       </div>

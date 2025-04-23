@@ -1,4 +1,3 @@
-
 import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -39,12 +38,6 @@ export const UserListItem = ({
 }: UserListItemProps) => {
   const firstLetter = name.charAt(0).toUpperCase();
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
-
-  const handleClick = () => {
-    if (!isCurrentUser && onClick) {
-      onClick();
-    }
-  };
   
   let themeBorderClass = '';
   if (isVip) {
@@ -67,7 +60,6 @@ export const UserListItem = ({
   }
 
   const getCountryCode = (countryName: string): string => {
-    // This is a simplified mapping for common countries
     const countryMapping: Record<string, string> = {
       "Australia": "au",
       "United States": "us",
@@ -93,10 +85,8 @@ export const UserListItem = ({
     <div
       className={`flex items-start p-4 gap-4 ${
         isSelected ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-      } ${isBlocked ? 'opacity-50 grayscale' : ''} ${
-        isCurrentUser ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
-      } transition-all`}
-      onClick={handleClick}
+      } ${isBlocked ? 'opacity-50 grayscale' : ''} cursor-pointer transition-all`}
+      onClick={onClick}
     >
       <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ''} rounded-full`}>
         <Avatar className="w-12 h-12">
