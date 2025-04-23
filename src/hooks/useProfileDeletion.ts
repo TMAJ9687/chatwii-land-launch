@@ -4,14 +4,19 @@ import { supabase } from '@/lib/supabase';
 export const useProfileDeletion = () => {
   const deleteUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // We'll just mark the profile as deleted instead of actually deleting it
+      // This prevents errors with references to the profile
+      const { error } = await supabase
         .from('profiles')
-        .delete()
-        .eq('id', userId)
-        .maybeSingle();
+        .update({ 
+          visibility: 'offline',
+          nickname: `deleted_${Date.now()}_${userId.substring(0, 8)}` // Make nickname unique
+        })
+        .eq('id', userId);
 
       if (error) {
-        throw error;
+        console.error('Profile update error:', error);
+        return { success: false, error };
       }
 
       return { success: true };

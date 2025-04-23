@@ -1,10 +1,11 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
+import { toast } from "sonner";
 
 const MAX_LENGTH = 120;
 
@@ -14,20 +15,52 @@ const FeedbackPage = () => {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Get user ID if available
+  useEffect(() => {
+    const getUserId = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        setUserId(data?.user?.id || null);
+      } catch (error) {
+        console.error("Error getting user:", error);
+        // Continue without user ID (anonymous feedback)
+      }
+    };
+    
+    getUserId();
+  }, []);
+
   const handleSubmit = async () => {
+    if (!rating) return;
+    
     setSubmitting(true);
     try {
       await supabase.from("feedback").insert({
+        user_id: userId, // May be null for anonymous feedback
         rating,
         comment: comment.trim() || null,
       });
+      
       setSubmitted(true);
-      setTimeout(() => navigate("/"), 2000);
-    } catch (e) {
-      setSubmitting(false); // Optionally, add toast for error
+      toast.success("Thank you for your feedback!");
+      
+      // Redirect after a delay
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 2000);
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      toast.error("Failed to submit feedback. Please try again.");
+      setSubmitting(false);
     }
+  };
+
+  const handleSkip = () => {
+    toast.info("Feedback skipped");
+    navigate("/", { replace: true });
   };
 
   if (submitted) {
@@ -36,7 +69,7 @@ const FeedbackPage = () => {
         <div className="p-8 text-center">
           <h1 className="text-2xl font-bold mb-2">Thank you for your feedback!</h1>
           <p className="mb-2 text-muted-foreground">Your feedback helps us improve.</p>
-          <span className="text-sm">Redirecting...</span>
+          <span className="text-sm">Redirecting to the home page...</span>
         </div>
       </div>
     );
@@ -86,7 +119,7 @@ const FeedbackPage = () => {
           variant="outline"
           className="w-full"
           type="button"
-          onClick={() => navigate("/")}
+          onClick={handleSkip}
         >
           Skip feedback
         </Button>

@@ -1,12 +1,11 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useImageUpload } from "@/hooks/useImageUpload";
 
@@ -18,51 +17,83 @@ export const AdminSettings = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
-  const { toast } = useToast();
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
   const { handleFileSelect, selectedFile, previewUrl, uploadImage, clearFileSelection, isUploading } = useImageUpload(userId);
+  
+  // Track component mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+    };
+  }, []);
   
   // Fetch admin profile data
   useEffect(() => {
+    // Cancel any previous requests
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     const fetchProfile = async () => {
       try {
+        // Check if we have a user first
         const { data: { user } } = await supabase.auth.getUser();
         
-        if (user) {
+        if (!user) {
+          setIsLoading(false);
+          return;
+        }
+        
+        if (isMountedRef.current) {
           setUserId(user.id);
-          
-          const { data: profileData, error } = await supabase
-            .from('profiles')
-            .select('nickname, avatar_url')
-            .eq('id', user.id)
-            .single();
-            
-          if (error) {
-            console.error("Error fetching profile:", error);
-            toast({
-              title: "Error",
-              description: "Failed to load admin profile",
-              variant: "destructive",
-            });
-            return;
-          }
-          
+        }
+        
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('nickname, avatar_url')
+          .eq('id', user.id)
+          .abortSignal(signal)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') { // Ignore "no rows" error
+          console.error("Error fetching profile:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load admin profile",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        if (isMountedRef.current && profileData) {
           setProfile(profileData);
-          setNickname(profileData.nickname);
+          setNickname(profileData.nickname || '');
         }
       } catch (error) {
-        console.error("Error:", error);
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        });
+        if (!signal.aborted && isMountedRef.current) {
+          console.error("Error:", error);
+          toast({
+            title: "Error",
+            description: "An unexpected error occurred",
+            variant: "destructive",
+          });
+        }
       } finally {
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
     
     fetchProfile();
-  }, [toast]);
+    
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
   
   // Save avatar changes
   const handleSaveAvatar = async () => {
@@ -176,6 +207,38 @@ export const AdminSettings = () => {
   
   if (isLoading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
+  }
+  
+  // Show create profile form if no profile exists
+  if (!profile) {
+    return (
+      <div className="p-6 space-y-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Admin Profile</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="newDisplayName">Admin Display Name</Label>
+                <Input
+                  id="newDisplayName"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Enter your display name"
+                />
+              </div>
+              <Button 
+                onClick={handleSaveDisplayName}
+                disabled={!nickname.trim()}
+              >
+                Create Profile
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
   
   return (

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,32 +14,32 @@ export const useLogout = (redirectTo: string = "/feedback") => {
     
     setIsLoggingOut(true);
     try {
+      // First, cancel any ongoing subscriptions
+      await supabase.removeAllChannels();
+      
       // Get current user before signing out
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (user) {
-        // Delete the profile first
-        const { success, error } = await deleteUserProfile(user.id);
-        
-        if (!success && error) {
-          console.error('Profile deletion error:', error);
-          toast.error("Could not fully delete profile");
-          return;
-        }
-      }
-
-      // Clean up all Supabase subscriptions before signing out
-      await supabase.removeAllChannels();
-      
-      // Sign out after cleanup
+      // Sign out first so no more requests are made using the auth token
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
+
+      // Delete the profile last (optional, as it might be better to keep profiles)
+      if (user) {
+        deleteUserProfile(user.id).catch(error => {
+          console.error('Profile deletion error:', error);
+          // Not throwing here to ensure navigation still happens
+        });
+      }
       
       // Navigate after successful sign out
-      navigate(redirectTo, { replace: true });
+      setTimeout(() => {
+        navigate(redirectTo, { replace: true });
+      }, 100); // Short timeout to ensure other operations can complete
     } catch (error) {
       console.error('Logout process failed:', error);
       toast.error("An unexpected error occurred during logout");
+      navigate(redirectTo, { replace: true }); // Navigate anyway to prevent user being stuck
     } finally {
       setIsLoggingOut(false);
     }
