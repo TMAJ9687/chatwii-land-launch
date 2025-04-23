@@ -1,4 +1,6 @@
-import { useState } from "react";
+
+import React, { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, navigationMenuTriggerStyle } from "@/components/ui/navigation-menu"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -7,9 +9,55 @@ import { SiteManagement } from "@/components/admin/SiteManagement"
 import { ReportsFeedback } from "@/components/admin/ReportsFeedback"
 import { AdminSettings } from "@/components/admin/AdminSettings"
 import { LogoutButton } from "@/components/LogoutButton"
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const AdminDashboardPage = () => {
   const [currentView, setCurrentView] = useState("users");
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          toast.error("Unauthorized access");
+          return;
+        }
+
+        // Additional check for admin role
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (error || profile?.role !== 'admin') {
+          toast.error("Access denied. Admin privileges required.");
+          setUser(null);
+        } else {
+          setUser(user);
+        }
+      } catch (error) {
+        console.error("Admin access check failed:", error);
+        toast.error("Failed to verify admin access");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAdminAccess();
+  }, []);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/admin/login" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background">

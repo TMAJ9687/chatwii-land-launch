@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface ProfileData {
   nickname: string;
@@ -19,21 +19,23 @@ export function useProfileSubmission() {
   const submitProfile = async (profileData: ProfileData) => {
     const { nickname, gender, age, country, interests = [] } = profileData;
     
+    // Server-side nickname availability check
+    const { data: nicknameCheck } = await supabase.rpc('is_nickname_available', { 
+      check_nickname: nickname 
+    });
+
+    if (!nicknameCheck) {
+      toast.error("Nickname is already taken. Please choose a different nickname.");
+      return false;
+    }
+    
     if (!gender) {
-      toast({
-        title: "Error",
-        description: "Please select your gender",
-        variant: "destructive",
-      });
+      toast.error("Please select your gender");
       return false;
     }
     
     if (!age) {
-      toast({
-        title: "Error",
-        description: "Please select your age",
-        variant: "destructive",
-      });
+      toast.error("Please select your age");
       return false;
     }
 
@@ -54,26 +56,8 @@ export function useProfileSubmission() {
         });
 
       if (profileError) {
-        if (
-          profileError.message &&
-          /duplicate key value.*nickname|unique constraint.*nickname/i.test(profileError.message)
-        ) {
-          toast({
-            title: "Nickname is taken",
-            description: "Please choose a different nickname.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return false;
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to save profile. Please try again.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return false;
-        }
+        toast.error("Failed to save profile. Please try again.");
+        return false;
       }
 
       if (interests.length > 0) {
@@ -105,11 +89,7 @@ export function useProfileSubmission() {
       return true;
     } catch (error) {
       console.error("Error saving profile:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save profile. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to save profile. Please try again.");
       return false;
     } finally {
       setIsLoading(false);
