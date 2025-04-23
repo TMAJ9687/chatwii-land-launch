@@ -18,9 +18,23 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
-  const currentUserId = useMemo(() => {
-    return users.find(user => user.is_current_user)?.user_id;
-  }, [users]);
+  // Filter out current user and apply user filters
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter(user => !user.is_current_user)
+      .filter(user => {
+        if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
+          return false;
+        }
+        if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) {
+          return false;
+        }
+        if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) {
+          return false;
+        }
+        return true;
+      });
+  }, [users, filters]);
 
   const hasActiveFilters = useMemo(() => {
     return filters.selectedGenders.length > 0 ||
@@ -29,40 +43,20 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
       filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
   }, [filters]);
 
-  const filteredUsers = useMemo(() => {
-    // First filter out the current user
-    const withoutCurrentUser = users.filter(user => !user.is_current_user);
-    
-    // Then apply the rest of the filters
-    return withoutCurrentUser.filter(user => {
-      if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
-        return false;
-      }
-      if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) {
-        return false;
-      }
-      if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) {
-        return false;
-      }
-      return true;
-    });
-  }, [users, filters]);
-
   const sortedUsers = useMemo(() => {
-    return [...filteredUsers]
-      .sort((a, b) => {
-        if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
-        if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
-        if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
-          return (a.nickname || '').localeCompare(b.nickname || '');
-        }
-        if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
-        if ((a.role !== 'bot' && b.role === 'bot' && !a.vip_status)) return 1;
-        if ((a.country || '') !== (b.country || '')) {
-          return (a.country || '').localeCompare(b.country || '');
-        }
+    return [...filteredUsers].sort((a, b) => {
+      if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
+      if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
+      if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
         return (a.nickname || '').localeCompare(b.nickname || '');
-      });
+      }
+      if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
+      if (a.role !== 'bot' && b.role === 'bot' && !a.vip_status) return 1;
+      if ((a.country || '') !== (b.country || '')) {
+        return (a.country || '').localeCompare(b.country || '');
+      }
+      return (a.nickname || '').localeCompare(b.nickname || '');
+    });
   }, [filteredUsers]);
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
@@ -74,6 +68,14 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
 
   const handleClearFilters = () => {
     setFilters(DEFAULT_FILTERS);
+  };
+
+  const handleUserSelection = (userId: string) => {
+    // Safety check to prevent self-selection
+    const user = users.find(u => u.user_id === userId);
+    if (user && !user.is_current_user) {
+      onUserSelect(userId);
+    }
   };
 
   return (
@@ -115,7 +117,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             isVip={user.role === 'vip' || user.vip_status}
             interests={user.interests || []}
             isSelected={selectedUserId === user.user_id}
-            onClick={() => onUserSelect(user.user_id)}
+            onClick={() => handleUserSelection(user.user_id)}
             avatar={user.avatar_url}
             profileTheme={user.profile_theme}
             isBlocked={blockedUsers.includes(user.user_id)}

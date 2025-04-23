@@ -21,6 +21,7 @@ import { useBot } from '@/hooks/useBot';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { NotificationBadge } from '@/components/NotificationBadge';
+import { usePresence } from '@/hooks/usePresence';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -55,10 +56,7 @@ const ChatInterface = () => {
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
   const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
-
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
-  const presenceChannelRef = useRef<any>(null);
-  const globalChannelRef = useRef<any>(null);
+  const { onlineUsers } = usePresence(currentUserId);
 
   useEffect(() => {
     let presenceChannel: any = null;
