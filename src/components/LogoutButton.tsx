@@ -16,7 +16,7 @@ import { useLogout } from "@/hooks/useLogout";
 
 export const LogoutButton = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const { handleLogout } = useLogout("/secretadminportal");
+  const { handleLogout } = useLogout("/feedback");
 
   return (
     <>

@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,15 +22,59 @@ import VipPlansPage from "./pages/VipPlansPage";
 import VipSuccessPage from "./pages/VipSuccessPage";
 import VipCancelPage from "./pages/VipCancelPage";
 
-// Stripe imports
+import AdminLoginPage from "./pages/AdminLoginPage";
+
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
 const queryClient = new QueryClient();
 
-// IMPORTANT: Replace with your real Stripe publishable key!
 const STRIPE_PUBLISHABLE_KEY = "pk_test_YOUR_PUBLISHABLE_KEY";
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+
+const useAdminAuth = () => {
+  const [checked, setChecked] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const { data: { session } } = await import("@/integrations/supabase/client").then(mod => mod.supabase.auth.getSession());
+      if (!session) {
+        setChecked(true);
+        setIsAdmin(false);
+        return;
+      }
+      const { data: profile } = await import("@/integrations/supabase/client").then(mod =>
+        mod.supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle()
+      );
+      setIsAdmin(profile?.role === "admin");
+      setChecked(true);
+    };
+    check();
+  }, []);
+
+  return { checked, isAdmin };
+};
+
+const ProtectedAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { checked, isAdmin } = useAdminAuth();
+  const [redirect, setRedirect] = useState(false);
+
+  useEffect(() => {
+    if (checked && !isAdmin) setRedirect(true);
+  }, [checked, isAdmin]);
+
+  if (!checked) return null;
+  if (redirect) {
+    window.location.replace("/tmaj2025");
+    return null;
+  }
+  return <>{children}</>;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -39,8 +82,6 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        {/* Stripe Elements Provider: All payment/plan-related pages should be here */}
-        {/* REMINDER: Replace publishable key above with your live/test key for real payments */}
         <Elements stripe={stripePromise}>
           <BrowserRouter>
             <Routes>
@@ -54,8 +95,12 @@ const App = () => (
               <Route path="/vip-plans" element={<VipPlansPage />} />
               <Route path="/vip-success" element={<VipSuccessPage />} />
               <Route path="/vip-cancel" element={<VipCancelPage />} />
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/feedback" element={<FeedbackPage />} />
+              <Route path="/tmaj2025" element={<AdminLoginPage />} />
+              <Route path="/admin" element={
+                <ProtectedAdminRoute>
+                  <AdminDashboardPage />
+                </ProtectedAdminRoute>
+              } />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

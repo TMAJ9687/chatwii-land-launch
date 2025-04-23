@@ -131,11 +131,18 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       });
       return;
     }
+    if (!age) {
+      toast({
+        title: "Error",
+        description: "Please select your age",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) throw new Error("No user found");
 
       const { error: profileError } = await supabase
@@ -149,9 +156,27 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
           role: 'standard'
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        if (
+          profileError.message &&
+          /duplicate key value.*nickname|unique constraint.*nickname/i.test(profileError.message)
+        ) {
+          toast({
+            title: "Nickname is taken",
+            description: "Please choose a different nickname.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to save profile. Please try again.",
+            variant: "destructive",
+          });
+        }
+        setIsLoading(false);
+        return;
+      }
 
-      // Insert user interests
       if (selectedInterests.length > 0) {
         const { data: interestsData } = await supabase
           .from("interests")
@@ -159,7 +184,6 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
           .in("name", selectedInterests);
 
         if (interestsData && interestsData.length > 0) {
-          // Clear existing interests first
           await supabase
             .from("user_interests")
             .delete()
@@ -260,7 +284,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       <Button
         className="w-full"
         onClick={handleSubmit}
-        disabled={!gender || isLoading}
+        disabled={!gender || !age || isLoading}
       >
         {isLoading ? "Saving..." : "Continue to Chat"}
       </Button>
