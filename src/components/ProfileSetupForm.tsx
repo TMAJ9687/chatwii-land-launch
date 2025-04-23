@@ -6,7 +6,8 @@ import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Flag, ChevronLeft, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getCountryNameFromCode, getFlagUrl, detectUserCountry } from "@/utils/countryTools";
+import { getFlagUrl } from "@/utils/countryTools";
+import { useDetectCountry } from "@/hooks/useDetectCountry";
 
 interface ProfileSetupFormProps {
   nickname: string;
@@ -52,28 +53,11 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [nickname, setNickname] = useState(initialNickname);
   const [gender, setGender] = useState<string>("");
   const [age, setAge] = useState<string>("");
-  const [country, setCountry] = useState<string>("Detecting...");
-  const [countryCode, setCountryCode] = useState<string>("");
+  const { country, countryCode } = useDetectCountry();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [nickNameError, setNickNameError] = useState("");
-
-  useEffect(() => {
-    const getCountry = async () => {
-      try {
-        const { country, countryCode } = await detectUserCountry();
-        setCountry(country);
-        setCountryCode(countryCode);
-      } catch (error) {
-        console.error("Error detecting country:", error);
-        setCountry("Unknown");
-        setCountryCode("");
-      }
-    };
-
-    getCountry();
-  }, []);
 
   useEffect(() => {
     const fetchProfanity = async () => {
