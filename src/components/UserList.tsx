@@ -1,3 +1,4 @@
+
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -19,6 +20,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const currentUserId = useMemo(() => {
+    // Find the current user by looking for is_current_user flag
     const currentUser = users.find(user => user.is_current_user);
     return currentUser?.user_id;
   }, [users]);
@@ -55,7 +57,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
 
   const sortedUsers = useMemo(() => {
     return [...filteredUsers]
-      .filter(user => user.user_id !== currentUserId)
       .sort((a, b) => {
         if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
         if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
@@ -131,6 +132,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
                 : undefined
             }
             role={user.role}
+            isCurrentUser={user.user_id === currentUserId}
           />
         ))}
       </div>
