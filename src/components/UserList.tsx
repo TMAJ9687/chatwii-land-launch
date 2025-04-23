@@ -1,3 +1,4 @@
+
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -19,12 +20,12 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const currentUserId = useMemo(() => {
-    const currentUser = users.find(user => user.is_current_user);
-    return currentUser?.user_id;
+    return users.find(user => user.is_current_user)?.user_id;
   }, [users]);
 
   const handleUserSelect = (userId: string) => {
     if (userId === currentUserId) {
+      toast.error("You cannot chat with yourself");
       return;
     }
     onUserSelect(userId);
