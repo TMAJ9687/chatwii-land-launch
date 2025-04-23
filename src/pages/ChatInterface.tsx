@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +23,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { NotificationBadge } from '@/components/NotificationBadge';
 import { usePresence } from '@/hooks/usePresence';
+import { useMessages } from '@/hooks/useMessages';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -31,23 +33,12 @@ declare global {
   }
 }
 
-const getCutoffTimestamp = (role: string) => {
-  const now = new Date();
-  let hoursAgo = 1;
-  if (role === 'vip' || role === 'admin') {
-    hoursAgo = 10;
-  }
-  now.setHours(now.getHours() - hoursAgo);
-  return now.toISOString();
-};
-
 const ChatInterface = () => {
   const navigate = useNavigate();
   const [showRules, setShowRules] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
-  const [messages, setMessages] = useState<MessageWithMedia[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
@@ -60,6 +51,13 @@ const ChatInterface = () => {
   
   const presenceChannelRef = useRef<any>(null);
   const globalChannelRef = useRef<any>(null);
+
+  // Using the new useMessages hook
+  const { 
+    messages, 
+    setMessages, 
+    fetchMessages 
+  } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   useEffect(() => {
     let presenceChannel: any = null;
@@ -222,7 +220,7 @@ const ChatInterface = () => {
         }
       )
       .subscribe();
-      
+
     globalChannelRef.current = channel;
       
     return () => {
@@ -232,6 +230,18 @@ const ChatInterface = () => {
       }
     };
   }, [currentUserId, selectedUserId]);
+
+  // Re-add the missing effect that loads messages when a user is selected
+  useEffect(() => {
+    if (selectedUserId && currentUserId) {
+      window.selectedUserId = selectedUserId;
+      fetchMessages();
+    }
+    
+    return () => {
+      window.selectedUserId = undefined;
+    };
+  }, [selectedUserId, currentUserId, fetchMessages]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     console.log('Attempting to send message:', {
