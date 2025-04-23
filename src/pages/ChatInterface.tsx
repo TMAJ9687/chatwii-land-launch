@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -13,36 +12,24 @@ import { VipButton } from '@/components/VipButton';
 import { RulesPopup } from '@/components/RulesPopup';
 import { UserList } from '@/components/UserList';
 import { LogoutButton } from '@/components/LogoutButton';
-import { ChatArea } from '@/components/ChatArea';
-import { MessageInput } from '@/components/MessageInput';
 import { VipSettingsButton } from '@/components/VipSettingsButton';
-import { toast } from 'sonner';
-import { Message } from '@/types/message';
+import { NotificationBadge } from '@/components/NotificationBadge';
 import { useBot } from '@/hooks/useBot';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
-import { NotificationBadge } from '@/components/NotificationBadge';
 import { usePresence } from '@/hooks/usePresence';
 import { useMessages } from '@/hooks/useMessages';
-
-type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
-
-declare global {
-  interface Window {
-    selectedUserId?: string;
-  }
-}
+import { useChatState } from '@/hooks/useChatState';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { ChatContent } from '@/components/chat/ChatContent';
+import { Message } from '@/types/message';
+import { toast } from 'sonner';
 
 const ChatInterface = () => {
   const navigate = useNavigate();
-  const [showRules, setShowRules] = useState(false);
-  const [acceptedRules, setAcceptedRules] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
-  const [activeSidebar, setActiveSidebar] = useState<ActiveSidebar>('none');
   const [profile, setProfile] = useState<any>(null);
   
   const { handleBotResponse } = useBot();
@@ -50,19 +37,29 @@ const ChatInterface = () => {
   const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
   
-  const globalChannelRef = useRef<any>(null);
+  const { 
+    selectedUserId,
+    selectedUserNickname,
+    showRules,
+    acceptedRules,
+    activeSidebar,
+    setActiveSidebar,
+    handleCloseChat,
+    handleUserSelect,
+    handleAcceptRules,
+    checkRulesAccepted
+  } = useChatState();
 
-  // Using the messages hook
   const { 
     messages, 
     setMessages, 
     fetchMessages 
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
-  useEffect(() => {
-    let myProfile: any = null;
+  const globalChannelRef = useRef<any>(null);
 
-    const checkAuthAndJoinPresence = async () => {
+  useEffect(() => {
+    const checkAuthAndLoadProfile = async () => {
       const {
         data: { session }
       } = await supabase.auth.getSession();
@@ -75,7 +72,7 @@ const ChatInterface = () => {
 
       const { data: dbProfile, error } = await supabase
         .from('profiles')
-        .select('id, nickname, vip_status, role, avatar_url, country, gender, age, profile_theme')
+        .select('*')
         .eq('id', session.user.id)
         .single();
       
@@ -83,37 +80,23 @@ const ChatInterface = () => {
         setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
         setCurrentUserRole(dbProfile.role || 'standard');
         setProfile(dbProfile);
-        myProfile = dbProfile;
-        console.log("Profile loaded:", dbProfile);
       } else {
         console.error("Error loading profile:", error);
         setCurrentUserRole('standard');
-        myProfile = {
+        setProfile({
           id: session.user.id,
           nickname: "Unknown",
           role: "standard",
           avatar_url: null,
           vip_status: false,
-        };
-        setProfile(myProfile);
+        });
       }
 
-      const rulesAccepted = localStorage.getItem('rulesAccepted');
-      if (rulesAccepted === 'true') {
-        setShowRules(false);
-        setAcceptedRules(true);
-      } else {
-        setShowRules(true);
-        setAcceptedRules(false);
-      }
+      checkRulesAccepted();
     };
 
-    checkAuthAndJoinPresence();
-
-    return () => {
-      window.selectedUserId = undefined;
-    };
-  }, [navigate]);
+    checkAuthAndLoadProfile();
+  }, [navigate, checkRulesAccepted]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -187,22 +170,11 @@ const ChatInterface = () => {
   // Load messages when a user is selected
   useEffect(() => {
     if (selectedUserId && currentUserId) {
-      window.selectedUserId = selectedUserId;
       fetchMessages();
     }
-    
-    return () => {
-      window.selectedUserId = undefined;
-    };
   }, [selectedUserId, currentUserId, fetchMessages]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
-    console.log('Attempting to send message:', {
-      hasContent: !!content,
-      hasImage: !!imageUrl,
-      timestamp: new Date().toISOString()
-    });
-
     if (!selectedUserId || !currentUserId) return;
 
     if (!canInteractWithUser(selectedUserId)) {
@@ -276,34 +248,6 @@ const ChatInterface = () => {
     }
   };
 
-  const handleUserSelect = async (userId: string) => {
-    setSelectedUserId(userId);
-    setMessages([]);
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('nickname')
-      .eq('id', userId)
-      .single();
-
-    if (data) {
-      setSelectedUserNickname(data.nickname);
-    }
-    
-    await markMessagesAsRead(userId);
-    
-    fetchUnreadCount();
-  };
-
-  const handleCloseChat = () => {
-    setSelectedUserId(null);
-    setMessages([]);
-  };
-  
-  const handleMessagesRead = () => {
-    fetchUnreadCount();
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border py-3 px-4 flex items-center justify-between">
@@ -344,40 +288,31 @@ const ChatInterface = () => {
         <aside className="w-full max-w-xs border-r border-border">
           <UserList
             users={onlineUsers}
-            onUserSelect={handleUserSelect}
+            onUserSelect={(userId) => handleUserSelect(userId, '')}
             selectedUserId={selectedUserId ?? undefined}
           />
         </aside>
 
         <main className="flex-1 flex flex-col">
-          {selectedUserId ? (
-            <>
-              <ChatArea
-                messages={messages}
-                currentUserId={currentUserId || ''}
-                selectedUser={{
-                  id: selectedUserId,
-                  nickname: selectedUserNickname
-                }}
-                onClose={handleCloseChat}
-                onMessagesRead={handleMessagesRead}
-              />
-
-              <MessageInput
-                onSendMessage={handleSendMessage}
-                currentUserId={currentUserId}
-                receiverId={selectedUserId}
-              />
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-              <div className="mb-6 text-5xl">👋</div>
-              <h2 className="text-2xl font-bold mb-2">Welcome to Chatwii</h2>
-              <p className="text-muted-foreground max-w-md">
-                Select a user from the list to start chatting
-              </p>
-            </div>
+          {selectedUserId && (
+            <ChatHeader
+              nickname={selectedUserNickname}
+              onClose={handleCloseChat}
+              onReportUser={() => { /* Report user logic */ }}
+              onBlockUser={() => { /* Block user logic */ }}
+              isBlocked={false}
+            />
           )}
+          
+          <ChatContent
+            selectedUserId={selectedUserId}
+            selectedUserNickname={selectedUserNickname}
+            currentUserId={currentUserId || ''}
+            messages={messages}
+            onClose={handleCloseChat}
+            onSendMessage={handleSendMessage}
+            onMessagesRead={() => fetchUnreadCount()}
+          />
         </main>
       </div>
 
@@ -387,7 +322,7 @@ const ChatInterface = () => {
         title="Inbox"
       >
         <InboxSidebar onUserSelect={(userId) => {
-          handleUserSelect(userId);
+          handleUserSelect(userId, '');
           setActiveSidebar('none');
         }} />
       </SidebarContainer>
@@ -398,7 +333,7 @@ const ChatInterface = () => {
         title="Chat History"
       >
         <HistorySidebar onUserSelect={(userId) => {
-          handleUserSelect(userId);
+          handleUserSelect(userId, '');
           setActiveSidebar('none');
         }} />
       </SidebarContainer>
@@ -415,11 +350,7 @@ const ChatInterface = () => {
         <RulesPopup
           open={showRules}
           onOpenChange={open => setShowRules(open)}
-          onAccept={() => {
-            setAcceptedRules(true);
-            localStorage.setItem('rulesAccepted', 'true');
-            setShowRules(false);
-          }}
+          onAccept={handleAcceptRules}
         />
       )}
     </div>
