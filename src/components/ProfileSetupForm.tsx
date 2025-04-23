@@ -6,6 +6,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Flag, ChevronLeft, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getCountryNameFromCode, getFlagUrl } from "@/utils/countryTools";
 
 interface ProfileSetupFormProps {
   nickname: string;
@@ -52,6 +53,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [gender, setGender] = useState<string>("");
   const [age, setAge] = useState<string>("");
   const [country, setCountry] = useState<string>("");
+  const [countryCode, setCountryCode] = useState<string>("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -60,12 +62,19 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   useEffect(() => {
     const detectCountry = async () => {
       try {
-        const response = await fetch("https://api.ipapi.com/api/check?access_key=YOUR_API_KEY");
+        const response = await fetch("https://country.is");
         const data = await response.json();
-        setCountry(data.country_name || "Unknown");
+        if (data && data.country) {
+          setCountryCode(data.country.toUpperCase());
+          setCountry(getCountryNameFromCode(data.country));
+        } else {
+          setCountry("Unknown");
+          setCountryCode("");
+        }
       } catch (error) {
         console.error("Error detecting country:", error);
         setCountry("Unknown");
+        setCountryCode("");
       }
     };
 
@@ -94,7 +103,6 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     fetchProfanity();
   }, []);
 
-  // READ-ONLY: nickname field is now grayed out and cannot be edited
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {};
 
   const handleInterestChange = (interest: string) => {
@@ -285,8 +293,15 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Country
         </label>
-        <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 rounded-md">
-          <Flag className="h-4 w-4" />
+        <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 rounded-md min-h-[36px]">
+          {countryCode && (
+            <img
+              src={getFlagUrl(countryCode)}
+              alt={`${country} flag`}
+              className="w-5 h-4 rounded mr-2"
+              style={{ background: "#E5E7EB", objectFit: "cover" }}
+            />
+          )}
           <span>{country || "Detecting..."}</span>
         </div>
       </div>
