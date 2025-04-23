@@ -34,9 +34,15 @@ export const registerSchema = z.object({
   nickname: z
     .string()
     .min(1, "Nickname is required")
-    .refine((value) => !validateNickname(value), {
-      message: (val) => validateNickname(val) || "Invalid nickname",
-    }),
+    .refine(
+      (value) => {
+        const validationResult = validateNickname(value);
+        return validationResult === null;
+      },
+      {
+        message: (val) => validateNickname(val) || "Invalid nickname"
+      }
+    ),
   email: z.string().email("Please enter a valid email address"),
   password: z
     .string()
@@ -52,9 +58,15 @@ export const profileSchema = z.object({
   nickname: z
     .string()
     .min(1, "Nickname is required")
-    .refine((value) => !validateNickname(value), {
-      message: (val) => validateNickname(val) || "Invalid nickname",
-    }),
+    .refine(
+      (value) => {
+        const validationResult = validateNickname(value);
+        return validationResult === null;
+      },
+      {
+        message: (val) => validateNickname(val) || "Invalid nickname"
+      }
+    ),
   gender: z.enum(["Male", "Female"]),
   age: z.number().int().min(18, "You must be at least 18 years old"),
   country: z.string().optional(),
