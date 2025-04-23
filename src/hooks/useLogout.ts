@@ -15,26 +15,26 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Update user's visibility to offline before signing out
-        const { error: updateError } = await supabase
+        // Delete the user's profile (remove for nickname re-use)
+        const { error: deleteProfileError } = await supabase
           .from('profiles')
-          .update({ visibility: 'offline' })
+          .delete()
           .eq('id', user.id);
 
-        if (updateError) {
+        if (deleteProfileError) {
           toast({
             variant: "destructive",
-            title: "Could not update user status",
-            description: "There was an issue updating your online status."
+            title: "Could not remove profile",
+            description: "There was an issue deleting your profile info.",
           });
-          console.error('Error updating user visibility:', updateError);
+          console.error('Error deleting user profile:', deleteProfileError);
         }
+
+        // Optionally you may want to also clear their interests, etc...
       }
 
       // Sign out
       await supabase.auth.signOut();
-      
-      // Redirect to specified page after logout
       navigate(redirectTo);
     } catch (error) {
       toast({

@@ -74,7 +74,7 @@ const LandingPage = () => {
             <h1 className="text-3xl font-semibold leading-relaxed">
               Text <span className="text-chatwii-orange">Anonymously</span>
               <br />
-              with <span className="text-chatwii-green">no registration</span>
+              with <span className="text-teal-500">no registration</span>
             </h1>
             <p className="mt-4 text-gray-600 dark:text-gray-300 text-sm">
               Unleash your creativity and connect with like-minded individuals on our chatting website, where conversations come to life.
@@ -83,7 +83,11 @@ const LandingPage = () => {
 
           <div className="space-y-4">
             <UsernameInput maxLength={16} value={nickname} onChange={setNickname} />
-            <ChatButton nickname={nickname} onCaptchaClick={handleStartChatClick} disabled={isSigningIn || !nickname} />
+            <ChatButton 
+              nickname={nickname} 
+              onCaptchaClick={handleStartChatClick}
+              disabled={isSigningIn || !nickname}
+            />
             {captchaError && (
               <div className="text-red-500 pt-2 text-center text-sm">
                 {captchaError}
@@ -109,3 +113,4 @@ const LandingPage = () => {
 };
 
 export default LandingPage;
+

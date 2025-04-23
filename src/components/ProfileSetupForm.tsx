@@ -82,7 +82,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       />
 
       <Button
-        className="w-full"
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
         onClick={handleSubmit}
         disabled={!gender || !age || isLoading}
       >

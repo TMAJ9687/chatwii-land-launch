@@ -27,12 +27,21 @@ export const VipButton = () => {
   return (
     <div className="relative">
       <button
-        className="bg-chatwii-peach text-white px-4 py-1 rounded-md flex items-center space-x-1 font-medium shadow-sm hover:shadow transition-shadow"
+        className="px-4 py-1 rounded-md flex items-center space-x-1 font-medium shadow-sm hover:shadow transition-shadow"
         aria-label="VIP access"
         onClick={handleTogglePopup}
+        style={{
+          background: 'linear-gradient(90deg, #FFD700 0%, #FFB800 100%)',
+          color: 'white',
+          border: '2px solid #fff8dc',
+          boxShadow: '0 0 8px 2px #ffd70080, 0 1px 4px 0 #ffb80044',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
       >
-        <Crown className="h-4 w-4 mr-1" />
-        <span>VIP</span>
+        <span className="animate-pulse absolute -right-2 -top-2 w-5 h-5 rounded-full bg-yellow-200/70 blur-md opacity-70 pointer-events-none"></span>
+        <Crown className="h-4 w-4 mr-1 drop-shadow" style={{ color: '#FFF8DC', filter: 'drop-shadow(0 0 4px #FFD700AA)' }} />
+        <span className="z-10">VIP</span>
       </button>
 
       {isOpen && (
@@ -61,3 +70,4 @@ export const VipButton = () => {
     </div>
   );
 };
+

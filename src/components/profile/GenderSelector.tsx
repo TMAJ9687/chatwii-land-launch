@@ -17,14 +17,22 @@ export const GenderSelector: React.FC<GenderSelectorProps> = ({ gender, onChange
         <Button
           variant={gender === 'Male' ? 'default' : 'outline'}
           onClick={() => onChange('Male')}
-          className="flex-1"
+          className={`flex-1 ${
+            gender === 'Male'
+              ? 'bg-[#33C3F0] text-white border-none hover:bg-[#33C3F0]/90'
+              : ''
+          }`}
         >
           Male
         </Button>
         <Button
           variant={gender === 'Female' ? 'default' : 'outline'}
           onClick={() => onChange('Female')}
-          className="flex-1"
+          className={`flex-1 ${
+            gender === 'Female'
+              ? 'bg-[#D946EF] text-white border-none hover:bg-[#D946EF]/90'
+              : ''
+          }`}
         >
           Female
         </Button>
