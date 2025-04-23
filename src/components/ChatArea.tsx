@@ -8,6 +8,7 @@ import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { supabase } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,13 +24,15 @@ interface ChatAreaProps {
     nickname: string;
   };
   onClose?: () => void;
+  onMessagesRead?: () => void;
 }
 
 export const ChatArea = ({ 
   messages: initialMessages, 
   currentUserId, 
   selectedUser,
-  onClose 
+  onClose,
+  onMessagesRead
 }: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
@@ -45,6 +48,31 @@ export const ChatArea = ({
       setRevealedImages(new Set(JSON.parse(savedRevealedImages)));
     }
   }, []);
+
+  useEffect(() => {
+    // Mark messages as read when chat is opened
+    const markMessagesAsRead = async () => {
+      if (currentUserId && selectedUser.id) {
+        try {
+          const { error } = await supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('sender_id', selectedUser.id)
+            .eq('receiver_id', currentUserId)
+            .eq('is_read', false);
+          
+          if (error) throw error;
+          
+          // Notify parent component that messages have been read
+          if (onMessagesRead) onMessagesRead();
+        } catch (error) {
+          console.error('Error marking messages as read:', error);
+        }
+      }
+    };
+
+    markMessagesAsRead();
+  }, [currentUserId, selectedUser.id, onMessagesRead]);
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
 

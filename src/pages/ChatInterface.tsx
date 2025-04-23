@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
@@ -20,6 +19,8 @@ import { toast } from 'sonner';
 import { MessageWithMedia, Message } from '@/types/message';
 import { useBot } from '@/hooks/useBot';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { useGlobalMessages } from '@/hooks/useGlobalMessages';
+import { NotificationBadge } from '@/components/NotificationBadge';
 
 type ActiveSidebar = 'none' | 'inbox' | 'history' | 'blocked';
 
@@ -53,9 +54,11 @@ const ChatInterface = () => {
   const [profile, setProfile] = useState<any>(null);
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
+  const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
 
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const presenceChannelRef = useRef<any>(null);
+  const globalChannelRef = useRef<any>(null);
 
   useEffect(() => {
     let presenceChannel: any = null;
@@ -173,6 +176,75 @@ const ChatInterface = () => {
   }, [navigate]);
 
   useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel('all-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+        },
+        async (payload) => {
+          console.log('New message detected in global subscription:', payload);
+          
+          if (selectedUserId && 
+             ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
+              (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
+            
+            const newMessage = payload.new as Message;
+            
+            setMessages(current => {
+              const exists = current.some(msg =>
+                (msg.id === newMessage.id) ||
+                (msg.content === newMessage.content &&
+                  msg.sender_id === newMessage.sender_id &&
+                  Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
+              );
+              
+              if (!exists) {
+                console.log('Adding new message to state from global subscription:', {
+                  messageId: newMessage.id,
+                  timestamp: new Date().toISOString()
+                });
+                return [...current, { ...newMessage, media: null }];
+              }
+              return current;
+            });
+            
+            const { data: mediaData } = await supabase
+              .from('message_media')
+              .select('*')
+              .eq('message_id', newMessage.id);
+              
+            if (mediaData?.length) {
+              setMessages(current =>
+                current.map(msg =>
+                  msg.id === newMessage.id
+                    ? { ...msg, media: mediaData[0] }
+                    : msg
+                )
+              );
+            }
+          }
+        }
+      )
+      .subscribe();
+      
+    globalChannelRef.current = channel;
+      
+    return () => {
+      if (globalChannelRef.current) {
+        supabase.removeChannel(globalChannelRef.current);
+        globalChannelRef.current = null;
+      }
+    };
+  }, [currentUserId, selectedUserId]);
+
+  useEffect(() => {
     if (!selectedUserId || !currentUserId) return;
     window.selectedUserId = selectedUserId;
 
@@ -186,6 +258,7 @@ const ChatInterface = () => {
         role: currentUserRole,
         timestamp: new Date().toISOString()
       });
+      
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -207,76 +280,18 @@ const ChatInterface = () => {
         media: message.message_media?.[0] || null,
       }));
       setMessages(messagesWithMedia);
+      
+      if (selectedUserId) {
+        await markMessagesAsRead(selectedUserId);
+      }
     };
 
     fetchMessages();
 
-    const channelName = `chat_${[currentUserId, selectedUserId].sort().join('_')}`;
-    console.log('Setting up subscription for channel:', {
-      channelName,
-      currentUserId,
-      selectedUserId,
-      timestamp: new Date().toISOString()
-    });
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `or(and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId}))`,
-        },
-        async (payload) => {
-          console.log('New message received:', {
-            payload,
-            timestamp: new Date().toISOString()
-          });
-          const newMessage = payload.new as Message;
-          setMessages(current => {
-            const exists = current.some(msg =>
-              (msg.id === newMessage.id) ||
-              (msg.content === newMessage.content &&
-                msg.sender_id === newMessage.sender_id &&
-                Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
-            );
-            if (!exists) {
-              console.log('Adding new message to state:', {
-                messageId: newMessage.id,
-                timestamp: new Date().toISOString()
-              });
-              return [...current, { ...newMessage, media: null }];
-            }
-            return current;
-          });
-          const { data: mediaData } = await supabase
-            .from('message_media')
-            .select('*')
-            .eq('message_id', newMessage.id);
-          if (mediaData?.length) {
-            setMessages(current =>
-              current.map(msg =>
-                msg.id === newMessage.id
-                  ? { ...msg, media: mediaData[0] }
-                  : msg
-              )
-            );
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
-      console.log('Cleaning up subscription:', {
-        channelName,
-        timestamp: new Date().toISOString()
-      });
-      supabase.removeChannel(channel);
       window.selectedUserId = undefined;
     };
-  }, [selectedUserId, currentUserId, currentUserRole]);
+  }, [selectedUserId, currentUserId, currentUserRole, markMessagesAsRead]);
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     console.log('Attempting to send message:', {
@@ -287,7 +302,6 @@ const ChatInterface = () => {
 
     if (!selectedUserId || !currentUserId) return;
 
-    // Check if user can interact with recipient
     if (!canInteractWithUser(selectedUserId)) {
       toast.error("You cannot send messages to this user");
       return;
@@ -372,11 +386,19 @@ const ChatInterface = () => {
     if (data) {
       setSelectedUserNickname(data.nickname);
     }
+    
+    await markMessagesAsRead(userId);
+    
+    fetchUnreadCount();
   };
 
   const handleCloseChat = () => {
     setSelectedUserId(null);
     setMessages([]);
+  };
+  
+  const handleMessagesRead = () => {
+    fetchUnreadCount();
   };
 
   return (
@@ -391,6 +413,7 @@ const ChatInterface = () => {
             onClick={() => setActiveSidebar('inbox')}
           >
             <Mail className="h-5 w-5" />
+            <NotificationBadge count={unreadCount} />
           </Button>
           <Button
             variant="ghost"
@@ -434,6 +457,7 @@ const ChatInterface = () => {
                   nickname: selectedUserNickname
                 }}
                 onClose={handleCloseChat}
+                onMessagesRead={handleMessagesRead}
               />
 
               <MessageInput
