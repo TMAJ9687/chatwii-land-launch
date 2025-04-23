@@ -1,14 +1,11 @@
-
 import { useEffect, useState } from 'react';
-import { X, MoreVertical } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { supabase } from '@/lib/supabase';
 import { MessageList } from './chat/MessageList';
-import { ChatActions } from './chat/ChatActions';
+import { ChatAreaHeader } from './chat/ChatAreaHeader';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -33,7 +30,6 @@ export const ChatArea = ({
   const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
   const { blockedUsers, blockUser } = useBlockedUsers();
   
-  // Load saved revealed images from localStorage
   useEffect(() => {
     const savedRevealedImages = localStorage.getItem('revealedImages');
     if (savedRevealedImages) {
@@ -41,7 +37,6 @@ export const ChatArea = ({
     }
   }, []);
 
-  // Mark messages as read when chat is opened
   useEffect(() => {
     const markMessagesAsRead = async () => {
       if (currentUserId && selectedUser.id) {
@@ -55,7 +50,6 @@ export const ChatArea = ({
           
           if (error) throw error;
           
-          // Notify parent component that messages have been read
           if (onMessagesRead) onMessagesRead();
         } catch (error) {
           console.error('Error marking messages as read:', error);
@@ -89,30 +83,14 @@ export const ChatArea = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Chat Header */}
-      <div className="p-4 border-b flex items-center justify-between">
-        <h2 className="font-medium">{selectedUser.nickname}</h2>
-        <div className="flex items-center gap-2">
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="rounded-full"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-          
-          <ChatActions
-            isBlocked={isBlocked}
-            onShowReportPopup={() => setShowReportPopup(true)}
-            onBlockUser={handleBlockUser}
-          />
-        </div>
-      </div>
+      <ChatAreaHeader
+        nickname={selectedUser.nickname}
+        isBlocked={isBlocked}
+        onClose={onClose}
+        onShowReportPopup={() => setShowReportPopup(true)}
+        onBlockUser={handleBlockUser}
+      />
 
-      {/* Messages List */}
       <MessageList
         messages={messages}
         currentUserId={currentUserId}
@@ -121,14 +99,12 @@ export const ChatArea = ({
         toggleImageReveal={toggleImageReveal}
       />
 
-      {/* Report User Popup */}
       <ReportUserPopup
         isOpen={showReportPopup}
         onClose={() => setShowReportPopup(false)}
         reportedUser={selectedUser}
       />
 
-      {/* Full Screen Image Modal */}
       {fullScreenImage && (
         <ImageModal 
           imageUrl={fullScreenImage} 
