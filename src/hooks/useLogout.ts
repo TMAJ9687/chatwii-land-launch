@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export const useLogout = (redirectTo: string = "/feedback") => {
   const navigate = useNavigate();
@@ -15,38 +15,39 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        // Forcefully remove the user's entire profile so nickname can be reused
+        console.log('Attempting to delete profile for user:', user.id);
+        
+        // Forcefully remove the user's entire profile
         const { error: deleteProfileError } = await supabase
           .from('profiles')
           .delete()
           .eq('id', user.id);
 
         if (deleteProfileError) {
-          toast({
-            variant: "destructive",
-            title: "Could not remove profile",
-            description: "There was an issue deleting your profile info.",
-          });
-          console.error('Error deleting user profile:', deleteProfileError);
-        } else {
-          // Optionally delete user interests if needed
-          await supabase
-            .from('user_interests')
-            .delete()
-            .eq('user_id', user.id);
+          console.error('Error deleting profile:', deleteProfileError);
+          // Continue with logout even if profile deletion fails
+          toast.error("Could not fully remove profile, but proceeding with logout");
+        }
+
+        // Delete user interests
+        const { error: deleteInterestsError } = await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (deleteInterestsError) {
+          console.error('Error deleting user interests:', deleteInterestsError);
         }
       }
 
       // Sign out
-      await supabase.auth.signOut();
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+      
       navigate(redirectTo);
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Logout failed",
-        description: "An unexpected error occurred during logout."
-      });
-      console.error('Logout failed:', error);
+      console.error('Logout process failed:', error);
+      toast.error("An unexpected error occurred during logout");
     } finally {
       setIsLoggingOut(false);
     }

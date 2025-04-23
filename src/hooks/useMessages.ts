@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
@@ -22,24 +22,25 @@ export const useMessages = (
 ) => {
   const [messages, setMessages] = useState<MessageWithMedia[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [fetchCount, setFetchCount] = useState(0); // Add a counter to track fetch calls
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
 
   const fetchMessages = useCallback(async () => {
-    // Return early if already loading or if userIds are missing
-    if (!selectedUserId || !currentUserId || isLoading) return;
+    // Return early if already loading, if userIds are missing, or if fetch is in progress
+    if (!selectedUserId || !currentUserId || isFetchingRef.current) return;
     
+    // Check if enough time has passed since last fetch
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < FETCH_COOLDOWN) {
+      return;
+    }
+    
+    isFetchingRef.current = true;
     setIsLoading(true);
+    lastFetchTimeRef.current = now;
+    
     const cutoffTime = getCutoffTimestamp(currentUserRole);
-    
-    // Log with counter to track how many times this gets called
-    console.log(`[useMessages] Fetching messages (call #${fetchCount + 1})`, {
-      currentUserId,
-      selectedUserId,
-      cutoffTime,
-      timestamp: new Date().toISOString()
-    });
-    
-    setFetchCount(prev => prev + 1);
     
     try {
       const { data, error } = await supabase
@@ -73,8 +74,9 @@ export const useMessages = (
       console.error('Unexpected error fetching messages:', err);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [selectedUserId, currentUserId, currentUserRole, markMessagesAsRead, isLoading, fetchCount]);
+  }, [selectedUserId, currentUserId, currentUserRole, markMessagesAsRead]);
 
   return {
     messages,
