@@ -1,7 +1,5 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,44 +12,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "@/components/ui/sonner";
+import { useLogout } from "@/hooks/useLogout";
 
 export const LogoutButton = () => {
-  const navigate = useNavigate();
   const [showConfirmation, setShowConfirmation] = useState(false);
-
-  const handleLogout = async () => {
-    try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Update user's visibility to offline before signing out
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ visibility: 'offline' })
-          .eq('id', user.id);
-
-        if (updateError) {
-          toast.error("Could not update user status", {
-            description: "There was an issue updating your online status."
-          });
-          console.error('Error updating user visibility:', updateError);
-        }
-      }
-
-      // Sign out
-      await supabase.auth.signOut();
-      
-      // Redirect to admin login page after logout
-      navigate("/secretadminportal");
-    } catch (error) {
-      toast.error("Logout failed", {
-        description: "An unexpected error occurred during logout."
-      });
-      console.error('Logout failed:', error);
-    }
-  };
+  const { handleLogout } = useLogout("/secretadminportal");
 
   return (
     <>
