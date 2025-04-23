@@ -32,7 +32,7 @@ export const LogoutButton = () => {
       <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Leaving so soon? We'll miss you!! :(</AlertDialogTitle>
             <AlertDialogDescription>
               Do you really want to log out of the admin dashboard?
             </AlertDialogDescription>

@@ -94,12 +94,8 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     fetchProfanity();
   }, []);
 
-  const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    const validationResult = validateNickname(newValue);
-    setNickname(newValue);
-    setNickNameError(validationResult.valid ? "" : validationResult.message);
-  };
+  // READ-ONLY: nickname field is now grayed out and cannot be edited
+  const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {};
 
   const handleInterestChange = (interest: string) => {
     setSelectedInterests(prev => {
@@ -228,8 +224,9 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
         <input
           type="text"
           value={nickname}
-          onChange={handleNicknameChange}
-          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+          readOnly
+          tabIndex={-1}
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-md text-gray-400 cursor-not-allowed"
         />
         {nickNameError && (
           <p className="text-sm text-red-500">{nickNameError}</p>

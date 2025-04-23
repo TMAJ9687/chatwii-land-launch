@@ -29,9 +29,17 @@ export const FilterPopup = ({
 }: FilterPopupProps) => {
   const popupRef = useRef<HTMLDivElement>(null);
 
+  // NEW: ref to track if a radix Select is open
+  const selectPortalRoot = document?.body;
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+      // If click target is inside a Select dropdown, do not close popup
+      const popupContains = popupRef.current && popupRef.current.contains(event.target as Node);
+      // Check for radix-select-content class (added by shadcn/radix select popper)
+      const targetElem = event.target as HTMLElement;
+      const isRadixDropdown = targetElem?.closest('.radix-select-content,.radix-select-viewport,[data-radix-popper-content-wrapper]');
+      if (!popupContains && !isRadixDropdown) {
         onClickOutside();
       }
     };
@@ -123,7 +131,7 @@ export const FilterPopup = ({
           <SelectTrigger>
             <SelectValue placeholder="Select country" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="radix-select-content z-[99] bg-background">
             {COUNTRIES.map((country) => (
               <SelectItem key={country} value={country}>
                 {country}
@@ -139,7 +147,7 @@ export const FilterPopup = ({
             <SelectTrigger>
               <SelectValue placeholder="Select another country" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="radix-select-content z-[99] bg-background">
               {COUNTRIES.filter(c => c !== filters.selectedCountries[0]).map((country) => (
                 <SelectItem key={country} value={country}>
                   {country}

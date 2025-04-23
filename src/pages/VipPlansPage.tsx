@@ -1,7 +1,8 @@
+
 import React, { useState } from "react";
 import { useStripe } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const PRICEIDS = {
@@ -127,8 +128,22 @@ const VipPlansPage: React.FC = () => {
     navigate("/vip/register");
   };
 
+  const handleClose = () => {
+    // Go home or back, here using home
+    navigate("/");
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-orange-100 dark:from-gray-900 dark:to-gray-800 py-10 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-orange-100 dark:from-gray-900 dark:to-gray-800 py-10 px-4 relative">
+      {/* Close Button */}
+      <button
+        onClick={handleClose}
+        className="absolute top-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 z-50 focus:outline-none"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+      </button>
+
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-4">
         Choose your <span className="text-chatwii-peach">VIP Plan</span>
       </h1>
