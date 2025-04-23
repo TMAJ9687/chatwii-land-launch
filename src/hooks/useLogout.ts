@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useProfileDeletion } from "./useProfileDeletion";
 
-export const useLogout = (redirectTo: string = "/feedback") => {
+export const useLogout = (defaultRedirect: string = "/feedback") => {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { deleteUserProfile } = useProfileDeletion();
@@ -20,6 +20,21 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       
       // Get current user before signing out
       const { data: { user } } = await supabase.auth.getUser();
+      
+      // Get user role if available
+      let redirectPath = defaultRedirect;
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+          
+        // VIP and admin users get redirected to home
+        if (profile?.role === 'vip' || profile?.role === 'admin') {
+          redirectPath = '/';
+        }
+      }
 
       // Sign out first so no more requests are made using the auth token
       const { error: signOutError } = await supabase.auth.signOut({
@@ -38,12 +53,12 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       
       // Navigate after successful sign out
       setTimeout(() => {
-        navigate(redirectTo, { replace: true });
+        navigate(redirectPath, { replace: true });
       }, 100); // Short timeout to ensure other operations can complete
     } catch (error) {
       console.error('Logout process failed:', error);
       toast.error("An unexpected error occurred during logout");
-      navigate(redirectTo, { replace: true }); // Navigate anyway to prevent user being stuck
+      navigate(defaultRedirect, { replace: true }); // Navigate anyway to prevent user being stuck
     } finally {
       setIsLoggingOut(false);
     }
