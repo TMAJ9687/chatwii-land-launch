@@ -6,7 +6,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Flag, ChevronLeft, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getCountryNameFromCode, getFlagUrl } from "@/utils/countryTools";
+import { getCountryNameFromCode, getFlagUrl, detectUserCountry } from "@/utils/countryTools";
 
 interface ProfileSetupFormProps {
   nickname: string;
@@ -52,7 +52,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [nickname, setNickname] = useState(initialNickname);
   const [gender, setGender] = useState<string>("");
   const [age, setAge] = useState<string>("");
-  const [country, setCountry] = useState<string>("");
+  const [country, setCountry] = useState<string>("Detecting...");
   const [countryCode, setCountryCode] = useState<string>("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,17 +60,11 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [nickNameError, setNickNameError] = useState("");
 
   useEffect(() => {
-    const detectCountry = async () => {
+    const getCountry = async () => {
       try {
-        const response = await fetch("https://country.is");
-        const data = await response.json();
-        if (data && data.country) {
-          setCountryCode(data.country.toUpperCase());
-          setCountry(getCountryNameFromCode(data.country));
-        } else {
-          setCountry("Unknown");
-          setCountryCode("");
-        }
+        const { country, countryCode } = await detectUserCountry();
+        setCountry(country);
+        setCountryCode(countryCode);
       } catch (error) {
         console.error("Error detecting country:", error);
         setCountry("Unknown");
@@ -78,7 +72,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       }
     };
 
-    detectCountry();
+    getCountry();
   }, []);
 
   useEffect(() => {
@@ -302,7 +296,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
               style={{ background: "#E5E7EB", objectFit: "cover" }}
             />
           )}
-          <span>{country || "Detecting..."}</span>
+          <span>{country}</span>
         </div>
       </div>
 

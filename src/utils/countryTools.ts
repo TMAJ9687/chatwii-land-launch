@@ -42,3 +42,25 @@ export function getCountryNameFromCode(code: string) {
   // fallback, just return best available
   return name || "Unknown";
 }
+
+// New detection function using country.is API v2 endpoint which returns JSON
+export async function detectUserCountry(): Promise<{ country: string, countryCode: string }> {
+  try {
+    // Use ipinfo.io instead of country.is which is returning HTML
+    const response = await fetch("https://ipinfo.io/json");
+    const data = await response.json();
+    
+    if (data && data.country) {
+      const countryCode = data.country.toUpperCase();
+      return {
+        country: getCountryNameFromCode(countryCode),
+        countryCode: countryCode
+      };
+    } 
+    
+    return { country: "Unknown", countryCode: "" };
+  } catch (error) {
+    console.error("Error detecting country:", error);
+    return { country: "Unknown", countryCode: "" };
+  }
+}
