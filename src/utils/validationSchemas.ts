@@ -37,7 +37,7 @@ export const registerSchema = z.object({
     .refine(
       (value): value is string => validateNickname(value) === null,
       {
-        message: (val) => validateNickname(val) || "Invalid nickname"
+        message: "Invalid nickname"
       }
     ),
   email: z.string().email("Please enter a valid email address"),
@@ -58,7 +58,7 @@ export const profileSchema = z.object({
     .refine(
       (value): value is string => validateNickname(value) === null,
       {
-        message: (val) => validateNickname(val) || "Invalid nickname"
+        message: "Invalid nickname"
       }
     ),
   gender: z.enum(["Male", "Female"]),
