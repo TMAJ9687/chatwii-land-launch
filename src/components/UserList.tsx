@@ -1,4 +1,3 @@
-
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -6,6 +5,7 @@ import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { toast } from "sonner";
 
 interface UserListProps {
   users: any[]; // online users array, now required
@@ -18,6 +18,19 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
+  const currentUserId = useMemo(() => {
+    const currentUser = users.find(user => user.is_current_user);
+    return currentUser?.user_id;
+  }, [users]);
+
+  const handleUserSelect = (userId: string) => {
+    if (userId === currentUserId) {
+      toast.error("You cannot chat with yourself");
+      return;
+    }
+    onUserSelect(userId);
+  };
+
   const hasActiveFilters = useMemo(() => {
     return filters.selectedGenders.length > 0 ||
       filters.selectedCountries.length > 0 ||
@@ -27,15 +40,12 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      // Gender filter
       if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
         return false;
       }
-      // Age filter
       if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) {
         return false;
       }
-      // Country filter
       if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) {
         return false;
       }
@@ -43,22 +53,23 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     });
   }, [users, filters, blockedUsers]);
 
-  // Sort VIP and bots first as before
   const sortedUsers = useMemo(() => {
-    return [...filteredUsers].sort((a, b) => {
-      if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
-      if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
-      if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
+    return [...filteredUsers]
+      .filter(user => user.user_id !== currentUserId)
+      .sort((a, b) => {
+        if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
+        if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
+        if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
+          return (a.nickname || '').localeCompare(b.nickname || '');
+        }
+        if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
+        if ((a.role !== 'bot' && b.role === 'bot' && !a.vip_status)) return 1;
+        if ((a.country || '') !== (b.country || '')) {
+          return (a.country || '').localeCompare(b.country || '');
+        }
         return (a.nickname || '').localeCompare(b.nickname || '');
-      }
-      if (a.role === 'bot' && b.role !== 'bot' && !b.vip_status) return -1;
-      if ((a.role !== 'bot' && b.role === 'bot' && !a.vip_status)) return 1;
-      if ((a.country || '') !== (b.country || '')) {
-        return (a.country || '').localeCompare(b.country || '');
-      }
-      return (a.nickname || '').localeCompare(b.nickname || '');
-    });
-  }, [filteredUsers]);
+      });
+  }, [filteredUsers, currentUserId]);
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({
@@ -73,7 +84,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with filter */}
       <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Online users ({sortedUsers.length})
@@ -100,7 +110,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
           )}
         </div>
       </div>
-      {/* User list */}
       <div className="overflow-y-auto flex-1">
         {sortedUsers.map((user) => (
           <UserListItem
@@ -112,7 +121,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             isVip={user.role === 'vip' || user.vip_status}
             interests={user.interests || []}
             isSelected={selectedUserId === user.user_id}
-            onClick={() => onUserSelect(user.user_id)}
+            onClick={() => handleUserSelect(user.user_id)}
             avatar={user.avatar_url}
             profileTheme={user.profile_theme}
             isBlocked={blockedUsers.includes(user.user_id)}
