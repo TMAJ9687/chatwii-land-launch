@@ -57,6 +57,9 @@ const ChatInterface = () => {
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
   const { unreadCount, fetchUnreadCount, markMessagesAsRead } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
+  
+  const presenceChannelRef = useRef<any>(null);
+  const globalChannelRef = useRef<any>(null);
 
   useEffect(() => {
     let presenceChannel: any = null;
@@ -112,28 +115,15 @@ const ChatInterface = () => {
       });
 
       presenceChannel.on('presence', { event: 'sync' }, () => {
-        const state = presenceChannel.presenceState();
-        let users: any[] = [];
-        Object.values(state).forEach((arr: any) => {
-          if (Array.isArray(arr)) {
-            users = users.concat(arr);
-          }
-        });
-        setOnlineUsers(users);
+        console.log('Presence sync event in ChatInterface');
       });
 
       presenceChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
-        setOnlineUsers(prev => {
-          const existingIds = new Set(prev.map(u => u.user_id));
-          const newOnes = newPresences.filter((p: any) => !existingIds.has(p.user_id));
-          return [...prev, ...newOnes];
-        });
+        console.log('Presence join event in ChatInterface');
       });
 
       presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        setOnlineUsers(prev =>
-          prev.filter(user => !leftPresences.some((left: any) => left.user_id === user.user_id))
-        );
+        console.log('Presence leave event in ChatInterface');
       });
 
       presenceChannel.subscribe(async (status: string) => {
@@ -147,7 +137,8 @@ const ChatInterface = () => {
             gender: myProfile.gender,
             age: myProfile.age,
             vip_status: !!myProfile.vip_status,
-            profile_theme: myProfile.profile_theme
+            profile_theme: myProfile.profile_theme,
+            is_current_user: true
           });
         }
       });
