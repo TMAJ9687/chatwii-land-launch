@@ -460,7 +460,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_message_user: {
+        Args: { sender_id: string; receiver_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

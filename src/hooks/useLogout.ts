@@ -17,13 +17,17 @@ export const useLogout = (redirectTo: string = "/feedback") => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        // Delete the profile first
         const { success, error } = await deleteUserProfile(user.id);
-        if (!success) {
-          toast.error("Could not fully remove profile, but proceeding with logout");
+        
+        if (!success && error) {
+          console.error('Profile deletion error:', error);
+          toast.error("Could not fully delete profile");
+          return;
         }
       }
 
-      // Sign out after profile deletion attempt
+      // Sign out after successful profile deletion
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
       
