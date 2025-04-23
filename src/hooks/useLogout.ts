@@ -11,6 +11,8 @@ export const useLogout = (redirectTo: string = "/feedback") => {
   const { deleteUserProfile } = useProfileDeletion();
 
   const handleLogout = async () => {
+    if (isLoggingOut) return; // Prevent multiple logout attempts
+    
     setIsLoggingOut(true);
     try {
       // Get current user before signing out
@@ -27,14 +29,15 @@ export const useLogout = (redirectTo: string = "/feedback") => {
         }
       }
 
-      // Sign out after successful profile deletion
+      // Clean up all Supabase subscriptions before signing out
+      await supabase.removeAllChannels();
+      
+      // Sign out after cleanup
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
       
-      // Clean up all Supabase subscriptions
-      await supabase.removeAllChannels();
-      
-      navigate(redirectTo);
+      // Navigate after successful sign out
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       console.error('Logout process failed:', error);
       toast.error("An unexpected error occurred during logout");

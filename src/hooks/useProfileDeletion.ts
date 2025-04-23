@@ -4,13 +4,14 @@ import { supabase } from '@/lib/supabase';
 export const useProfileDeletion = () => {
   const deleteUserProfile = async (userId: string) => {
     try {
-      const { error: deleteProfileError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .delete()
-        .eq('id', userId);
+        .eq('id', userId)
+        .maybeSingle();
 
-      if (deleteProfileError) {
-        throw deleteProfileError;
+      if (error) {
+        throw error;
       }
 
       return { success: true };
