@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +18,7 @@ export const AdminSettings = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
-  
+
   // Track component mounted state
   useEffect(() => {
     isMountedRef.current = true;
@@ -28,54 +27,33 @@ export const AdminSettings = () => {
       abortControllerRef.current?.abort();
     };
   }, []);
-  
+
   // Initialize the image upload hook only after userId is set
-  const { 
-    handleFileSelect, 
-    selectedFile, 
-    previewUrl, 
-    uploadImage, 
-    clearFileSelection, 
-    isUploading 
-  } = useImageUpload(userId || '');
-  
+  const { handleFileSelect, selectedFile, previewUrl, uploadImage, clearFileSelection, isUploading } 
+    = useImageUpload(userId || '');
+
   // Fetch admin profile data
   useEffect(() => {
-    // Cancel any previous requests
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-    
     const fetchProfile = async () => {
       try {
-        // Check if we have a user first
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
-          if (isMountedRef.current) {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
           return;
         }
-        
-        if (isMountedRef.current) {
-          setUserId(user.id);
-        }
+
+        setUserId(user.id);
         
         const { data: profileData, error } = await supabase
           .from('profiles')
           .select('nickname, avatar_url')
           .eq('id', user.id)
-          .abortSignal(signal)
           .maybeSingle();
-        
-        if (error && error.code !== 'PGRST116') { // Ignore "no rows" error
+
+        if (error) {
           console.error("Error fetching profile:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load admin profile",
-            variant: "destructive",
-          });
+          toast("Failed to load admin profile");
           return;
         }
         
@@ -84,28 +62,18 @@ export const AdminSettings = () => {
           setNickname(profileData.nickname || '');
         }
       } catch (error) {
-        if (!signal.aborted && isMountedRef.current) {
-          console.error("Error:", error);
-          toast({
-            title: "Error",
-            description: "An unexpected error occurred",
-            variant: "destructive",
-          });
-        }
+        console.error("Error:", error);
+        toast("An unexpected error occurred");
       } finally {
         if (isMountedRef.current) {
           setIsLoading(false);
         }
       }
     };
-    
+
     fetchProfile();
-    
-    return () => {
-      abortControllerRef.current?.abort();
-    };
   }, []);
-  
+
   // Save avatar changes
   const handleSaveAvatar = async () => {
     if (!selectedFile || !userId) return;
@@ -119,108 +87,78 @@ export const AdminSettings = () => {
           .update({ avatar_url: imageUrl })
           .eq('id', userId);
           
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
         
         setProfile(prev => prev ? { ...prev, avatar_url: imageUrl } : null);
         clearFileSelection();
-        
-        toast({
-          title: "Success",
-          description: "Avatar updated successfully",
-        });
+        toast("Avatar updated successfully");
       }
     } catch (error) {
       console.error("Error updating avatar:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update avatar",
-        variant: "destructive",
-      });
+      toast("Failed to update avatar");
     }
   };
-  
+
   // Save display name changes
   const handleSaveDisplayName = async () => {
     if (!nickname.trim() || !userId) return;
     
     try {
+      const { data: isAvailable } = await supabase.rpc('is_nickname_available', { 
+        check_nickname: nickname 
+      });
+
+      if (!isAvailable && profile?.nickname !== nickname) {
+        toast("This nickname is already taken");
+        return;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ nickname })
         .eq('id', userId);
         
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
       setProfile(prev => prev ? { ...prev, nickname } : null);
-      
-      toast({
-        title: "Success",
-        description: "Display name updated successfully",
-      });
+      toast("Display name updated successfully");
     } catch (error) {
       console.error("Error updating display name:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update display name",
-        variant: "destructive",
-      });
+      toast("Failed to update display name");
     }
   };
-  
+
   // Change password
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
+      toast("Passwords do not match");
       return;
     }
     
     if (newPassword.length < 6) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      });
+      toast("Password must be at least 6 characters long");
       return;
     }
     
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      
-      toast({
-        title: "Success",
-        description: "Password updated successfully",
-      });
+      toast("Password updated successfully");
     } catch (error: any) {
       console.error("Error updating password:", error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to update password",
-        variant: "destructive",
-      });
+      toast(error?.message || "Failed to update password");
     }
   };
-  
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
   }
-  
-  // Show create profile form if no profile exists
+
   if (!profile) {
     return (
       <div className="p-6 space-y-8">
@@ -251,7 +189,7 @@ export const AdminSettings = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="p-6 space-y-8">
       <div className="mb-6">

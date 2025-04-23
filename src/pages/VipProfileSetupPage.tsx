@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -41,17 +40,18 @@ const VipProfileSetupPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     setIsSubmitting(true);
     
     try {
       // Check nickname availability first
-      const { data: isAvailable } = await supabase.rpc('is_nickname_available', { 
+      const { data: isAvailable, error: checkError } = await supabase.rpc('is_nickname_available', { 
         check_nickname: nickname 
       });
 
+      if (checkError) throw checkError;
+
       if (!isAvailable) {
-        toast.error("This nickname is already taken. Please choose another one.");
+        toast("This nickname is already taken. Please choose another one.");
         setIsSubmitting(false);
         return;
       }
@@ -67,15 +67,10 @@ const VipProfileSetupPage = () => {
       
       if (insertError) throw insertError;
       
-      toast.success("Profile setup complete!", {
-        description: "Welcome to ChatWii VIP."
-      });
-      
+      toast("Profile setup complete! Welcome to ChatWii VIP.");
       navigate('/chat');
     } catch (error: any) {
-      toast.error("Profile setup failed", {
-        description: error.message || "Something went wrong. Please try again."
-      });
+      toast("Profile setup failed: " + (error.message || "Please try again."));
       console.error("Profile setup error:", error);
     } finally {
       setIsSubmitting(false);
