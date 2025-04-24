@@ -1,13 +1,14 @@
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 interface ReportUserPopupProps {
   isOpen: boolean;
@@ -35,11 +36,21 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset state when dialog opens/closes
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      // Small delay to ensure smooth animation before resetting state
+      setTimeout(() => {
+        setSelectedReason('');
+        setOtherReason('');
+      }, 300);
+      onClose();
+    }
+  };
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
-      setIsSubmitting(true);
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
@@ -54,15 +65,19 @@ export const ReportUserPopup = ({
           });
 
         if (error) throw error;
-        
-        toast.success('Report submitted successfully');
-        onClose();
+        return true;
       } catch (error) {
         console.error('Report submission error:', error);
-        toast.error('Failed to submit report');
-      } finally {
-        setIsSubmitting(false);
+        throw error;
       }
+    },
+    onSuccess: () => {
+      toast.success('Report submitted successfully');
+      handleOpenChange(false);
+    },
+    onError: (error) => {
+      console.error('Report submission error:', error);
+      toast.error('Failed to submit report. Please try again later.');
     }
   });
 
@@ -84,10 +99,13 @@ export const ReportUserPopup = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Report {reportedUser.nickname}</DialogTitle>
+          <DialogDescription>
+            Please select a reason for reporting this user. This report will be reviewed by our administrators.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -113,9 +131,17 @@ export const ReportUserPopup = ({
             onClick={handleSubmit}
             disabled={!selectedReason || 
               (selectedReason === 'other' && !otherReason.trim()) || 
-              isSubmitting}
+              reportMutation.isPending}
+            className="w-full"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Report'}
+            {reportMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              'Submit Report'
+            )}
           </Button>
         </div>
       </DialogContent>

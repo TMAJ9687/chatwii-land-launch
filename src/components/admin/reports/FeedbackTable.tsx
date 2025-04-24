@@ -7,9 +7,15 @@ import {
   Table, TableHeader, TableRow, TableHead, 
   TableBody, TableCell 
 } from "@/components/ui/table";
-import { Star, Trash2 } from "lucide-react";
+import { Star, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { 
+  AlertDialog, AlertDialogAction, AlertDialogCancel, 
+  AlertDialogContent, AlertDialogDescription, 
+  AlertDialogFooter, AlertDialogHeader, 
+  AlertDialogTitle, AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 
 type Feedback = {
   id: number;
@@ -24,6 +30,7 @@ export const FeedbackTable = () => {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const queryClient = useQueryClient();
+  const [feedbackToDelete, setFeedbackToDelete] = useState<number | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (feedbackId: number) => {
@@ -33,12 +40,15 @@ export const FeedbackTable = () => {
         .eq('id', feedbackId);
 
       if (error) throw error;
+      return feedbackId;
     },
-    onSuccess: (_, feedbackId) => {
+    onSuccess: (feedbackId) => {
       setFeedback(prev => prev.filter(item => item.id !== feedbackId));
       toast.success('Feedback deleted successfully');
+      setFeedbackToDelete(null);
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Error deleting feedback:', error);
       toast.error('Failed to delete feedback');
     }
   });
@@ -149,14 +159,41 @@ export const FeedbackTable = () => {
                     {format(new Date(item.created_at), "MMM d, yyyy")}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMutation.mutate(item.id)}
-                      className="h-8 w-8"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Feedback</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this feedback? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => deleteMutation.mutate(item.id)}
+                            disabled={deleteMutation.isPending}
+                          >
+                            {deleteMutation.isPending && deleteMutation.variables === item.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              'Delete'
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))

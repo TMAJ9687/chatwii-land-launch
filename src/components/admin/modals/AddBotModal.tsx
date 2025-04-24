@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { COUNTRIES } from "@/constants/countries";
+import { Loader2 } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 
 interface AddBotModalProps {
   isOpen: boolean;
@@ -15,12 +18,29 @@ interface AddBotModalProps {
 
 export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) => {
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     nickname: "",
     age: "25",
     gender: "female",
-    country: "US",
+    country: "United States",
   });
+
+  // Reset form when modal closes
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setTimeout(() => {
+        setFormData({
+          nickname: "",
+          age: "25",
+          gender: "female",
+          country: "United States",
+        });
+        setIsSubmitting(false);
+      }, 300);
+      onClose();
+    }
+  };
 
   const handleSubmit = async () => {
     if (!formData.nickname.trim()) {
@@ -32,23 +52,45 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
-      // According to error message, we need to provide an id for profiles
-      // First, let's create a unique UUID using the crypto API
-      const getUUID = () => {
-        // This creates a UUID v4
-        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
+      // Create a UUID for the bot
+      const botId = uuidv4();
+
+      // First, check that an admin user is making the request
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Authentication required",
+          variant: "destructive",
         });
-      };
+        return;
+      }
       
-      const botId = getUUID();
-      
+      // Verify the user is an admin
+      const { data: adminCheck, error: adminError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+        
+      if (adminError || adminCheck?.role !== 'admin') {
+        toast({
+          title: "Error",
+          description: "Admin privileges required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create the bot profile
       const { error } = await supabase
         .from("profiles")
         .insert({
-          id: botId, // Explicitly provide the UUID
+          id: botId,
           nickname: formData.nickname,
           age: parseInt(formData.age),
           gender: formData.gender,
@@ -59,35 +101,47 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
 
       if (error) {
         console.error("Error creating bot:", error);
-        toast({
-          title: "Error",
-          description: "Failed to create bot",
-          variant: "destructive",
+        throw error;
+      }
+
+      // Create bot_config entry
+      const { error: configError } = await supabase
+        .from("bot_config")
+        .insert({
+          bot_user_id: botId,
+          persona: "friendly",
+          predefined_responses: JSON.stringify([
+            "Hello, nice to meet you!",
+            "How are you doing today?",
+            "I'm just a simple bot, but I'm happy to chat!",
+            "What would you like to talk about?"
+          ])
         });
-        return;
+
+      if (configError) {
+        console.error("Error creating bot config:", configError);
+        // If bot config fails, try to clean up the profile
+        await supabase.from("profiles").delete().eq("id", botId);
+        throw configError;
       }
 
       toast({ title: "Success", description: "Bot created successfully" });
-      setFormData({
-        nickname: "",
-        age: "25",
-        gender: "female",
-        country: "US",
-      });
       onSuccess();
-      onClose();
-    } catch (error) {
-      console.error("Unexpected error:", error);
+      handleOpenChange(false);
+    } catch (error: any) {
+      console.error("Error creating bot:", error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error.message || "Failed to create bot",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Bot</DialogTitle>
@@ -116,7 +170,7 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   {Array.from({ length: 63 }, (_, i) => i + 18).map((age) => (
                     <SelectItem key={age} value={age.toString()}>
                       {age}
@@ -146,25 +200,31 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="US">United States</SelectItem>
-                <SelectItem value="UK">United Kingdom</SelectItem>
-                <SelectItem value="CA">Canada</SelectItem>
-                <SelectItem value="AU">Australia</SelectItem>
-                <SelectItem value="FR">France</SelectItem>
-                <SelectItem value="DE">Germany</SelectItem>
-                <SelectItem value="IT">Italy</SelectItem>
-                <SelectItem value="ES">Spain</SelectItem>
-                <SelectItem value="BR">Brazil</SelectItem>
-                <SelectItem value="JP">Japan</SelectItem>
+              <SelectContent className="max-h-60 overflow-y-auto">
+                {COUNTRIES.filter(country => country !== "Israel").map((country) => (
+                  <SelectItem key={country} value={country}>
+                    {country}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit}>Create Bot</Button>
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              'Create Bot'
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
 import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { supabase } from "@/lib/supabase";
 
 interface UserListProps {
   users: any[];
@@ -17,6 +18,54 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const { blockedUsers, unblockUser } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [userInterests, setUserInterests] = useState<Record<string, string[]>>({});
+
+  // Fetch interests for all users
+  useEffect(() => {
+    if (users.length === 0) return;
+
+    const fetchInterests = async () => {
+      try {
+        const userIds = users.map(user => user.user_id);
+        
+        // Get all interests from user_interests table for these users
+        const { data, error } = await supabase
+          .from('user_interests')
+          .select(`
+            user_id,
+            interest_id,
+            interests (name)
+          `)
+          .in('user_id', userIds);
+        
+        if (error) {
+          console.error('Error fetching interests:', error);
+          return;
+        }
+        
+        // Group interests by user
+        const interestsByUser: Record<string, string[]> = {};
+        
+        data.forEach(item => {
+          const userId = item.user_id;
+          const interestName = item.interests?.name;
+          
+          if (interestName) {
+            if (!interestsByUser[userId]) {
+              interestsByUser[userId] = [];
+            }
+            interestsByUser[userId].push(interestName);
+          }
+        });
+        
+        setUserInterests(interestsByUser);
+      } catch (err) {
+        console.error('Error processing interests:', err);
+      }
+    };
+    
+    fetchInterests();
+  }, [users]);
 
   // Filter out current user and apply user filters
   const filteredUsers = useMemo(() => {
@@ -115,7 +164,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             age={user.age}
             country={user.country}
             isVip={user.role === 'vip' || user.vip_status}
-            interests={user.interests || []}
+            interests={userInterests[user.user_id] || []}
             isSelected={selectedUserId === user.user_id}
             onClick={() => handleUserSelection(user.user_id)}
             avatar={user.avatar_url}

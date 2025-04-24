@@ -15,8 +15,9 @@ import {
   AlertDialogFooter, AlertDialogHeader, 
   AlertDialogTitle, AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
-import { CheckCircle, Trash2, Ban } from "lucide-react";
+import { CheckCircle, Trash2, Ban, Loader2 } from "lucide-react";
 import { BanUserModal } from "@/components/admin/modals/BanUserModal";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Report = {
   id: number;
@@ -37,6 +38,58 @@ export const ReportsTable = () => {
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
   const [reportedUser, setReportedUser] = useState<{ id: string, nickname: string } | null>(null);
   const [showBanModal, setShowBanModal] = useState(false);
+  const queryClient = useQueryClient();
+  
+  const deleteMutation = useMutation({
+    mutationFn: async (reportId: number) => {
+      const { error } = await supabase
+        .from("reports")
+        .delete()
+        .eq("id", reportId);
+        
+      if (error) throw error;
+      return reportId;
+    },
+    onSuccess: (reportId) => {
+      setReports(prev => prev.filter(report => report.id !== reportId));
+      toast.success("Report deleted successfully");
+      setReportToDelete(null);
+    },
+    onError: (error) => {
+      console.error("Error deleting report:", error);
+      toast.error("Failed to delete report", {
+        description: "There was a problem deleting the report."
+      });
+    }
+  });
+  
+  const resolveMutation = useMutation({
+    mutationFn: async (reportId: number) => {
+      const { error } = await supabase
+        .from("reports")
+        .update({ 
+          status: "resolved",
+          resolved_at: new Date().toISOString()
+        })
+        .eq("id", reportId);
+        
+      if (error) throw error;
+      return reportId;
+    },
+    onSuccess: (reportId) => {
+      setReports(prev => 
+        prev.map(report => 
+          report.id === reportId 
+            ? { ...report, status: "resolved", resolved_at: new Date().toISOString() } 
+            : report
+        )
+      );
+      toast.success("Report resolved successfully");
+    },
+    onError: () => {
+      toast.error("Failed to resolve report");
+    }
+  });
   
   const fetchReports = async () => {
     setLoading(true);
@@ -93,73 +146,74 @@ export const ReportsTable = () => {
     }
   };
   
-  const markAsResolved = async (reportId: number) => {
-    try {
-      const { error } = await supabase
-        .from("reports")
-        .update({ 
-          status: "resolved",
-          resolved_at: new Date().toISOString()
-        })
-        .eq("id", reportId);
-        
-      if (error) throw error;
-      
-      toast.success("Report resolved", {
-        description: "The report has been marked as resolved."
-      });
-      
-      // Update the local state
-      setReports(prevReports => 
-        prevReports.map(report => 
-          report.id === reportId 
-            ? { ...report, status: "resolved", resolved_at: new Date().toISOString() } 
-            : report
-        )
-      );
-    } catch (error) {
-      console.error("Error resolving report:", error);
-      toast.error("Failed to resolve report", {
-        description: "There was a problem updating the report status."
-      });
-    }
-  };
-  
-  const deleteReport = async (reportId: number) => {
-    try {
-      const { error } = await supabase
-        .from("reports")
-        .delete()
-        .eq("id", reportId);
-        
-      if (error) throw error;
-      
-      toast.success("Report deleted", {
-        description: "The report has been permanently deleted."
-      });
-      
-      // Update the local state
-      setReports(prevReports => prevReports.filter(report => report.id !== reportId));
-      setReportToDelete(null);
-    } catch (error) {
-      console.error("Error deleting report:", error);
-      toast.error("Failed to delete report", {
-        description: "There was a problem deleting the report."
-      });
-    }
-  };
-  
   const handleBanUser = (userId: string, nickname: string) => {
     setReportedUser({ id: userId, nickname });
     setShowBanModal(true);
   };
   
-  const handleBanConfirm = (reason: string, duration: string) => {
-    // This will be handled by the BanUserModal component
-    toast.success(`User ban initiated`, {
-      description: `${reportedUser?.nickname} will be banned for ${duration}.`
-    });
-    setShowBanModal(false);
+  const handleBanConfirm = async (reason: string, duration: string) => {
+    if (!reportedUser) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("Authentication error");
+        return;
+      }
+      
+      // Set expiration date based on duration
+      const expiresAt = duration === 'permanent' ? null : 
+        new Date(Date.now() + {
+          '1day': 24 * 60 * 60 * 1000,
+          '1week': 7 * 24 * 60 * 60 * 1000,
+          '1month': 30 * 24 * 60 * 60 * 1000,
+        }[duration as string] || 0).toISOString();
+      
+      // Create ban record
+      const { error: banError } = await supabase
+        .from('bans')
+        .insert({
+          user_id: reportedUser.id,
+          reason,
+          admin_id: user.id,
+          expires_at: expiresAt,
+        });
+      
+      if (banError) throw banError;
+      
+      // Set user offline
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ visibility: 'offline' })
+        .eq('id', reportedUser.id);
+      
+      if (updateError) throw updateError;
+      
+      toast.success(`User ${reportedUser.nickname} has been banned`);
+      
+      // Update any reports for this user to resolved
+      const { error: resolveError } = await supabase
+        .from('reports')
+        .update({ 
+          status: "resolved",
+          resolved_at: new Date().toISOString()
+        })
+        .eq('reported_id', reportedUser.id)
+        .eq('status', 'pending');
+      
+      if (resolveError) console.error("Error resolving reports:", resolveError);
+      
+      // Refresh the reports list
+      fetchReports();
+      
+    } catch (error) {
+      console.error("Ban user error:", error);
+      toast.error("Failed to ban user");
+    } finally {
+      setShowBanModal(false);
+      setReportedUser(null);
+    }
   };
   
   useEffect(() => {
@@ -223,20 +277,23 @@ export const ReportsTable = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => markAsResolved(report.id)}
+                          onClick={() => resolveMutation.mutate(report.id)}
+                          disabled={resolveMutation.isPending && resolveMutation.variables === report.id}
                           title="Mark as resolved"
                         >
-                          <CheckCircle className="h-4 w-4" />
+                          {resolveMutation.isPending && resolveMutation.variables === report.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4" />
+                          )}
                         </Button>
                       )}
                       
-                      {/* Delete Report Button */}
-                      <AlertDialog open={reportToDelete === report.id} onOpenChange={() => setReportToDelete(null)}>
+                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setReportToDelete(report.id)}
                             title="Delete report"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -251,14 +308,14 @@ export const ReportsTable = () => {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteReport(report.id)}>
-                              Delete
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(report.id)}>
+                              {deleteMutation.isPending && deleteMutation.variables === report.id ? 
+                                'Deleting...' : 'Delete'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
                       
-                      {/* Ban User Button */}
                       <Button
                         variant="outline"
                         size="sm"
@@ -276,7 +333,6 @@ export const ReportsTable = () => {
         </Table>
       </div>
       
-      {/* Ban User Modal */}
       {reportedUser && (
         <BanUserModal 
           isOpen={showBanModal}
