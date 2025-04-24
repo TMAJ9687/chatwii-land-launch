@@ -1,12 +1,12 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 // Function to handle country detection using Cloudflare headers
 serve(async (req) => {
   const headers = req.headers;
   
   // Get country from Cloudflare headers
-  const countryCode = headers.get('cf-ipcountry') || '';
+  let countryCode = headers.get('cf-ipcountry') || '';
   let country = '';
   
   // Map common country codes to names

@@ -17,19 +17,9 @@ export function useRealtimeUpdates<T = any>(
   const { table, event = '*', schema = 'public', filter } = options;
 
   useEffect(() => {
-    // Enable postgres changes for the specified table if not already done
-    const enableRealtimeForTable = async () => {
-      try {
-        // This is a best-effort approach as it requires admin privileges
-        await supabase.rpc('enable_realtime', { table_name: table });
-      } catch (error) {
-        // It's ok if this fails as the table might already be enabled via SQL
-        console.log(`Note: Couldn't enable realtime for ${table} via RPC, it may already be enabled via SQL.`);
-      }
-    };
-
-    enableRealtimeForTable();
-
+    // Enable postgres changes for the specified table is done through SQL now
+    // No need to call rpc function as it doesn't exist anymore
+    
     // Subscribe to changes
     const channel = supabase.channel(`table-changes-${table}`)
       .on(
