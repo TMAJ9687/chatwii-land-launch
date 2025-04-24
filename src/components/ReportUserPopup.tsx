@@ -1,11 +1,11 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -36,49 +36,59 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
+  const queryClient = useQueryClient();
 
   // Reset state when dialog opens/closes
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      onClose();
-      // Reset form state after dialog is fully closed
-      setTimeout(() => {
-        setSelectedReason('');
-        setOtherReason('');
-      }, 300);
+  useEffect(() => {
+    if (!isOpen) {
+      // Reset form state immediately when dialog closes
+      setSelectedReason('');
+      setOtherReason('');
     }
-  };
+  }, [isOpen]);
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { error } = await supabase
-          .from('reports')
-          .insert({
-            reporter_id: user.id,
-            reported_id: reportedUser.id,
-            reason,
-            status: 'pending'
-          });
-
-        if (error) throw error;
-        return true;
-      } catch (error) {
-        console.error('Report submission error:', error);
-        throw error;
+      if (!reason.trim()) {
+        throw new Error('Reason is required');
       }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error, data } = await supabase
+        .from('reports')
+        .insert({
+          reporter_id: user.id,
+          reported_id: reportedUser.id,
+          reason,
+          status: 'pending'
+        })
+        .select();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      onClose(); // Close dialog on success
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Report submission error:', error);
-      toast.error('Failed to submit report. Please try again later.');
+      toast.error(error.message || 'Failed to submit report. Please try again later.');
     }
   });
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      if (reportMutation.isPending) {
+        toast.info('Please wait while your report is being submitted');
+        return;
+      }
+      onClose();
+    }
+  };
 
   const handleSubmit = async () => {
     if (!selectedReason) {
@@ -95,17 +105,13 @@ export const ReportUserPopup = ({
       return;
     }
 
-    try {
-      await reportMutation.mutateAsync({ reason });
-      handleOpenChange(false); // Close immediately on success
-    } catch (error) {
-      console.error('Report error:', error);
-    }
+    // Submit the report
+    reportMutation.mutate({ reason });
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Report {reportedUser.nickname}</DialogTitle>
           <DialogDescription>
@@ -113,12 +119,12 @@ export const ReportUserPopup = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 py-4">
           <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
             {REPORT_REASONS.map((reason) => (
               <div key={reason.id} className="flex items-center space-x-2">
                 <RadioGroupItem value={reason.id} id={reason.id} />
-                <Label htmlFor={reason.id}>{reason.label}</Label>
+                <Label htmlFor={reason.id} className="cursor-pointer">{reason.label}</Label>
               </div>
             ))}
           </RadioGroup>
@@ -129,6 +135,7 @@ export const ReportUserPopup = ({
               value={otherReason}
               onChange={(e) => setOtherReason(e.target.value.slice(0, 120))}
               className="h-20"
+              disabled={reportMutation.isPending}
             />
           )}
 

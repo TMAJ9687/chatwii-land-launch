@@ -17,39 +17,55 @@ export function useRealtimeUpdates<T = any>(
   const { table, event = '*', schema = 'public', filter } = options;
 
   useEffect(() => {
-    // Enable postgres changes for the specified table is done through SQL now
-    // No need to call rpc function as it doesn't exist anymore
+    // Create a unique channel name for this subscription
+    const channelName = `table-changes-${table}-${Math.random().toString(36).slice(2, 11)}`;
     
-    // Subscribe to changes
-    const channel = supabase.channel(`table-changes-${table}`);
-    
-    // Configure the channel with postgres changes
-    let subscription = channel
-      .on(
-        'postgres_changes', 
-        {
-          event: event,
-          schema: schema,
-          table: table,
-          filter: filter,
-        },
-        (payload) => {
-          onDataChange({ 
-            new: payload.new as T, 
-            old: payload.old as T | null,
-            eventType: payload.eventType
-          });
-        }
-      )
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') {
-          console.error(`Failed to subscribe to ${table} changes, status: ${status}`);
-        }
-      });
+    try {
+      // Set up the channel for postgres changes
+      const channel = supabase.channel(channelName);
+      
+      // Configure the channel with postgres changes
+      const subscription = channel
+        .on(
+          'postgres_changes', 
+          {
+            event: event,
+            schema: schema,
+            table: table,
+            filter: filter,
+          },
+          (payload) => {
+            try {
+              onDataChange({ 
+                new: payload.new as T, 
+                old: payload.old as T | null,
+                eventType: payload.eventType
+              });
+            } catch (error) {
+              console.error(`Error handling data change for table ${table}:`, error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`Successfully subscribed to ${table} changes`);
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error(`Failed to subscribe to ${table} changes, status: ${status}`);
+            toast.error(`Connection issue detected. Some updates may be delayed.`);
+          } else if (status === 'TIMED_OUT') {
+            console.error(`Subscription to ${table} timed out`);
+          }
+        });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      // Clean up function
+      return () => {
+        console.log(`Removing channel for ${table}`);
+        supabase.removeChannel(channel);
+      };
+    } catch (error) {
+      console.error(`Error setting up realtime for ${table}:`, error);
+      return () => {}; // Return empty cleanup function
+    }
   }, [table, event, schema, filter, onDataChange]);
 }
 
