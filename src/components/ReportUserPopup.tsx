@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -19,7 +18,6 @@ interface ReportUserPopupProps {
   };
 }
 
-// Utility for timeout to prevent UI freezes during long operations
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([
     promise,
@@ -48,11 +46,9 @@ export const ReportUserPopup = ({
   const [otherReason, setOtherReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Reset state when dialog opens/closes
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       onClose();
-      // Reset form state after dialog is fully closed
       setTimeout(() => {
         setSelectedReason('');
         setOtherReason('');
@@ -64,12 +60,12 @@ export const ReportUserPopup = ({
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
       try {
-        // Get current user with timeout protection (5 seconds)
-        const userResponse = await withTimeout(supabase.auth.getUser(), 5000);
-        const { data: { user } } = userResponse;
+        const start = Date.now();
+        console.log('Starting report submission...');
+        
+        const { data: { user } } = await withTimeout(supabase.auth.getUser(), 5000);
         if (!user) throw new Error('Not authenticated');
 
-        // Create report object
         const reportObject = {
           reporter_id: user.id,
           reported_id: reportedUser.id,
@@ -77,44 +73,40 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
-        // Submit report with timeout protection (5 seconds)
-        const insertResponse = await withTimeout(
-          // Explicitly convert to Promise to resolve type issues
-          Promise.resolve(supabase.from('reports').insert(reportObject)),
+        const { error } = await withTimeout(
+          supabase.from('reports').insert(reportObject),
           5000
         );
         
-        if (insertResponse.error) throw insertResponse.error;
+        console.log(`Report submission took ${Date.now() - start}ms`);
+        
+        if (error) throw error;
         return true;
       } catch (error: any) {
         console.error('Report submission error:', error);
-        
         if (error.message?.includes('timed out')) {
           throw new Error('Request timed out. Please try again later.');
         }
-        
         throw error;
       }
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      // Immediately close dialog on success
       onClose();
     },
     onError: (error: any) => {
       console.error('Report submission error:', error);
       toast.error(error.message || 'Failed to submit report. Please try again later.');
-      setSubmitAttempted(false); // Reset submit flag to allow retry
-      onClose(); // Ensure dialog closes even on error
+      setSubmitAttempted(false);
+      onClose();
     },
     onSettled: () => {
-      // Ensure dialog state is reset regardless of outcome
       setSubmitAttempted(false);
     }
   });
 
   const handleSubmit = async () => {
-    if (submitAttempted || reportMutation.isPending) return; // Prevent multiple submissions
+    if (submitAttempted || reportMutation.isPending) return;
     
     if (!selectedReason) {
       toast.error('Please select a reason');
