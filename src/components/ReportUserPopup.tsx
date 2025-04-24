@@ -19,6 +19,16 @@ interface ReportUserPopupProps {
   };
 }
 
+// Utility for timeout to prevent UI freezes during long operations
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Request timed out')), ms)
+    ),
+  ]);
+};
+
 const REPORT_REASONS = [
   { id: 'underage', label: 'Under age (user is below 18)' },
   { id: 'harassment', label: 'Harassment/Bullying (sending terrible texts)' },
@@ -54,33 +64,44 @@ export const ReportUserPopup = ({
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // Get current user with timeout protection (5 seconds)
+        const userResponse = await withTimeout(supabase.auth.getUser(), 5000);
+        const { data: { user } } = userResponse;
         if (!user) throw new Error('Not authenticated');
 
-        const { error } = await supabase
-          .from('reports')
-          .insert({
-            reporter_id: user.id,
-            reported_id: reportedUser.id,
-            reason,
-            status: 'pending'
-          });
+        // Submit report with timeout protection (8 seconds)
+        const { error } = await withTimeout(
+          supabase
+            .from('reports')
+            .insert({
+              reporter_id: user.id,
+              reported_id: reportedUser.id,
+              reason,
+              status: 'pending'
+            }),
+          8000
+        );
 
         if (error) throw error;
         return true;
-      } catch (error) {
+      } catch (error: any) {
         console.error('Report submission error:', error);
+        
+        if (error.message?.includes('timed out')) {
+          throw new Error('Request timed out. Please try again later.');
+        }
+        
         throw error;
       }
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      // Immediately close dialog on success without animation delay
+      // Immediately close dialog on success
       onClose();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Report submission error:', error);
-      toast.error('Failed to submit report. Please try again later.');
+      toast.error(error.message || 'Failed to submit report. Please try again later.');
       setSubmitAttempted(false); // Reset submit flag to allow retry
     }
   });

@@ -201,12 +201,20 @@ const COUNTRY_TO_ISO: Record<string, string> = {
 // Get country ISO code from country name
 export const getCountryCode = (countryName?: string): string => {
   if (!countryName) return '';
+  
+  // If input is already a two-letter code, return it as lowercase
+  if (countryName.length === 2) {
+    return countryName.toLowerCase();
+  }
+  
   return COUNTRY_TO_ISO[countryName] || '';
 };
 
 // Get flag URL from country code or country name
 export const getFlagUrl = (codeOrName: string): string => {
-  // Check if input is a 2-letter code
+  if (!codeOrName) return '';
+  
+  // If input is a 2-letter code
   if (codeOrName && codeOrName.length === 2) {
     return `https://flagcdn.com/w20/${codeOrName.toLowerCase()}.png`;
   }
@@ -221,17 +229,74 @@ export const getFlagUrl = (codeOrName: string): string => {
   return '';
 };
 
-// Detect user's country using their IP
+// Detect user's country using their IP - with better error handling and caching
 export const detectUserCountry = async (): Promise<{ country: string; countryCode: string }> => {
+  // Try to get from sessionStorage first for better performance
+  const cachedCountry = sessionStorage.getItem('user_country');
+  const cachedCountryCode = sessionStorage.getItem('user_country_code');
+  
+  if (cachedCountry && cachedCountryCode) {
+    return { country: cachedCountry, countryCode: cachedCountryCode };
+  }
+  
   try {
-    const response = await fetch('https://api.ipapi.com/check?access_key=YOUR_API_KEY');
+    // Using ipapi.co as a more reliable free service
+    const response = await fetch('https://ipapi.co/json/', { 
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to detect country: ${response.status}`);
+    }
+    
     const data = await response.json();
-    return {
+    
+    if (!data.country_name || !data.country_code) {
+      throw new Error('Invalid country data received');
+    }
+    
+    const result = {
       country: data.country_name,
       countryCode: data.country_code.toLowerCase()
     };
+    
+    // Cache the result in sessionStorage
+    sessionStorage.setItem('user_country', result.country);
+    sessionStorage.setItem('user_country_code', result.countryCode);
+    
+    return result;
   } catch (error) {
     console.error('Error detecting country:', error);
-    return { country: 'Unknown', countryCode: '' };
+    
+    // Fallback to another service if the first one fails
+    try {
+      const fallbackResponse = await fetch('https://geolocation-db.com/json/', {
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!fallbackResponse.ok) {
+        throw new Error('Fallback service failed');
+      }
+      
+      const fallbackData = await fallbackResponse.json();
+      
+      if (fallbackData.country_name && fallbackData.country_code) {
+        const result = {
+          country: fallbackData.country_name,
+          countryCode: fallbackData.country_code.toLowerCase()
+        };
+        
+        // Cache the result in sessionStorage
+        sessionStorage.setItem('user_country', result.country);
+        sessionStorage.setItem('user_country_code', result.countryCode);
+        
+        return result;
+      }
+      
+      throw new Error('Invalid data from fallback service');
+    } catch (fallbackError) {
+      console.error('Fallback country detection failed:', fallbackError);
+      return { country: 'Unknown', countryCode: '' };
+    }
   }
 };

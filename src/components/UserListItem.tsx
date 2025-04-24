@@ -3,6 +3,7 @@ import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getFlagUrl } from "@/utils/countryTools";
+import { useEffect, useState } from "react";
 
 interface UserListItemProps {
   name: string;
@@ -39,6 +40,18 @@ export const UserListItem = ({
 }: UserListItemProps) => {
   const firstLetter = name.charAt(0).toUpperCase();
   const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
+  const [flagUrl, setFlagUrl] = useState<string>('');
+  const [showFlag, setShowFlag] = useState<boolean>(true);
+  
+  useEffect(() => {
+    if (country) {
+      const url = getFlagUrl(country);
+      setFlagUrl(url);
+      setShowFlag(!!url);
+    } else {
+      setShowFlag(false);
+    }
+  }, [country]);
   
   let themeBorderClass = '';
   if (isVip) {
@@ -104,14 +117,17 @@ export const UserListItem = ({
         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
           {country && (
             <div className="flex items-center">
-              <img 
-                src={getFlagUrl(country)}
-                alt={`${country} flag`}
-                className="w-5 h-4 mr-2 rounded-sm shadow-sm object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              {showFlag && (
+                <img 
+                  src={flagUrl}
+                  alt={`${country} flag`}
+                  className="w-5 h-4 mr-2 rounded-sm shadow-sm object-cover"
+                  onError={(e) => {
+                    console.warn(`Failed to load flag for country: ${country}`);
+                    setShowFlag(false);
+                  }}
+                />
+              )}
               <span>{country}</span>
             </div>
           )}

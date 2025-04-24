@@ -88,6 +88,27 @@ export const usePresence = (currentUserId: string | null) => {
         });
         
         console.log('Online users after sync:', users.length);
+        
+        // Add mock VIP user to showcase VIP functionality
+        const mockVipUser: PresenceUser = {
+          user_id: 'mock-vip-user-id',
+          nickname: 'VIP_Amanda',
+          role: 'vip',
+          avatar_url: 'https://i.pravatar.cc/150?img=5',
+          country: 'fr',
+          gender: 'Female',
+          age: 28,
+          vip_status: true,
+          profile_theme: 'gold',
+          interests: ['Travel', 'Photography', 'Music'],
+          is_current_user: false
+        };
+        
+        // Only add the mock user if it's not already in the list
+        if (!users.some(u => u.user_id === mockVipUser.user_id)) {
+          users.push(mockVipUser);
+        }
+        
         setOnlineUsers(users);
       };
 
@@ -99,15 +120,40 @@ export const usePresence = (currentUserId: string | null) => {
             ...p,
             is_current_user: p.user_id === currentUserId
           })).filter(p => !existingIds.has(p.user_id));
+          
+          // Ensure our mock VIP user is always included
+          const mockVipUser: PresenceUser = {
+            user_id: 'mock-vip-user-id',
+            nickname: 'VIP_Amanda',
+            role: 'vip',
+            avatar_url: 'https://i.pravatar.cc/150?img=5',
+            country: 'fr',
+            gender: 'Female',
+            age: 28,
+            vip_status: true,
+            profile_theme: 'gold',
+            interests: ['Travel', 'Photography', 'Music'],
+            is_current_user: false
+          };
+          
+          // Add the mock user if it's not in the list
+          if (!existingIds.has(mockVipUser.user_id) && !newOnes.some(u => u.user_id === mockVipUser.user_id)) {
+            return [...prev, ...newOnes, mockVipUser];
+          }
+          
           return [...prev, ...newOnes];
         });
       };
 
       const handleLeave = ({ leftPresences }: { leftPresences: any[] }) => {
         console.log('Presence leave event in usePresence hook:', leftPresences.length);
-        setOnlineUsers(prev =>
-          prev.filter(user => !leftPresences.some(left => left.user_id === user.user_id))
-        );
+        setOnlineUsers(prev => {
+          // Filter out users who left, but keep the mock VIP user
+          const filtered = prev.filter(user => 
+            !leftPresences.some(left => left.user_id === user.user_id) || user.user_id === 'mock-vip-user-id'
+          );
+          return filtered;
+        });
       };
 
       channel
