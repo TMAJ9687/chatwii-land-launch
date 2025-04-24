@@ -78,11 +78,12 @@ export const ReportUserPopup = ({
         };
 
         // Submit report with timeout protection (8 seconds)
-        // We need to call .then() to get a proper Promise that TypeScript recognizes
-        const reportPromise = supabase
-          .from('reports')
-          .insert(reportObject)
-          .then(response => response);
+        // Convert the Supabase query to a proper Promise using Promise.resolve()
+        const reportPromise = Promise.resolve(
+          supabase
+            .from('reports')
+            .insert(reportObject)
+        );
 
         const response = await withTimeout(reportPromise, 8000);
         
