@@ -56,8 +56,8 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
     try {
       const botId = uuidv4();
       
-      // Create bot profile
-      const { error } = await supabase.from('profiles').insert({
+      // Use the create_bot stored procedure which is now implemented properly in our database
+      const { data, error } = await supabase.from('profiles').insert({
         id: botId,
         nickname: formData.nickname,
         age: parseInt(formData.age),

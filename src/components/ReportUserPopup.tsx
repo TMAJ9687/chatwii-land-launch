@@ -1,11 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -36,82 +36,78 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
-  const queryClient = useQueryClient();
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Reset state when dialog opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset form state immediately when dialog closes
-      setSelectedReason('');
-      setOtherReason('');
-    }
-  }, [isOpen]);
-
-  const reportMutation = useMutation({
-    mutationFn: async ({ reason }: { reason: string }) => {
-      if (!reason.trim()) {
-        throw new Error('Reason is required');
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { error, data } = await supabase
-        .from('reports')
-        .insert({
-          reporter_id: user.id,
-          reported_id: reportedUser.id,
-          reason,
-          status: 'pending'
-        })
-        .select();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Report submitted successfully');
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      onClose(); // Close dialog on success
-    },
-    onError: (error: any) => {
-      console.error('Report submission error:', error);
-      toast.error(error.message || 'Failed to submit report. Please try again later.');
-    }
-  });
-
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      if (reportMutation.isPending) {
-        toast.info('Please wait while your report is being submitted');
-        return;
-      }
       onClose();
+      // Reset form state after dialog is fully closed
+      setTimeout(() => {
+        setSelectedReason('');
+        setOtherReason('');
+        setSubmitAttempted(false);
+      }, 300);
     }
   };
 
+  const reportMutation = useMutation({
+    mutationFn: async ({ reason }: { reason: string }) => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await supabase
+          .from('reports')
+          .insert({
+            reporter_id: user.id,
+            reported_id: reportedUser.id,
+            reason,
+            status: 'pending'
+          });
+
+        if (error) throw error;
+        return true;
+      } catch (error) {
+        console.error('Report submission error:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success('Report submitted successfully');
+      // Immediately close dialog on success without animation delay
+      onClose();
+    },
+    onError: (error) => {
+      console.error('Report submission error:', error);
+      toast.error('Failed to submit report. Please try again later.');
+      setSubmitAttempted(false); // Reset submit flag to allow retry
+    }
+  });
+
   const handleSubmit = async () => {
+    if (submitAttempted) return; // Prevent multiple submissions
+    
     if (!selectedReason) {
       toast.error('Please select a reason');
       return;
     }
 
-    const reason = selectedReason === 'other' 
-      ? otherReason 
-      : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
+    const reason = selectedReason === 'other' ? otherReason : 
+      REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
 
     if (selectedReason === 'other' && !otherReason.trim()) {
       toast.error('Please provide a reason');
       return;
     }
 
-    // Submit the report
+    setSubmitAttempted(true);
     reportMutation.mutate({ reason });
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Report {reportedUser.nickname}</DialogTitle>
           <DialogDescription>
@@ -119,12 +115,12 @@ export const ReportUserPopup = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4">
           <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
             {REPORT_REASONS.map((reason) => (
               <div key={reason.id} className="flex items-center space-x-2">
                 <RadioGroupItem value={reason.id} id={reason.id} />
-                <Label htmlFor={reason.id} className="cursor-pointer">{reason.label}</Label>
+                <Label htmlFor={reason.id}>{reason.label}</Label>
               </div>
             ))}
           </RadioGroup>
@@ -135,7 +131,6 @@ export const ReportUserPopup = ({
               value={otherReason}
               onChange={(e) => setOtherReason(e.target.value.slice(0, 120))}
               className="h-20"
-              disabled={reportMutation.isPending}
             />
           )}
 
@@ -143,7 +138,8 @@ export const ReportUserPopup = ({
             onClick={handleSubmit}
             disabled={!selectedReason || 
               (selectedReason === 'other' && !otherReason.trim()) || 
-              reportMutation.isPending}
+              reportMutation.isPending ||
+              submitAttempted}
             className="w-full"
           >
             {reportMutation.isPending ? (

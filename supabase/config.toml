@@ -1,17 +1,1 @@
-
 project_id = "eicsmwtzldydzdscvxtj"
-
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage"]
-
-[db]
-port = 54322
-
-[storage]
-enabled = true
-
-[functions]
-[functions.detect-country]
-verify_jwt = false
