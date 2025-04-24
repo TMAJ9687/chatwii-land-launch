@@ -79,8 +79,8 @@ export const ReportUserPopup = ({
 
         // Submit report with timeout protection (5 seconds)
         const insertResponse = await withTimeout(
-          // Convert the Supabase query to a Promise
-          supabase.from('reports').insert(reportObject).then(result => result),
+          // Explicitly convert to Promise to resolve type issues
+          Promise.resolve(supabase.from('reports').insert(reportObject)),
           5000
         );
         
