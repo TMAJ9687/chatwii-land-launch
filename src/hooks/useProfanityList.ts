@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Hook for fetching profanity lists from supabase
+ * Hook for fetching profanity lists from supabase with real-time updates
  */
 export function useProfanityList(type: 'nickname' | 'chat' = 'nickname') {
   const [profanityList, setProfanityList] = useState<string[]>([]);
@@ -36,7 +36,28 @@ export function useProfanityList(type: 'nickname' | 'chat' = 'nickname') {
       }
     };
     
+    // Initial fetch
     fetchProfanity();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'site_settings'
+        },
+        () => {
+          fetchProfanity();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [type]);
 
   return { profanityList, isLoading, error };

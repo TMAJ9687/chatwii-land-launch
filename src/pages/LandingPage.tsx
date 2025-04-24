@@ -1,18 +1,19 @@
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VipButton } from "@/components/VipButton";
-import { UsernameInput } from "@/components/UsernameInput";
 import { ChatButton } from "@/components/ChatButton";
 import { CaptchaModal } from "@/components/CaptchaModal";
 import { AdPlaceholder } from "@/components/AdPlaceholder";
 import { VerticalAdLabel } from "@/components/VerticalAdLabel";
+import { ValidatedUsernameInput } from "@/components/ValidatedUsernameInput";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const LandingPage = () => {
   const [nickname, setNickname] = useState("");
+  const [isNicknameValid, setIsNicknameValid] = useState(false);
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
@@ -20,16 +21,16 @@ const LandingPage = () => {
 
   // Handler for "Start Chat" click
   const handleStartChatClick = () => {
+    if (!isNicknameValid) {
+      toast.error("Please enter a valid nickname");
+      return;
+    }
     setCaptchaOpen(true);
     setCaptchaError(null);
   };
 
   // Handler when CAPTCHA is solved
   const handleCaptchaSuccess = async (token: string) => {
-    // Log the received CAPTCHA token
-    console.log("Turnstile token:", token);
-
-    // TODO: Send this token to backend for verification with Secret Key!
     setIsSigningIn(true);
     setCaptchaError(null);
     setCaptchaOpen(false);
@@ -39,11 +40,7 @@ const LandingPage = () => {
       navigate("/profile-setup", { state: { nickname } });
     } catch (error) {
       setCaptchaError("Failed to sign in. Please try again.");
-      toast({
-        title: "Error",
-        description: "Failed to start chat. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to start chat. Please try again.");
     } finally {
       setIsSigningIn(false);
     }
@@ -82,11 +79,15 @@ const LandingPage = () => {
           </div>
 
           <div className="space-y-4">
-            <UsernameInput maxLength={16} value={nickname} onChange={setNickname} />
+            <ValidatedUsernameInput 
+              value={nickname} 
+              onChange={setNickname}
+              onValidityChange={setIsNicknameValid}
+            />
             <ChatButton 
               nickname={nickname} 
               onCaptchaClick={handleStartChatClick}
-              disabled={isSigningIn || !nickname}
+              disabled={isSigningIn || !nickname || !isNicknameValid}
             />
             {captchaError && (
               <div className="text-red-500 pt-2 text-center text-sm">
@@ -105,12 +106,11 @@ const LandingPage = () => {
         open={captchaOpen}
         onClose={() => setCaptchaOpen(false)}
         onSuccess={handleCaptchaSuccess}
-        onError={handleCaptchaError}
-        onExpire={handleCaptchaExpire}
+        onError={() => setCaptchaError("CAPTCHA failed, please try again.")}
+        onExpire={() => setCaptchaError("CAPTCHA expired, please try again.")}
       />
     </div>
   );
 };
 
 export default LandingPage;
-
