@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Send, Smile, Paperclip, Mic } from 'lucide-react';
 import { Button } from './ui/button';
@@ -105,6 +104,27 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
     }
   };
 
+  const handleRecordToggle = async () => {
+    if (!isVip) {
+      toast.error("Voice messages are a VIP-only feature");
+      return;
+    }
+
+    if (!canSendToUser) {
+      toast.error("You cannot send messages to this user");
+      return;
+    }
+
+    if (isRecording) {
+      stopRecording();
+      setShowVoicePreview(true);
+    } else {
+      clearRecording();
+      setShowVoicePreview(false);
+      await startRecording();
+    }
+  };
+
   return (
     <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">
       <input
@@ -151,10 +171,12 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
       <Button 
         variant={isRecording ? "destructive" : "ghost"}
         size="icon"
-        className={`rounded-full transition-all duration-200 ${isRecording ? 'animate-pulse' : ''}`}
+        className={`rounded-full transition-all duration-200 ${
+          !isVip ? 'opacity-50 cursor-not-allowed' : ''
+        } ${isRecording ? 'animate-pulse' : ''}`}
         onClick={handleRecordToggle}
-        disabled={imageUploading || audioUploading || uploadingMessage || !canSendToUser}
-        aria-label={isRecording ? "Stop recording" : "Start recording"}
+        disabled={imageUploading || audioUploading || uploadingMessage || !canSendToUser || !isVip}
+        title={!isVip ? "VIP-only feature" : "Record voice message"}
       >
         <Mic className="h-5 w-5" />
       </Button>

@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -49,7 +48,10 @@ const ChatInterface = () => {
     handleCloseChat,
     handleUserSelect,
     handleAcceptRules,
-    checkRulesAccepted
+    checkRulesAccepted,
+    isBlocked,
+    setShowReportPopup,
+    handleBlockUser
   } = useChatState();
 
   const { 
@@ -61,12 +63,10 @@ const ChatInterface = () => {
 
   const globalChannelRef = useRef<any>(null);
 
-  // Update selected user ID in useGlobalMessages when it changes
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
   }, [selectedUserId, updateSelectedUserId]);
 
-  // Check auth session and load user profile
   useEffect(() => {
     const checkAuthAndLoadProfile = async () => {
       const {
@@ -107,7 +107,6 @@ const ChatInterface = () => {
     checkAuthAndLoadProfile();
   }, [navigate, checkRulesAccepted]);
 
-  // Set up global message subscription
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -171,7 +170,6 @@ const ChatInterface = () => {
     };
   }, [currentUserId, selectedUserId, setMessages]);
 
-  // Load messages when a user is selected - with dependency on isLoading to prevent loops
   useEffect(() => {
     if (selectedUserId && currentUserId && !isLoading) {
       fetchMessages();
@@ -211,7 +209,6 @@ const ChatInterface = () => {
 
     setMessages(current => [...current, optimisticMessage]);
 
-    // Insert message to database
     const { data: messageData, error: messageError } = await supabase
       .from('messages')
       .insert({
@@ -232,12 +229,10 @@ const ChatInterface = () => {
       return;
     }
 
-    // Handle bot response if applicable
     if (recipientProfile?.role === 'bot' && content) {
       handleBotResponse(selectedUserId, currentUserId, content);
     }
 
-    // Insert media record if needed
     if (imageUrl && messageData) {
       const { error: mediaError } = await supabase
         .from('message_media')
@@ -305,9 +300,9 @@ const ChatInterface = () => {
             <ChatHeader
               nickname={selectedUserNickname}
               onClose={handleCloseChat}
-              onReportUser={() => { /* Report user logic */ }}
-              onBlockUser={() => { /* Block user logic */ }}
-              isBlocked={false}
+              onReportUser={() => setShowReportPopup(true)}
+              onBlockUser={handleBlockUser}
+              isBlocked={isBlocked}
             />
           )}
           

@@ -21,13 +21,13 @@ export const LogoutButton = () => {
   return (
     <>
       <Button
-        variant="destructive"
+        variant="ghost"
         size="icon"
         onClick={() => setShowConfirmation(true)}
-        className="rounded-full bg-red-600 hover:bg-red-700" 
+        className="rounded-full" 
         disabled={isLoggingOut}
       >
-        <LogOut className="h-5 w-5" />
+        <LogOut className="h-5 w-5 text-red-600" />
       </Button>
 
       <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>

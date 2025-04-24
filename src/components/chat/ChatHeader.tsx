@@ -24,7 +24,7 @@ export const ChatHeader = ({
   isBlocked,
 }: ChatHeaderProps) => {
   return (
-    <div className="p-4 border-b flex items-center justify-between">
+    <div className="p-4 border-b flex items-center justify-between bg-background">
       <h2 className="font-medium">{nickname}</h2>
       <div className="flex items-center gap-2">
         {onClose && (

@@ -101,9 +101,9 @@ export const UserListItem = ({
       </div>
       
       <div className="flex flex-col flex-grow min-w-0 gap-2">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <h3 className="font-semibold text-base">{name}</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-base">{name}</h3>
+          <div className="flex items-center gap-2">
             <span className={`${genderColor} text-sm font-medium`}>
               {gender}, {age}
             </span>
@@ -121,34 +121,39 @@ export const UserListItem = ({
             )}
           </div>
         </div>
-        
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-            {countryCode && (
+
+        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+          {country && (
+            <>
               <img 
-                src={getFlagUrl(countryCode)} 
+                src={getFlagUrl(country.toLowerCase())} 
                 alt={`${country} flag`}
-                className="w-5 h-4 mr-2 rounded-sm shadow-sm" 
+                className="w-5 h-4 mr-2 rounded-sm shadow-sm"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
               />
-            )}
-            <span>{country}</span>
-          </div>
-          
-          <div className="flex flex-wrap gap-1.5">
+              <span>{country}</span>
+            </>
+          )}
+        </div>
+
+        {interests && interests.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
             {interests.map((interest, idx) => (
               <span 
                 key={idx} 
-                className={`px-2.5 py-1 text-xs rounded-full ${
+                className={`px-2 py-0.5 text-xs rounded-full ${
                   isVip 
-                    ? 'bg-amber-50 dark:bg-amber-900/30 dark:text-amber-200 text-amber-800' 
-                    : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-300 text-gray-600'
+                    ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                 }`}
               >
                 {interest}
               </span>
             ))}
           </div>
-        </div>
+        )}
         
         {isBlocked && onUnblock && (
           <div className="mt-2">
