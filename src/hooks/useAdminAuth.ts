@@ -15,6 +15,8 @@ export const useAdminAuth = () => {
         
         if (!user) {
           setIsAdmin(false);
+          setUser(null);
+          setIsLoading(false);
           return;
         }
 
@@ -22,9 +24,14 @@ export const useAdminAuth = () => {
           .from("profiles")
           .select("role")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
-        if (error || profile?.role !== 'admin') {
+        if (error) {
+          console.error("Admin check error:", error);
+          toast.error("Failed to verify admin status");
+          setIsAdmin(false);
+          setUser(null);
+        } else if (profile?.role !== 'admin') {
           setIsAdmin(false);
           setUser(null);
         } else {
@@ -34,6 +41,7 @@ export const useAdminAuth = () => {
       } catch (error) {
         console.error("Admin check failed:", error);
         setIsAdmin(false);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }

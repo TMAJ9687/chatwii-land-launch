@@ -460,7 +460,13 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      nickname_reuse_stats: {
+        Row: {
+          nickname: string | null
+          uses: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_message_user: {

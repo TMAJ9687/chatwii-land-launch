@@ -1,13 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
-import ChatPage from "./pages/ChatPage";
 import ChatInterface from "./pages/ChatInterface";
 import NotFound from "./pages/NotFound";
 import ProfileSetupPage from "./pages/ProfileSetupPage";
@@ -23,11 +22,19 @@ import VipSuccessPage from "./pages/VipSuccessPage";
 import VipCancelPage from "./pages/VipCancelPage";
 
 import AdminLoginPage from "./pages/AdminLoginPage";
+import { supabase } from "./integrations/supabase/client";
 
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
 const STRIPE_PUBLISHABLE_KEY = "pk_test_YOUR_PUBLISHABLE_KEY";
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
@@ -38,23 +45,38 @@ const useAdminAuth = () => {
 
   useEffect(() => {
     const check = async () => {
-      const { data: { session } } = await import("@/integrations/supabase/client").then(mod => mod.supabase.auth.getSession());
-      if (!session) {
-        setChecked(true);
-        setIsAdmin(false);
-        return;
-      }
-      const { data: profile } = await import("@/integrations/supabase/client").then(mod =>
-        mod.supabase
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !session.user) {
+          setIsAdmin(false);
+          setChecked(true);
+          return;
+        }
+
+        const { data: profile } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", session.user.id)
-          .maybeSingle()
-      );
-      setIsAdmin(profile?.role === "admin");
-      setChecked(true);
+          .maybeSingle();
+
+        setIsAdmin(profile?.role === "admin");
+      } catch (error) {
+        console.error("Admin auth check failed:", error);
+        setIsAdmin(false);
+      } finally {
+        setChecked(true);
+      }
     };
+    
     check();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      check();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return { checked, isAdmin };
@@ -62,17 +84,15 @@ const useAdminAuth = () => {
 
 const ProtectedAdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { checked, isAdmin } = useAdminAuth();
-  const [redirect, setRedirect] = useState(false);
 
-  useEffect(() => {
-    if (checked && !isAdmin) setRedirect(true);
-  }, [checked, isAdmin]);
-
-  if (!checked) return null;
-  if (redirect) {
-    window.location.replace("/tmaj2025");
-    return null;
+  if (!checked) {
+    return <div className="flex justify-center items-center h-screen">Verifying admin access...</div>;
   }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 };
 
@@ -97,6 +117,11 @@ const App = () => (
               <Route path="/vip-cancel" element={<VipCancelPage />} />
               <Route path="/tmaj2025" element={<AdminLoginPage />} />
               <Route path="/admin" element={
+                <ProtectedAdminRoute>
+                  <AdminDashboardPage />
+                </ProtectedAdminRoute>
+              } />
+              <Route path="/admin/*" element={
                 <ProtectedAdminRoute>
                   <AdminDashboardPage />
                 </ProtectedAdminRoute>

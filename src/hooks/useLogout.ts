@@ -21,8 +21,10 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
       // Get current user before signing out
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Get user role if available
-      let redirectPath = defaultRedirect;
+      // Default redirect to home for admins
+      let redirectPath = '/';
+      
+      // Only change redirect for non-admin users
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -30,9 +32,9 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
           .eq("id", user.id)
           .maybeSingle();
           
-        // VIP and admin users get redirected to home
-        if (profile?.role === 'vip' || profile?.role === 'admin') {
-          redirectPath = '/';
+        // Only redirect non-admin, non-vip users to feedback
+        if (profile?.role !== 'vip' && profile?.role !== 'admin') {
+          redirectPath = defaultRedirect;
         }
 
         // For anonymous users, free up the nickname by modifying it
@@ -61,7 +63,7 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
     } catch (error) {
       console.error('Logout process failed:', error);
       toast.error("An unexpected error occurred during logout");
-      navigate(defaultRedirect, { replace: true }); // Navigate anyway to prevent user being stuck
+      navigate('/', { replace: true }); // Always navigate to home on error
     } finally {
       setIsLoggingOut(false);
     }

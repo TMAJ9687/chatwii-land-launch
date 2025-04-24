@@ -24,20 +24,25 @@ const AdminLoginPage = () => {
       if (error) throw error;
 
       // Fetch the user's profile to check admin role
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", data.user.id)
         .maybeSingle();
 
+      if (profileError) throw profileError;
+
       if (profile?.role === "admin") {
         toast.success("Welcome admin!");
         navigate("/admin", { replace: true });
       } else {
-        toast.error("Not an admin.");
+        toast.error("Not an admin account");
         await supabase.auth.signOut();
+        // Redirect to home page for non-admin users
+        navigate("/", { replace: true });
       }
     } catch (err: any) {
+      console.error("Login error:", err);
       toast.error("Login failed", { description: err?.message || "Try again." });
     } finally {
       setLoading(false);
