@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -25,7 +24,6 @@ export const usePresence = (currentUserId: string | null) => {
 
     const fetchUserData = async () => {
       try {
-        // Get current user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -37,7 +35,6 @@ export const usePresence = (currentUserId: string | null) => {
           return null;
         }
 
-        // Get user's interests
         const { data: userInterests, error: interestsError } = await supabase
           .from('user_interests')
           .select(`
@@ -121,7 +118,7 @@ export const usePresence = (currentUserId: string | null) => {
           if (status === 'SUBSCRIBED' && currentUserId) {
             try {
               console.log('Tracking presence for current user:', currentUserId);
-              await channel.track({
+              const presenceData = {
                 user_id: currentUserId,
                 nickname: userData.nickname || 'Anonymous',
                 role: userData.role || 'standard',
@@ -133,9 +130,13 @@ export const usePresence = (currentUserId: string | null) => {
                 profile_theme: userData.profile_theme,
                 interests: userData.interests || [],
                 is_current_user: true
-              });
+              };
+
+              await channel.track(presenceData);
+              console.log('Presence tracked:', presenceData);
             } catch (error) {
               console.error('Error tracking presence:', error);
+              toast.error('Failed to update online status');
             }
           }
         });

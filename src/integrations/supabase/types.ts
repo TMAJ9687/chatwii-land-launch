@@ -469,6 +469,30 @@ export type Database = {
       }
     }
     Functions: {
+      admin_ban_user: {
+        Args: {
+          target_user_id: string
+          ban_reason: string
+          ban_expires_at: string
+        }
+        Returns: boolean
+      }
+      admin_downgrade_vip_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      admin_kick_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      admin_unban_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      admin_upgrade_user_to_vip: {
+        Args: { target_user_id: string; subscription_end_date: string }
+        Returns: boolean
+      }
       can_message_user: {
         Args: { sender_id: string; receiver_id: string }
         Returns: boolean

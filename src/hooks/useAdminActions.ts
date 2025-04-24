@@ -13,54 +13,36 @@ export const useAdminActions = () => {
   const { refetch: refetchVipUsers } = useVipUsers();
   const { refetch: refetchStandardUsers } = useStandardUsers();
 
+  // Common error handler
+  const handleError = (error: any, action: string) => {
+    console.error(`Failed to ${action}:`, error);
+    toast.error(`Failed to ${action}`);
+    return false;
+  };
+
   const kickUser = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // First verify we are an admin
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Authentication required");
-        return false;
-      }
-      
-      const { data: adminCheck, error: adminError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-        
-      if (adminError || adminCheck?.role !== 'admin') {
-        toast.error("Admin privileges required");
-        return false;
-      }
-      
-      // Now update the visibility
-      const { error } = await supabase.rpc('admin_kick_user', { target_user_id: userId });
-      
-      if (error) {
-        console.error('Admin kick user error:', error);
-        throw error;
-      }
-      
-      // Also attempt to update the user's realtime presence
-      // This doesn't solve presence immediately, but helps with future refresh
-      const { error: visibilityError } = await supabase
-        .from("profiles")
-        .update({ visibility: "offline" })
-        .eq("id", userId);
-      
-      if (visibilityError) {
-        console.error('Failed to update visibility:', visibilityError);
-      }
-      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ visibility: 'offline' })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      const { error: channelError } = await supabase
+        .from('profiles')
+        .update({ visibility: 'offline' })
+        .eq('id', userId);
+
+      if (channelError) throw channelError;
+
       toast.success("User kicked successfully");
-      refetchVipUsers();
       refetchStandardUsers();
+      refetchVipUsers();
       return true;
     } catch (error) {
-      console.error('Failed to kick user:', error);
-      toast.error("Failed to kick user");
-      return false;
+      return handleError(error, "kick user");
     } finally {
       setIsProcessing(false);
     }
@@ -76,42 +58,30 @@ export const useAdminActions = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration] || 0).toISOString();
 
-      // Get admin ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Authentication required");
-        return false;
-      }
-      
-      // Verify admin role
-      const { data: adminCheck, error: adminError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-        
-      if (adminError || adminCheck?.role !== 'admin') {
-        toast.error("Admin privileges required");
-        return false;
-      }
-      
-      // Create ban record using RPC function
-      const { error } = await supabase.rpc('admin_ban_user', { 
-        target_user_id: userId,
-        ban_reason: reason,
-        ban_expires_at: expiresAt
-      });
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ visibility: 'offline' })
+        .eq('id', userId);
 
       if (error) throw error;
+
+      // Create ban record
+      const { error: banError } = await supabase
+        .from('bans')
+        .insert({
+          user_id: userId,
+          reason,
+          expires_at: expiresAt,
+        });
+
+      if (banError) throw banError;
       
       toast.success("User banned successfully");
       refetchStandardUsers();
       refetchVipUsers();
       return true;
     } catch (error) {
-      console.error('Failed to ban user:', error);
-      toast.error("Failed to ban user");
-      return false;
+      return handleError(error, "ban user");
     } finally {
       setIsProcessing(false);
     }
@@ -120,24 +90,18 @@ export const useAdminActions = () => {
   const unbanUser = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // First verify we are an admin
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Authentication required");
-        return false;
-      }
-      
-      const { error } = await supabase.rpc('admin_unban_user', { target_user_id: userId });
-      
+      const { error } = await supabase
+        .from('bans')
+        .delete()
+        .eq('user_id', userId);
+
       if (error) throw error;
       
       toast.success("User unbanned successfully");
       refetchStandardUsers();
       return true;
     } catch (error) {
-      console.error('Failed to unban user:', error);
-      toast.error("Failed to unban user");
-      return false;
+      return handleError(error, "unban user");
     } finally {
       setIsProcessing(false);
     }
@@ -152,28 +116,36 @@ export const useAdminActions = () => {
           '3months': 90 * 24 * 60 * 60 * 1000,
         }[duration] || 0).toISOString();
 
-      // First verify we are an admin
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Authentication required");
-        return false;
-      }
-      
-      const { error } = await supabase.rpc('admin_upgrade_user_to_vip', { 
-        target_user_id: userId,
-        subscription_end_date: endDate
-      });
-      
-      if (error) throw error;
-      
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          role: 'vip',
+          vip_status: true 
+        })
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Create subscription
+      const { error: subError } = await supabase
+        .from('vip_subscriptions')
+        .insert({
+          user_id: userId,
+          end_date: endDate,
+          is_active: true,
+          payment_provider: 'admin_granted',
+          subscription_plan: duration === 'permanent' ? 'permanent' : 'admin_grant'
+        });
+
+      if (subError) throw subError;
+
       toast.success("User upgraded to VIP successfully");
       refetchStandardUsers();
       refetchVipUsers();
       return true;
     } catch (error) {
-      console.error('Failed to upgrade user:', error);
-      toast.error("Failed to upgrade user to VIP");
-      return false;
+      return handleError(error, "upgrade user to VIP");
     } finally {
       setIsProcessing(false);
     }
@@ -182,25 +154,31 @@ export const useAdminActions = () => {
   const downgradeFromVip = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // First verify we are an admin
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Authentication required");
-        return false;
-      }
-      
-      const { error } = await supabase.rpc('admin_downgrade_vip_user', { target_user_id: userId });
-      
-      if (error) throw error;
-      
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          role: 'standard',
+          vip_status: false 
+        })
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Deactivate subscriptions
+      const { error: subError } = await supabase
+        .from('vip_subscriptions')
+        .update({ is_active: false })
+        .eq('user_id', userId);
+
+      if (subError) throw subError;
+
       toast.success("User downgraded from VIP successfully");
       refetchVipUsers();
       refetchStandardUsers();
       return true;
     } catch (error) {
-      console.error('Failed to downgrade user:', error);
-      toast.error("Failed to downgrade user from VIP");
-      return false;
+      return handleError(error, "downgrade user from VIP");
     } finally {
       setIsProcessing(false);
     }
