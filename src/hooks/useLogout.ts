@@ -37,14 +37,13 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
           redirectPath = defaultRedirect;
         }
 
-        // For anonymous users, free up the nickname by modifying it
-        // This allows the nickname to be reused by new users
-        if (user.app_metadata?.provider === 'anonymous') {
+        // Delete profile for standard and anonymous users
+        if (profile?.role === 'standard' || user.app_metadata?.provider === 'anonymous') {
           const result = await deleteUserProfile(user.id);
           
           if (!result.success) {
             console.error('Profile deletion error:', result.error);
-            // Not throwing here to ensure navigation still happens
+            toast.error('Failed to clean up profile on logout.');
           }
         }
       }

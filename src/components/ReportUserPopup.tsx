@@ -77,17 +77,14 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
-        // Submit report with timeout protection (8 seconds)
-        // Convert the Supabase query to a proper Promise using Promise.resolve()
-        const reportPromise = Promise.resolve(
-          supabase
-            .from('reports')
-            .insert(reportObject)
+        // Submit report with timeout protection (5 seconds)
+        // Removed unnecessary Promise.resolve() wrapper
+        const { error } = await withTimeout(
+          supabase.from('reports').insert(reportObject),
+          5000
         );
-
-        const response = await withTimeout(reportPromise, 8000);
         
-        if (response.error) throw response.error;
+        if (error) throw error;
         return true;
       } catch (error: any) {
         console.error('Report submission error:', error);
@@ -108,11 +105,16 @@ export const ReportUserPopup = ({
       console.error('Report submission error:', error);
       toast.error(error.message || 'Failed to submit report. Please try again later.');
       setSubmitAttempted(false); // Reset submit flag to allow retry
+      onClose(); // Ensure dialog closes even on error
+    },
+    onSettled: () => {
+      // Ensure dialog state is reset regardless of outcome
+      setSubmitAttempted(false);
     }
   });
 
   const handleSubmit = async () => {
-    if (submitAttempted) return; // Prevent multiple submissions
+    if (submitAttempted || reportMutation.isPending) return; // Prevent multiple submissions
     
     if (!selectedReason) {
       toast.error('Please select a reason');
@@ -162,10 +164,7 @@ export const ReportUserPopup = ({
 
           <Button 
             onClick={handleSubmit}
-            disabled={!selectedReason || 
-              (selectedReason === 'other' && !otherReason.trim()) || 
-              reportMutation.isPending ||
-              submitAttempted}
+            disabled={reportMutation.isPending || submitAttempted}
             className="w-full"
           >
             {reportMutation.isPending ? (

@@ -3,67 +3,88 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export const useProfileDeletion = () => {
-  const verifyProfileDeletion = async (userId: string): Promise<boolean> => {
+  const deleteUserProfile = async (userId: string): Promise<{success: boolean, error?: any}> => {
     try {
-      // Verify the profile was correctly updated
-      const { data, error } = await supabase
+      // Step 1: Check the user's role
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('visibility, deleted_at, nickname')
+        .select('role')
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Verification error:', error);
-        return false;
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        toast.error('Failed to fetch profile for deletion.');
+        return { success: false, error: profileError };
       }
 
-      // Check if the profile has been marked as deleted and nickname changed
-      return data.visibility === 'offline' && 
-             data.deleted_at !== null && 
-             data.nickname.startsWith('deleted_');
-    } catch (error) {
-      console.error('Profile verification failed:', error);
-      return false;
-    }
-  };
+      // Step 2: Skip deletion for admin and VIP users
+      if (profile.role === 'admin' || profile.role === 'vip') {
+        console.log(`Skipping deletion for ${profile.role} user: ${userId}`);
+        return { success: true }; // No deletion needed
+      }
 
-  const deleteUserProfile = async (userId: string) => {
-    try {
-      // Generate a unique placeholder to replace the nickname
-      // This frees up the original nickname for future use
-      const deletedNicknameSuffix = crypto.randomUUID().substring(0, 8);
-      
-      // Update the profile to mark it as deleted and free up the nickname
-      const { data, error } = await supabase
+      // Step 3: Delete files from storage (chat_images bucket)
+      const { data: fileList, error: listError } = await supabase.storage
+        .from('chat_images')
+        .list('', { search: `${userId}_` }); // File names start with userId_
+
+      if (listError) {
+        console.error('Error listing storage files:', listError);
+        toast.error('Failed to list storage files for cleanup.');
+        return { success: false, error: listError };
+      }
+
+      if (fileList && fileList.length > 0) {
+        const filePaths = fileList.map(file => file.name);
+        const { error: deleteStorageError } = await supabase.storage
+          .from('chat_images')
+          .remove(filePaths);
+
+        if (deleteStorageError) {
+          console.error('Error deleting storage files:', deleteStorageError);
+          toast.error('Failed to delete storage files.');
+          return { success: false, error: deleteStorageError };
+        }
+      }
+
+      // Step 4: Delete associated reports
+      const { error: reportError } = await supabase
+        .from('reports')
+        .delete()
+        .or(`reporter_id.eq.${userId},reported_id.eq.${userId}`);
+
+      if (reportError) {
+        console.error('Error deleting reports:', reportError);
+        toast.error('Failed to clean up reports.');
+        return { success: false, error: reportError };
+      }
+
+      // Step 5: Delete daily_photo_uploads records
+      const { error: photoError } = await supabase
+        .from('daily_photo_uploads')
+        .delete()
+        .eq('user_id', userId);
+
+      if (photoError) {
+        console.error('Error deleting daily_photo_uploads:', photoError);
+        toast.error('Failed to clean up photo upload records.');
+        return { success: false, error: photoError };
+      }
+
+      // Step 6: Delete the profile
+      const { error: deleteError } = await supabase
         .from('profiles')
-        .update({ 
-          visibility: 'offline',
-          deleted_at: new Date().toISOString(),
-          nickname: `deleted_${deletedNicknameSuffix}` // Use UUID for uniqueness
-        })
-        .eq('id', userId)
-        .select(); // Return the updated data for verification
+        .delete()
+        .eq('id', userId);
 
-      if (error) {
-        console.error('Profile deletion error:', error);
-        toast.error('Failed to update profile.');
-        return { success: false, error };
-      }
-      
-      // Log the change for debugging purposes
-      console.log('Profile deletion result:', data);
-      
-      // Verify the deletion was successful
-      const isVerified = await verifyProfileDeletion(userId);
-      
-      if (!isVerified) {
-        console.error('Profile deletion verification failed');
-        return { 
-          success: false, 
-          error: new Error('Profile deletion verification failed') 
-        };
+      if (deleteError) {
+        console.error('Profile deletion error:', deleteError);
+        toast.error('Failed to delete profile.');
+        return { success: false, error: deleteError };
       }
 
+      console.log(`Successfully deleted profile for user ${userId}`);
       return { success: true };
     } catch (error) {
       console.error('Profile deletion error:', error);
