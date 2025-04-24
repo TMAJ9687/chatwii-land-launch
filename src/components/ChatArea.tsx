@@ -6,7 +6,6 @@ import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { supabase } from '@/lib/supabase';
 import { MessageList } from './chat/MessageList';
-import { ChatHeader } from './chat/ChatHeader';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useBlockedUsers } from './useBlockedUsers';
@@ -60,6 +59,7 @@ export const useChatState = () => {
     handleAcceptRules,
     checkRulesAccepted,
     isBlocked,
+    showReportPopup,
     setShowReportPopup,
     handleBlockUser
   };
