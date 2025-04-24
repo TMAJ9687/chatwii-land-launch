@@ -70,17 +70,16 @@ export const ReportUserPopup = ({
         if (!user) throw new Error('Not authenticated');
 
         // Submit report with timeout protection (8 seconds)
-        const { error } = await withTimeout(
-          supabase
-            .from('reports')
-            .insert({
-              reporter_id: user.id,
-              reported_id: reportedUser.id,
-              reason,
-              status: 'pending'
-            }),
-          8000
-        );
+        const reportPromise = supabase
+          .from('reports')
+          .insert({
+            reporter_id: user.id,
+            reported_id: reportedUser.id,
+            reason,
+            status: 'pending'
+          });
+
+        const { error } = await withTimeout(reportPromise, 8000);
 
         if (error) throw error;
         return true;
