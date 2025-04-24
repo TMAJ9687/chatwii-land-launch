@@ -221,17 +221,54 @@ export const getFlagUrl = (codeOrName: string): string => {
   return '';
 };
 
-// Detect user's country using their IP
+// Detect user's country using Cloudflare Geo Headers or IP lookup fallback
 export const detectUserCountry = async (): Promise<{ country: string; countryCode: string }> => {
   try {
-    const response = await fetch('https://api.ipapi.com/check?access_key=YOUR_API_KEY');
+    // Try to detect using client-side location
+    if (typeof window !== 'undefined') {
+      // First try to check if we have country info in storage
+      const storedCountry = localStorage.getItem('user_country');
+      const storedCountryCode = localStorage.getItem('user_country_code');
+      if (storedCountry && storedCountryCode) {
+        return { country: storedCountry, countryCode: storedCountryCode.toLowerCase() };
+      }
+    }
+
+    // Fallback to API lookup
+    const response = await fetch('/api/detect-country', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Country detection API returned an error');
+    }
+    
     const data = await response.json();
+
+    // Store for future use if client-side
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user_country', data.country);
+      localStorage.setItem('user_country_code', data.countryCode);
+    }
+    
     return {
-      country: data.country_name,
-      countryCode: data.country_code.toLowerCase()
+      country: data.country,
+      countryCode: data.countryCode.toLowerCase()
     };
   } catch (error) {
     console.error('Error detecting country:', error);
     return { country: 'Unknown', countryCode: '' };
   }
+};
+
+// Get country emoji flag from country code
+export const getCountryFlag = (countryCode?: string): string => {
+  if (!countryCode) return '';
+  
+  // Convert country code to regional indicator symbols (flag emoji)
+  const codePoints = [...countryCode.toUpperCase()]
+    .map(char => 127397 + char.charCodeAt(0));
+  
+  return String.fromCodePoint(...codePoints);
 };

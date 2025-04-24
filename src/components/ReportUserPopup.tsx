@@ -36,7 +36,6 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
-  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (open: boolean) => {
@@ -46,7 +45,6 @@ export const ReportUserPopup = ({
       setTimeout(() => {
         setSelectedReason('');
         setOtherReason('');
-        setSubmitAttempted(false);
       }, 300);
     }
   };
@@ -75,34 +73,34 @@ export const ReportUserPopup = ({
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      // Immediately close dialog on success without animation delay
-      onClose();
     },
     onError: (error) => {
       console.error('Report submission error:', error);
       toast.error('Failed to submit report. Please try again later.');
-      setSubmitAttempted(false); // Reset submit flag to allow retry
     }
   });
 
   const handleSubmit = async () => {
-    if (submitAttempted) return; // Prevent multiple submissions
-    
     if (!selectedReason) {
       toast.error('Please select a reason');
       return;
     }
 
-    const reason = selectedReason === 'other' ? otherReason : 
-      REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
+    const reason = selectedReason === 'other' 
+      ? otherReason 
+      : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
 
     if (selectedReason === 'other' && !otherReason.trim()) {
       toast.error('Please provide a reason');
       return;
     }
 
-    setSubmitAttempted(true);
-    reportMutation.mutate({ reason });
+    try {
+      await reportMutation.mutateAsync({ reason });
+      handleOpenChange(false); // Close immediately on success
+    } catch (error) {
+      console.error('Report error:', error);
+    }
   };
 
   return (
@@ -138,8 +136,7 @@ export const ReportUserPopup = ({
             onClick={handleSubmit}
             disabled={!selectedReason || 
               (selectedReason === 'other' && !otherReason.trim()) || 
-              reportMutation.isPending ||
-              submitAttempted}
+              reportMutation.isPending}
             className="w-full"
           >
             {reportMutation.isPending ? (

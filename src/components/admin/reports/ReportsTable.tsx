@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { 
   Table, TableHeader, TableRow, TableHead, 
   TableBody, TableCell 
@@ -18,6 +17,7 @@ import {
 import { CheckCircle, Trash2, Ban, Loader2 } from "lucide-react";
 import { BanUserModal } from "@/components/admin/modals/BanUserModal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useReportsUpdates } from "@/hooks/useRealtimeUpdates";
 
 type Report = {
   id: number;
@@ -39,6 +39,24 @@ export const ReportsTable = () => {
   const [reportedUser, setReportedUser] = useState<{ id: string, nickname: string } | null>(null);
   const [showBanModal, setShowBanModal] = useState(false);
   const queryClient = useQueryClient();
+  
+  useReportsUpdates((payload) => {
+    if (payload.new && payload.eventType === 'INSERT') {
+      fetchReports(); // Refresh all reports on new insert
+    } else if (payload.new && payload.eventType === 'UPDATE') {
+      // Update just the changed report
+      setReports(prev => 
+        prev.map(report => 
+          report.id === payload.new.id ? { ...report, ...payload.new } : report
+        )
+      );
+    } else if (payload.old && payload.eventType === 'DELETE') {
+      // Remove deleted report
+      setReports(prev => 
+        prev.filter(report => report.id !== payload.old.id)
+      );
+    }
+  });
   
   const deleteMutation = useMutation({
     mutationFn: async (reportId: number) => {
