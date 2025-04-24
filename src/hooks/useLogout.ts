@@ -35,12 +35,15 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
           redirectPath = '/';
         }
 
-        // For anonymous users, mark the profile as deleted to free up the nickname
+        // For anonymous users, free up the nickname by modifying it
+        // This allows the nickname to be reused by new users
         if (user.app_metadata?.provider === 'anonymous') {
-          await deleteUserProfile(user.id).catch(error => {
-            console.error('Profile deletion error:', error);
+          const result = await deleteUserProfile(user.id);
+          
+          if (!result.success) {
+            console.error('Profile deletion error:', result.error);
             // Not throwing here to ensure navigation still happens
-          });
+          }
         }
       }
 
