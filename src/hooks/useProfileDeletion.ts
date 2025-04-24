@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 
 export const useProfileDeletion = () => {
   const verifyProfileDeletion = async (userId: string): Promise<boolean> => {
@@ -9,7 +8,7 @@ export const useProfileDeletion = () => {
       // Verify the profile was correctly updated
       const { data, error } = await supabase
         .from('profiles')
-        .select('visibility, deleted_at')
+        .select('visibility, deleted_at, nickname')
         .eq('id', userId)
         .single();
 
@@ -18,8 +17,10 @@ export const useProfileDeletion = () => {
         return false;
       }
 
-      // Check if the profile has been marked as deleted
-      return data.visibility === 'offline' && data.deleted_at !== null;
+      // Check if the profile has been marked as deleted and nickname changed
+      return data.visibility === 'offline' && 
+             data.deleted_at !== null && 
+             data.nickname.startsWith('deleted_');
     } catch (error) {
       console.error('Profile verification failed:', error);
       return false;
@@ -30,23 +31,27 @@ export const useProfileDeletion = () => {
     try {
       // Generate a unique placeholder to replace the nickname
       // This frees up the original nickname for future use
-      const deletedNicknameSuffix = uuidv4().substring(0, 8);
+      const deletedNicknameSuffix = crypto.randomUUID().substring(0, 8);
       
       // Update the profile to mark it as deleted and free up the nickname
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ 
           visibility: 'offline',
           deleted_at: new Date().toISOString(),
-          nickname: `deleted-${deletedNicknameSuffix}` // Free original nickname with unique placeholder
+          nickname: `deleted_${deletedNicknameSuffix}` // Use UUID for uniqueness
         })
-        .eq('id', userId);
+        .eq('id', userId)
+        .select(); // Return the updated data for verification
 
       if (error) {
         console.error('Profile deletion error:', error);
         toast.error('Failed to update profile.');
         return { success: false, error };
       }
+      
+      // Log the change for debugging purposes
+      console.log('Profile deletion result:', data);
       
       // Verify the deletion was successful
       const isVerified = await verifyProfileDeletion(userId);
