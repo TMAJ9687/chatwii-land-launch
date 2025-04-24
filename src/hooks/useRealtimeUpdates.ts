@@ -24,8 +24,9 @@ export function useRealtimeUpdates<T = any>(
     const channel = supabase.channel(`table-changes-${table}`);
     
     // Configure the channel with postgres changes
-    channel
-      .on('postgres_changes', 
+    let subscription = channel
+      .on(
+        'postgres_changes', 
         {
           event: event,
           schema: schema,

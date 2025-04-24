@@ -1,5 +1,5 @@
 
-// Using Deno Deploy's native Request/Response types instead of importing server
+// Using Deno Deploy's native Request/Response types
 // This removes the dependency on the external module that's causing errors
 
 // Function to handle country detection using Cloudflare headers
