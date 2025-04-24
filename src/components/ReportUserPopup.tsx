@@ -78,13 +78,13 @@ export const ReportUserPopup = ({
         };
 
         // Submit report with timeout protection (5 seconds)
-        // Removed unnecessary Promise.resolve() wrapper
-        const { error } = await withTimeout(
-          supabase.from('reports').insert(reportObject),
+        const insertResponse = await withTimeout(
+          // Convert the Supabase query to a Promise
+          supabase.from('reports').insert(reportObject).then(result => result),
           5000
         );
         
-        if (error) throw error;
+        if (insertResponse.error) throw insertResponse.error;
         return true;
       } catch (error: any) {
         console.error('Report submission error:', error);
