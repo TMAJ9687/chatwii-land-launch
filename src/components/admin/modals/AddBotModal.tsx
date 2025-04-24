@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,6 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
     country: "United States",
   });
 
-  // Reset form when modal closes
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       setTimeout(() => {
@@ -55,39 +53,9 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
     setIsSubmitting(true);
 
     try {
-      // First, check that an admin user is making the request
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "Authentication required",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Verify the user is an admin
-      const { data: adminCheck, error: adminError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-        
-      if (adminError || adminCheck?.role !== 'admin') {
-        toast({
-          title: "Error",
-          description: "Admin privileges required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Use RPC function to create bot - this will handle auth user creation
-      // and profile creation in a single transaction
       const botId = uuidv4();
       
-      const { data, error } = await supabase.rpc('create_bot_user', {
+      const { error } = await supabase.rpc('create_bot_user', {
         bot_id: botId,
         bot_nickname: formData.nickname,
         bot_age: parseInt(formData.age),
@@ -95,10 +63,7 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
         bot_country: formData.country
       });
       
-      if (error) {
-        console.error("Error creating bot:", error);
-        throw error;
-      }
+      if (error) throw error;
 
       // Create bot_config entry
       const { error: configError } = await supabase
@@ -114,10 +79,7 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
           ])
         });
 
-      if (configError) {
-        console.error("Error creating bot config:", configError);
-        throw configError;
-      }
+      if (configError) throw configError;
 
       toast({ title: "Success", description: "Bot created successfully" });
       onSuccess();

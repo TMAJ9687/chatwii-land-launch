@@ -220,3 +220,18 @@ export const getFlagUrl = (codeOrName: string): string => {
   // Fallback
   return '';
 };
+
+// Detect user's country using their IP
+export const detectUserCountry = async (): Promise<{ country: string; countryCode: string }> => {
+  try {
+    const response = await fetch('https://api.ipapi.com/check?access_key=YOUR_API_KEY');
+    const data = await response.json();
+    return {
+      country: data.country_name,
+      countryCode: data.country_code.toLowerCase()
+    };
+  } catch (error) {
+    console.error('Error detecting country:', error);
+    return { country: 'Unknown', countryCode: '' };
+  }
+};
