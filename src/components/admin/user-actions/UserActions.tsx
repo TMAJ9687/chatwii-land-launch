@@ -5,7 +5,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { BanUserModal } from "../modals/BanUserModal";
 import { UpgradeUserModal } from "../modals/UpgradeUserModal";
 import { EditUserModal } from "../modals/EditUserModal";
-import { useAdminActions } from "@/hooks/useAdminActions";
+import { useAdminActions, BanDuration, VipDuration } from "@/hooks/useAdminActions";
 import { Loader2 } from "lucide-react";
 
 interface UserActionsProps {
@@ -29,12 +29,12 @@ export const UserActions = ({ user, onActionComplete }: UserActionsProps) => {
   };
 
   const handleBan = async (reason: string, duration: string) => {
-    const success = await banUser(user.id, reason, duration);
+    const success = await banUser(user.id, reason, duration as BanDuration);
     if (success) onActionComplete();
   };
 
   const handleUpgrade = async (duration: string) => {
-    const success = await upgradeToVip(user.id, duration as any);
+    const success = await upgradeToVip(user.id, duration as VipDuration);
     if (success) onActionComplete();
   };
 

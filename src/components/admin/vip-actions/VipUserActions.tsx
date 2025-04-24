@@ -5,7 +5,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { BanUserModal } from "../modals/BanUserModal";
 import { EditUserModal } from "../modals/EditUserModal";
 import { VipUser } from "@/hooks/useVipUsers";
-import { useAdminActions } from "@/hooks/useAdminActions";
+import { useAdminActions, BanDuration } from "@/hooks/useAdminActions";
 import { Loader2 } from "lucide-react";
 
 interface VipUserActionsProps {
@@ -24,7 +24,7 @@ export const VipUserActions = ({ user, onActionComplete }: VipUserActionsProps) 
   };
 
   const handleBan = async (reason: string, duration: string) => {
-    const success = await banUser(user.id, reason, duration);
+    const success = await banUser(user.id, reason, duration as BanDuration);
     if (success) onActionComplete();
   };
 
