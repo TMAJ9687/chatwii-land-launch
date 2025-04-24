@@ -25,6 +25,7 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { Message } from '@/types/message';
 import { toast } from 'sonner';
+import { ReportUserPopup } from '@/components/ReportUserPopup';
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -51,6 +52,7 @@ const ChatInterface = () => {
     handleAcceptRules,
     checkRulesAccepted,
     isBlocked,
+    showReportPopup,
     setShowReportPopup,
     handleBlockUser
   } = useChatState();
