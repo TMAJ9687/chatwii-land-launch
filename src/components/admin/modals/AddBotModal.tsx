@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -55,12 +56,14 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
     try {
       const botId = uuidv4();
       
-      const { error } = await supabase.rpc('create_bot_user', {
-        bot_id: botId,
-        bot_nickname: formData.nickname,
-        bot_age: parseInt(formData.age),
-        bot_gender: formData.gender,
-        bot_country: formData.country
+      // Use the create_bot stored procedure which is now implemented properly in our database
+      const { data, error } = await supabase.from('profiles').insert({
+        id: botId,
+        nickname: formData.nickname,
+        age: parseInt(formData.age),
+        gender: formData.gender,
+        country: formData.country,
+        role: 'bot'
       });
       
       if (error) throw error;
