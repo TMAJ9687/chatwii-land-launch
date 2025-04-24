@@ -69,19 +69,24 @@ export const ReportUserPopup = ({
         const { data: { user } } = userResponse;
         if (!user) throw new Error('Not authenticated');
 
+        // Create report object
+        const reportObject = {
+          reporter_id: user.id,
+          reported_id: reportedUser.id,
+          reason,
+          status: 'pending'
+        };
+
         // Submit report with timeout protection (8 seconds)
+        // We need to call .then() to get a proper Promise that TypeScript recognizes
         const reportPromise = supabase
           .from('reports')
-          .insert({
-            reporter_id: user.id,
-            reported_id: reportedUser.id,
-            reason,
-            status: 'pending'
-          });
+          .insert(reportObject)
+          .then(response => response);
 
-        const { error } = await withTimeout(reportPromise, 8000);
-
-        if (error) throw error;
+        const response = await withTimeout(reportPromise, 8000);
+        
+        if (response.error) throw response.error;
         return true;
       } catch (error: any) {
         console.error('Report submission error:', error);
