@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 interface ReportUserPopupProps {
@@ -35,30 +35,35 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      setIsSubmitting(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('reports')
-        .insert({
-          reporter_id: user.id,
-          reported_id: reportedUser.id,
-          reason,
-          status: 'pending'
-        });
+        const { error } = await supabase
+          .from('reports')
+          .insert({
+            reporter_id: user.id,
+            reported_id: reportedUser.id,
+            reason,
+            status: 'pending'
+          });
 
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Report submitted successfully');
-      onClose();
-    },
-    onError: () => {
-      toast.error('Failed to submit report');
-    },
+        if (error) throw error;
+        
+        toast.success('Report submitted successfully');
+        onClose();
+      } catch (error) {
+        console.error('Report submission error:', error);
+        toast.error('Failed to submit report');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
   });
 
   const handleSubmit = () => {
@@ -106,9 +111,11 @@ export const ReportUserPopup = ({
 
           <Button 
             onClick={handleSubmit}
-            disabled={!selectedReason || (selectedReason === 'other' && !otherReason.trim())}
+            disabled={!selectedReason || 
+              (selectedReason === 'other' && !otherReason.trim()) || 
+              isSubmitting}
           >
-            Submit Report
+            {isSubmitting ? 'Submitting...' : 'Submit Report'}
           </Button>
         </div>
       </DialogContent>

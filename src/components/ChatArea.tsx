@@ -39,6 +39,9 @@ export const ChatArea = ({
   }, []);
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    
     const markMessagesAsRead = async () => {
       if (currentUserId && selectedUser.id) {
         try {
@@ -49,7 +52,15 @@ export const ChatArea = ({
             .eq('receiver_id', currentUserId)
             .eq('is_read', false);
           
-          if (error) throw error;
+          if (error) {
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Retrying markMessagesAsRead (attempt ${retryCount})`);
+              setTimeout(markMessagesAsRead, 1000 * retryCount);
+              return;
+            }
+            throw error;
+          }
           
           if (onMessagesRead) onMessagesRead();
         } catch (error) {
@@ -84,14 +95,6 @@ export const ChatArea = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <ChatHeader
-        nickname={selectedUser.nickname}
-        isBlocked={isBlocked}
-        onClose={onClose}
-        onReportUser={() => setShowReportPopup(true)}
-        onBlockUser={handleBlockUser}
-      />
-
       <MessageList
         messages={messages}
         currentUserId={currentUserId}
