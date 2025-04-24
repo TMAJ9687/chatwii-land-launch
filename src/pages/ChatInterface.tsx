@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -355,6 +356,15 @@ const ChatInterface = () => {
           onAccept={handleAcceptRules}
         />
       )}
+
+      <ReportUserPopup
+        isOpen={showReportPopup}
+        onClose={() => setShowReportPopup(false)}
+        reportedUser={{
+          id: selectedUserId || '',
+          nickname: selectedUserNickname
+        }}
+      />
     </div>
   );
 };

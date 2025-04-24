@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
@@ -7,7 +6,9 @@ import {
   Table, TableHeader, TableRow, TableHead, 
   TableBody, TableCell 
 } from "@/components/ui/table";
-import { Star } from "lucide-react";
+import { Star, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Feedback = {
   id: number;
@@ -19,9 +20,28 @@ type Feedback = {
 };
 
 export const FeedbackTable = () => {
-  const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (feedbackId: number) => {
+      const { error } = await supabase
+        .from('feedback')
+        .delete()
+        .eq('id', feedbackId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, feedbackId) => {
+      setFeedback(prev => prev.filter(item => item.id !== feedbackId));
+      toast.success('Feedback deleted successfully');
+    },
+    onError: () => {
+      toast.error('Failed to delete feedback');
+    }
+  });
+
   const fetchFeedback = async () => {
     setLoading(true);
     try {
@@ -33,7 +53,6 @@ export const FeedbackTable = () => {
       if (error) throw error;
       
       if (data) {
-        // Get unique non-null user IDs to fetch nicknames
         const userIds = new Set<string>();
         data.forEach(item => {
           if (item.user_id) {
@@ -43,7 +62,6 @@ export const FeedbackTable = () => {
         
         let nicknameMap = new Map<string, string>();
         
-        // Only fetch profiles if there are user IDs to fetch
         if (userIds.size > 0) {
           const { data: profiles, error: profilesError } = await supabase
             .from("profiles")
@@ -52,13 +70,11 @@ export const FeedbackTable = () => {
             
           if (profilesError) throw profilesError;
           
-          // Create a map of user IDs to nicknames
           profiles?.forEach(profile => {
             nicknameMap.set(profile.id, profile.nickname);
           });
         }
         
-        // Combine feedback with profile information if available
         const feedbackWithUsernames = data.map(item => ({
           ...item,
           user_nickname: item.user_id ? (nicknameMap.get(item.user_id) || "Unknown User") : "Anonymous"
@@ -110,12 +126,13 @@ export const FeedbackTable = () => {
               <TableHead>Rating</TableHead>
               <TableHead className="hidden md:table-cell">Comment</TableHead>
               <TableHead>Date Submitted</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {feedback.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8">
+                <TableCell colSpan={5} className="text-center py-8">
                   No feedback submitted yet
                 </TableCell>
               </TableRow>
@@ -129,6 +146,16 @@ export const FeedbackTable = () => {
                   </TableCell>
                   <TableCell>
                     {format(new Date(item.created_at), "MMM d, yyyy")}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteMutation.mutate(item.id)}
+                      className="h-8 w-8"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
