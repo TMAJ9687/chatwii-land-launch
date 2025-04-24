@@ -34,6 +34,14 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
         if (profile?.role === 'vip' || profile?.role === 'admin') {
           redirectPath = '/';
         }
+
+        // For anonymous users, mark the profile as deleted to free up the nickname
+        if (user.app_metadata?.provider === 'anonymous') {
+          await deleteUserProfile(user.id).catch(error => {
+            console.error('Profile deletion error:', error);
+            // Not throwing here to ensure navigation still happens
+          });
+        }
       }
 
       // Sign out first so no more requests are made using the auth token
@@ -42,14 +50,6 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
       });
       
       if (signOutError) throw signOutError;
-
-      // For anonymous users, mark the profile as deleted to free up the nickname
-      if (user && user.app_metadata?.provider === 'anonymous') {
-        await deleteUserProfile(user.id).catch(error => {
-          console.error('Profile deletion error:', error);
-          // Not throwing here to ensure navigation still happens
-        });
-      }
       
       // Navigate after successful sign out
       setTimeout(() => {
