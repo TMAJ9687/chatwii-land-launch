@@ -1,5 +1,7 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface PresenceUser {
   user_id: string;
