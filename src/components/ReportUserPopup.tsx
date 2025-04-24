@@ -36,16 +36,18 @@ export const ReportUserPopup = ({
 }: ReportUserPopupProps) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [otherReason, setOtherReason] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      // Small delay to ensure smooth animation before resetting state
+      onClose();
+      // Reset form state after dialog is fully closed
       setTimeout(() => {
         setSelectedReason('');
         setOtherReason('');
+        setSubmitAttempted(false);
       }, 300);
-      onClose();
     }
   };
 
@@ -73,15 +75,19 @@ export const ReportUserPopup = ({
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      handleOpenChange(false);
+      // Immediately close dialog on success without animation delay
+      onClose();
     },
     onError: (error) => {
       console.error('Report submission error:', error);
       toast.error('Failed to submit report. Please try again later.');
+      setSubmitAttempted(false); // Reset submit flag to allow retry
     }
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitAttempted) return; // Prevent multiple submissions
+    
     if (!selectedReason) {
       toast.error('Please select a reason');
       return;
@@ -95,6 +101,7 @@ export const ReportUserPopup = ({
       return;
     }
 
+    setSubmitAttempted(true);
     reportMutation.mutate({ reason });
   };
 
@@ -131,7 +138,8 @@ export const ReportUserPopup = ({
             onClick={handleSubmit}
             disabled={!selectedReason || 
               (selectedReason === 'other' && !otherReason.trim()) || 
-              reportMutation.isPending}
+              reportMutation.isPending ||
+              submitAttempted}
             className="w-full"
           >
             {reportMutation.isPending ? (

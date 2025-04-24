@@ -1,73 +1,222 @@
 
-import { COUNTRIES } from "@/constants/countries";
-
-// Alpha-2 country code to flag url
-export function getFlagUrl(code: string) {
-  if (!code || typeof code !== "string") return "";
-  // Flagpedia expects lowercase
-  return `https://flagcdn.com/24x18/${code.toLowerCase()}.png`;
-}
-
-// Map of country code to country name for common countries supported by https://country.is
-const COUNTRY_CODE_TO_NAME: Record<string, string> = {
-  AF: "Afghanistan", AL: "Albania", DZ: "Algeria", AD: "Andorra", AO: "Angola",
-  AR: "Argentina", AM: "Armenia", AU: "Australia", AT: "Austria", AZ: "Azerbaijan",
-  BS: "Bahamas", BH: "Bahrain", BD: "Bangladesh", BB: "Barbados", BY: "Belarus", BE: "Belgium",
-  BZ: "Belize", BJ: "Benin", BT: "Bhutan", BO: "Bolivia", BA: "Bosnia", BW: "Botswana", BR: "Brazil", BN: "Brunei", BG: "Bulgaria",
-  BF: "Burkina Faso", BI: "Burundi", KH: "Cambodia", CM: "Cameroon", CA: "Canada", TD: "Chad", CL: "Chile", CN: "China", CO: "Colombia",
-  CG: "Congo", CR: "Costa Rica", HR: "Croatia", CU: "Cuba", CY: "Cyprus", CZ: "Czech Republic", DK: "Denmark", DJ: "Djibouti",
-  DO: "Dominican Republic", EC: "Ecuador", EG: "Egypt", SV: "El Salvador", EE: "Estonia", ET: "Ethiopia", FJ: "Fiji", FI: "Finland",
-  FR: "France", GA: "Gabon", GM: "Gambia", GE: "Georgia", DE: "Germany", GH: "Ghana", GR: "Greece", GD: "Grenada", GT: "Guatemala",
-  GN: "Guinea", GY: "Guyana", HT: "Haiti", HN: "Honduras", HU: "Hungary", IS: "Iceland", IN: "India", ID: "Indonesia", IR: "Iran", IQ: "Iraq",
-  IE: "Ireland", IT: "Italy", JM: "Jamaica", JP: "Japan", JO: "Jordan", KZ: "Kazakhstan", KE: "Kenya", KW: "Kuwait", KG: "Kyrgyzstan",
-  LA: "Laos", LV: "Latvia", LB: "Lebanon", LS: "Lesotho", LR: "Liberia", LY: "Libya", LI: "Liechtenstein", LT: "Lithuania",
-  LU: "Luxembourg", MG: "Madagascar", MW: "Malawi", MY: "Malaysia", MV: "Maldives", ML: "Mali", MT: "Malta", MR: "Mauritania",
-  MU: "Mauritius", MX: "Mexico", MD: "Moldova", MC: "Monaco", MN: "Mongolia", ME: "Montenegro", MA: "Morocco", MZ: "Mozambique",
-  MM: "Myanmar", NA: "Namibia", NP: "Nepal", NL: "Netherlands", NZ: "New Zealand", NI: "Nicaragua", NE: "Niger", NG: "Nigeria",
-  KP: "North Korea", MK: "North Macedonia", NO: "Norway", OM: "Oman", PK: "Pakistan", PS: "Palestine", PA: "Panama",
-  PG: "Papua New Guinea", PY: "Paraguay", PE: "Peru", PH: "Philippines", PL: "Poland", PT: "Portugal", QA: "Qatar", RO: "Romania",
-  RU: "Russia", RW: "Rwanda", WS: "Samoa", SM: "San Marino", SA: "Saudi Arabia", SN: "Senegal", RS: "Serbia", SC: "Seychelles",
-  SL: "Sierra Leone", SG: "Singapore", SK: "Slovakia", SI: "Slovenia", SO: "Somalia", ZA: "South Africa", KR: "South Korea",
-  SS: "South Sudan", ES: "Spain", LK: "Sri Lanka", SD: "Sudan", SR: "Suriname", SE: "Sweden", CH: "Switzerland", SY: "Syria",
-  TW: "Taiwan", TJ: "Tajikistan", TZ: "Tanzania", TH: "Thailand", TG: "Togo", TO: "Tonga", TT: "Trinidad and Tobago", TN: "Tunisia",
-  TR: "Turkey", TM: "Turkmenistan", UG: "Uganda", UA: "Ukraine", AE: "United Arab Emirates", GB: "United Kingdom",
-  US: "United States", UY: "Uruguay", UZ: "Uzbekistan", VA: "Vatican City", VE: "Venezuela", VN: "Vietnam", YE: "Yemen",
-  ZM: "Zambia", ZW: "Zimbabwe"
+// Country name to ISO code mapping
+const COUNTRY_TO_ISO: Record<string, string> = {
+  'Afghanistan': 'af',
+  'Albania': 'al',
+  'Algeria': 'dz',
+  'Andorra': 'ad',
+  'Angola': 'ao',
+  'Antigua and Barbuda': 'ag',
+  'Argentina': 'ar',
+  'Armenia': 'am',
+  'Australia': 'au',
+  'Austria': 'at',
+  'Azerbaijan': 'az',
+  'Bahamas': 'bs',
+  'Bahrain': 'bh',
+  'Bangladesh': 'bd',
+  'Barbados': 'bb',
+  'Belarus': 'by',
+  'Belgium': 'be',
+  'Belize': 'bz',
+  'Benin': 'bj',
+  'Bhutan': 'bt',
+  'Bolivia': 'bo',
+  'Bosnia and Herzegovina': 'ba',
+  'Botswana': 'bw',
+  'Brazil': 'br',
+  'Brunei': 'bn',
+  'Bulgaria': 'bg',
+  'Burkina Faso': 'bf',
+  'Burundi': 'bi',
+  'Cabo Verde': 'cv',
+  'Cambodia': 'kh',
+  'Cameroon': 'cm',
+  'Canada': 'ca',
+  'Central African Republic': 'cf',
+  'Chad': 'td',
+  'Chile': 'cl',
+  'China': 'cn',
+  'Colombia': 'co',
+  'Comoros': 'km',
+  'Congo': 'cg',
+  'Costa Rica': 'cr',
+  'Croatia': 'hr',
+  'Cuba': 'cu',
+  'Cyprus': 'cy',
+  'Czech Republic': 'cz',
+  'Democratic Republic of the Congo': 'cd',
+  'Denmark': 'dk',
+  'Djibouti': 'dj',
+  'Dominica': 'dm',
+  'Dominican Republic': 'do',
+  'Ecuador': 'ec',
+  'Egypt': 'eg',
+  'El Salvador': 'sv',
+  'Equatorial Guinea': 'gq',
+  'Eritrea': 'er',
+  'Estonia': 'ee',
+  'Eswatini': 'sz',
+  'Ethiopia': 'et',
+  'Fiji': 'fj',
+  'Finland': 'fi',
+  'France': 'fr',
+  'Gabon': 'ga',
+  'Gambia': 'gm',
+  'Georgia': 'ge',
+  'Germany': 'de',
+  'Ghana': 'gh',
+  'Greece': 'gr',
+  'Grenada': 'gd',
+  'Guatemala': 'gt',
+  'Guinea': 'gn',
+  'Guinea-Bissau': 'gw',
+  'Guyana': 'gy',
+  'Haiti': 'ht',
+  'Honduras': 'hn',
+  'Hungary': 'hu',
+  'Iceland': 'is',
+  'India': 'in',
+  'Indonesia': 'id',
+  'Iran': 'ir',
+  'Iraq': 'iq',
+  'Ireland': 'ie',
+  'Italy': 'it',
+  'Jamaica': 'jm',
+  'Japan': 'jp',
+  'Jordan': 'jo',
+  'Kazakhstan': 'kz',
+  'Kenya': 'ke',
+  'Kiribati': 'ki',
+  'Korea, North': 'kp',
+  'Korea, South': 'kr',
+  'Kosovo': 'xk',
+  'Kuwait': 'kw',
+  'Kyrgyzstan': 'kg',
+  'Laos': 'la',
+  'Latvia': 'lv',
+  'Lebanon': 'lb',
+  'Lesotho': 'ls',
+  'Liberia': 'lr',
+  'Libya': 'ly',
+  'Liechtenstein': 'li',
+  'Lithuania': 'lt',
+  'Luxembourg': 'lu',
+  'Madagascar': 'mg',
+  'Malawi': 'mw',
+  'Malaysia': 'my',
+  'Maldives': 'mv',
+  'Mali': 'ml',
+  'Malta': 'mt',
+  'Marshall Islands': 'mh',
+  'Mauritania': 'mr',
+  'Mauritius': 'mu',
+  'Mexico': 'mx',
+  'Micronesia': 'fm',
+  'Moldova': 'md',
+  'Monaco': 'mc',
+  'Mongolia': 'mn',
+  'Montenegro': 'me',
+  'Morocco': 'ma',
+  'Mozambique': 'mz',
+  'Myanmar': 'mm',
+  'Namibia': 'na',
+  'Nauru': 'nr',
+  'Nepal': 'np',
+  'Netherlands': 'nl',
+  'New Zealand': 'nz',
+  'Nicaragua': 'ni',
+  'Niger': 'ne',
+  'Nigeria': 'ng',
+  'North Macedonia': 'mk',
+  'Norway': 'no',
+  'Oman': 'om',
+  'Pakistan': 'pk',
+  'Palau': 'pw',
+  'Palestine': 'ps',
+  'Panama': 'pa',
+  'Papua New Guinea': 'pg',
+  'Paraguay': 'py',
+  'Peru': 'pe',
+  'Philippines': 'ph',
+  'Poland': 'pl',
+  'Portugal': 'pt',
+  'Qatar': 'qa',
+  'Romania': 'ro',
+  'Russia': 'ru',
+  'Rwanda': 'rw',
+  'Saint Kitts and Nevis': 'kn',
+  'Saint Lucia': 'lc',
+  'Saint Vincent and the Grenadines': 'vc',
+  'Samoa': 'ws',
+  'San Marino': 'sm',
+  'Sao Tome and Principe': 'st',
+  'Saudi Arabia': 'sa',
+  'Senegal': 'sn',
+  'Serbia': 'rs',
+  'Seychelles': 'sc',
+  'Sierra Leone': 'sl',
+  'Singapore': 'sg',
+  'Slovakia': 'sk',
+  'Slovenia': 'si',
+  'Solomon Islands': 'sb',
+  'Somalia': 'so',
+  'South Africa': 'za',
+  'South Sudan': 'ss',
+  'Spain': 'es',
+  'Sri Lanka': 'lk',
+  'Sudan': 'sd',
+  'Suriname': 'sr',
+  'Sweden': 'se',
+  'Switzerland': 'ch',
+  'Syria': 'sy',
+  'Taiwan': 'tw',
+  'Tajikistan': 'tj',
+  'Tanzania': 'tz',
+  'Thailand': 'th',
+  'Timor-Leste': 'tl',
+  'Togo': 'tg',
+  'Tonga': 'to',
+  'Trinidad and Tobago': 'tt',
+  'Tunisia': 'tn',
+  'Turkey': 'tr',
+  'Turkmenistan': 'tm',
+  'Tuvalu': 'tv',
+  'Uganda': 'ug',
+  'Ukraine': 'ua',
+  'United Arab Emirates': 'ae',
+  'United Kingdom': 'gb',
+  'United States': 'us',
+  'Uruguay': 'uy',
+  'Uzbekistan': 'uz',
+  'Vanuatu': 'vu',
+  'Vatican City': 'va',
+  'Venezuela': 've',
+  'Vietnam': 'vn',
+  'Yemen': 'ye',
+  'Zambia': 'zm',
+  'Zimbabwe': 'zw'
 };
 
-// Converts a country code (e.g. "US") to the matching country name in COUNTRIES array if found
-export function getCountryNameFromCode(code: string) {
-  if (!code) return "Unknown";
-  const name = COUNTRY_CODE_TO_NAME[code.toUpperCase()];
-  if (COUNTRIES.includes(name)) return name;
-  // fallback, just return best available
-  return name || "Unknown";
-}
+// Get country ISO code from country name
+export const getCountryCode = (countryName?: string): string => {
+  if (!countryName) return '';
+  return COUNTRY_TO_ISO[countryName] || '';
+};
 
-// New detection function using ipinfo.io instead of country.is
-export async function detectUserCountry(): Promise<{ country: string, countryCode: string }> {
-  try {
-    // Use ipinfo.io instead of country.is which is returning HTML
-    const response = await fetch("https://ipinfo.io/json");
-    
-    // Check if response is ok
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data && data.country) {
-      const countryCode = data.country.toUpperCase();
-      return {
-        country: getCountryNameFromCode(countryCode),
-        countryCode: countryCode
-      };
-    } 
-    
-    return { country: "Unknown", countryCode: "" };
-  } catch (error) {
-    console.error("Error detecting country:", error);
-    return { country: "Unknown", countryCode: "" };
+// Get flag URL from country code or country name
+export const getFlagUrl = (codeOrName: string): string => {
+  // Check if input is a 2-letter code
+  if (codeOrName && codeOrName.length === 2) {
+    return `https://flagcdn.com/w20/${codeOrName.toLowerCase()}.png`;
   }
-}
+  
+  // If it's a country name, convert to code
+  const code = getCountryCode(codeOrName);
+  if (code) {
+    return `https://flagcdn.com/w20/${code.toLowerCase()}.png`;
+  }
+  
+  // Fallback
+  return '';
+};

@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useDetectCountry } from "@/hooks/useDetectCountry";
-import { getFlagUrl } from "@/utils/countryTools";
+import { getFlagUrl, getCountryCode } from "@/utils/countryTools";
 
 interface CountryDisplayProps {
   country?: string;
@@ -13,7 +13,8 @@ export const CountryDisplay: React.FC<CountryDisplayProps> = ({ country: propCou
   
   // Use provided country/code or fallback to detected ones
   const country = propCountry || detectedCountry.country;
-  const countryCode = propCountryCode || detectedCountry.countryCode;
+  // Use provided code, derive from country name, or fallback to detected code
+  const countryCode = propCountryCode || (country && getCountryCode(country)) || detectedCountry.countryCode;
 
   return (
     <div className="space-y-2">
@@ -27,6 +28,10 @@ export const CountryDisplay: React.FC<CountryDisplayProps> = ({ country: propCou
             alt={`${country} flag`}
             className="w-5 h-4 rounded mr-2"
             style={{ background: "#E5E7EB", objectFit: "cover" }}
+            onError={(e) => {
+              // Hide the image element if it fails to load
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
           />
         )}
         <span>{country}</span>

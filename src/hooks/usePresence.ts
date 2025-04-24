@@ -20,6 +20,7 @@ interface PresenceUser {
 export const usePresence = (currentUserId: string | null) => {
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const channelRef = useRef<any>(null);
+  const adminChannelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -144,6 +145,46 @@ export const usePresence = (currentUserId: string | null) => {
         });
 
       channelRef.current = channel;
+
+      // Listen for admin actions (kick, ban, vip changes)
+      if (userData) {
+        const adminActionChannel = supabase.channel(`admin-actions-${currentUserId}`, {
+          config: {
+            broadcast: {
+              self: true
+            }
+          }
+        });
+
+        adminActionChannel
+          .on('broadcast', { event: 'kick' }, () => {
+            console.log('You have been kicked by an admin');
+            toast.error('You have been kicked by an administrator');
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          })
+          .on('broadcast', { event: 'ban' }, (payload) => {
+            console.log('You have been banned by an admin', payload);
+            toast.error(`You have been banned by an administrator${payload?.reason ? `: ${payload.reason}` : ''}`);
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          })
+          .on('broadcast', { event: 'vip-status-change' }, (payload) => {
+            console.log('Your VIP status has changed', payload);
+            if (payload?.status === true) {
+              toast.success('Congratulations! You are now a VIP user');
+            } else {
+              toast.info('Your VIP status has been removed');
+            }
+            // Force refresh to update UI
+            window.location.reload();
+          })
+          .subscribe();
+
+        adminChannelRef.current = adminActionChannel;
+      }
     };
 
     setupPresence();
@@ -154,6 +195,12 @@ export const usePresence = (currentUserId: string | null) => {
         channelRef.current.untrack();
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+
+      if (adminChannelRef.current) {
+        console.log('Cleaning up admin action channel');
+        supabase.removeChannel(adminChannelRef.current);
+        adminChannelRef.current = null;
       }
     };
   }, [currentUserId]);

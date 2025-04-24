@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { COUNTRIES } from "@/constants/countries";
 import { Loader2 } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
@@ -55,9 +55,6 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
     setIsSubmitting(true);
 
     try {
-      // Create a UUID for the bot
-      const botId = uuidv4();
-
       // First, check that an admin user is making the request
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -86,19 +83,18 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
         return;
       }
 
-      // Create the bot profile
-      const { error } = await supabase
-        .from("profiles")
-        .insert({
-          id: botId,
-          nickname: formData.nickname,
-          age: parseInt(formData.age),
-          gender: formData.gender,
-          country: formData.country,
-          role: "bot",
-          visibility: "online",
-        });
-
+      // Use RPC function to create bot - this will handle auth user creation
+      // and profile creation in a single transaction
+      const botId = uuidv4();
+      
+      const { data, error } = await supabase.rpc('create_bot_user', {
+        bot_id: botId,
+        bot_nickname: formData.nickname,
+        bot_age: parseInt(formData.age),
+        bot_gender: formData.gender,
+        bot_country: formData.country
+      });
+      
       if (error) {
         console.error("Error creating bot:", error);
         throw error;
@@ -120,8 +116,6 @@ export const AddBotModal = ({ isOpen, onClose, onSuccess }: AddBotModalProps) =>
 
       if (configError) {
         console.error("Error creating bot config:", configError);
-        // If bot config fails, try to clean up the profile
-        await supabase.from("profiles").delete().eq("id", botId);
         throw configError;
       }
 
