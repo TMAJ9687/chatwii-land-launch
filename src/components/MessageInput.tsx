@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Send, Smile, Paperclip, Mic } from 'lucide-react';
 import { Button } from './ui/button';
@@ -101,27 +102,6 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
       }
     } finally {
       setUploadingMessage(false);
-    }
-  };
-
-  const handleRecordToggle = async () => {
-    if (!isVip) {
-      toast.error("Voice messages are a VIP-only feature");
-      return;
-    }
-
-    if (!canSendToUser) {
-      toast.error("You cannot send messages to this user");
-      return;
-    }
-
-    if (isRecording) {
-      stopRecording();
-      setShowVoicePreview(true);
-    } else {
-      clearRecording();
-      setShowVoicePreview(false);
-      await startRecording();
     }
   };
 

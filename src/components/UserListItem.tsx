@@ -1,3 +1,4 @@
+
 import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -59,28 +60,6 @@ export const UserListItem = ({
     }
   }
 
-  const getCountryCode = (countryName: string): string => {
-    const countryMapping: Record<string, string> = {
-      "Australia": "au",
-      "United States": "us",
-      "United Kingdom": "gb",
-      "Canada": "ca",
-      "Germany": "de",
-      "France": "fr",
-      "Spain": "es",
-      "Italy": "it",
-      "Japan": "jp",
-      "China": "cn",
-      "Brazil": "br",
-      "India": "in",
-      "Russia": "ru",
-    };
-    
-    return countryMapping[countryName] || "";
-  };
-  
-  const countryCode = getCountryCode(country);
-
   return (
     <div
       className={`flex items-start p-4 gap-4 ${
@@ -103,7 +82,7 @@ export const UserListItem = ({
       <div className="flex flex-col flex-grow min-w-0 gap-2">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-base">{name}</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <span className={`${genderColor} text-sm font-medium`}>
               {gender}, {age}
             </span>
@@ -124,17 +103,17 @@ export const UserListItem = ({
 
         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
           {country && (
-            <>
+            <div className="flex items-center">
               <img 
-                src={getFlagUrl(country.toLowerCase())} 
+                src={getFlagUrl(country)}
                 alt={`${country} flag`}
-                className="w-5 h-4 mr-2 rounded-sm shadow-sm"
+                className="w-5 h-4 mr-2 rounded-sm shadow-sm object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
               <span>{country}</span>
-            </>
+            </div>
           )}
         </div>
 

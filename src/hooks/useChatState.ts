@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useBlockedUsers } from './useBlockedUsers';
 
 export const useChatState = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -8,6 +9,8 @@ export const useChatState = () => {
   const [showRules, setShowRules] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'none' | 'inbox' | 'history' | 'blocked'>('none');
+  const [showReportPopup, setShowReportPopup] = useState(false);
+  const { blockedUsers, blockUser } = useBlockedUsers();
 
   const handleCloseChat = () => {
     setSelectedUserId(null);
@@ -35,6 +38,15 @@ export const useChatState = () => {
     }
   };
 
+  const isBlocked = selectedUserId ? blockedUsers.includes(selectedUserId) : false;
+
+  const handleBlockUser = () => {
+    if (selectedUserId && !isBlocked) {
+      blockUser(selectedUserId);
+      toast.success("User blocked successfully");
+    }
+  };
+
   return {
     selectedUserId,
     selectedUserNickname,
@@ -47,5 +59,8 @@ export const useChatState = () => {
     handleUserSelect,
     handleAcceptRules,
     checkRulesAccepted,
+    isBlocked,
+    setShowReportPopup,
+    handleBlockUser
   };
 };

@@ -31,24 +31,29 @@ export const useVoiceMessage = (currentUserId: string | null, canSendToUser: boo
     } else {
       clearRecording();
       setShowVoicePreview(false);
-      await startRecording();
+      try {
+        await startRecording();
+      } catch (error) {
+        toast.error("Could not access microphone");
+        console.error("Recording error:", error);
+      }
     }
   };
 
   const handleSendVoice = async () => {
     if (!canSendToUser) {
       toast.error("You cannot send messages to this user");
-      return;
+      return null;
     }
 
-    if (!audioBlob) return;
+    if (!audioBlob) return null;
     if (audioBlob.size > 1.5 * 1024 * 1024) {
       toast.error('Voice message is too large (max 1.5MB).');
-      return;
+      return null;
     }
     if (!currentUserId) {
       toast.error('Not logged in');
-      return;
+      return null;
     }
 
     const publicUrl = await uploadAudio(audioBlob);
@@ -68,9 +73,13 @@ export const useVoiceMessage = (currentUserId: string | null, canSendToUser: boo
     recordingError,
     localAudioUrl,
     showVoicePreview,
+    setShowVoicePreview,
     audioUploading,
     handleRecordToggle,
     handleSendVoice,
-    handleCancelVoice
+    handleCancelVoice,
+    startRecording,
+    stopRecording,
+    clearRecording
   };
 };

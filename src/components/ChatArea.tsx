@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -5,7 +6,7 @@ import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { supabase } from '@/lib/supabase';
 import { MessageList } from './chat/MessageList';
-import { ChatAreaHeader } from './chat/ChatAreaHeader';
+import { ChatHeader } from './chat/ChatHeader';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -83,11 +84,11 @@ export const ChatArea = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <ChatAreaHeader
+      <ChatHeader
         nickname={selectedUser.nickname}
         isBlocked={isBlocked}
         onClose={onClose}
-        onShowReportPopup={() => setShowReportPopup(true)}
+        onReportUser={() => setShowReportPopup(true)}
         onBlockUser={handleBlockUser}
       />
 
