@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -73,14 +74,19 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
-        const { error } = await withTimeout(
-          supabase.from('reports').insert(reportObject),
-          5000
-        );
+        // Use .then() to get a proper Promise that can be used with withTimeout
+        const insertPromise = supabase
+          .from('reports')
+          .insert(reportObject)
+          .then(response => {
+            if (response.error) throw response.error;
+            return response;
+          });
+        
+        await withTimeout(insertPromise, 5000);
         
         console.log(`Report submission took ${Date.now() - start}ms`);
         
-        if (error) throw error;
         return true;
       } catch (error: any) {
         console.error('Report submission error:', error);
