@@ -25,37 +25,36 @@ export function useRealtimeUpdates<T = any>(
       const channel = supabase.channel(channelName);
       
       // Configure the channel with postgres changes
-      const subscription = channel
-        .on(
-          'postgres_changes', 
-          {
-            event: event,
-            schema: schema,
-            table: table,
-            filter: filter,
-          },
-          (payload) => {
-            try {
-              onDataChange({ 
-                new: payload.new as T, 
-                old: payload.old as T | null,
-                eventType: payload.eventType
-              });
-            } catch (error) {
-              console.error(`Error handling data change for table ${table}:`, error);
-            }
+      channel.on(
+        'postgres_changes',
+        {
+          event: event,
+          schema: schema,
+          table: table,
+          filter: filter,
+        },
+        (payload) => {
+          try {
+            onDataChange({ 
+              new: payload.new as T, 
+              old: payload.old as T | null,
+              eventType: payload.eventType
+            });
+          } catch (error) {
+            console.error(`Error handling data change for table ${table}:`, error);
           }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log(`Successfully subscribed to ${table} changes`);
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error(`Failed to subscribe to ${table} changes, status: ${status}`);
-            toast.error(`Connection issue detected. Some updates may be delayed.`);
-          } else if (status === 'TIMED_OUT') {
-            console.error(`Subscription to ${table} timed out`);
-          }
-        });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`Successfully subscribed to ${table} changes`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`Failed to subscribe to ${table} changes, status: ${status}`);
+          toast.error(`Connection issue detected. Some updates may be delayed.`);
+        } else if (status === 'TIMED_OUT') {
+          console.error(`Subscription to ${table} timed out`);
+        }
+      });
 
       // Clean up function
       return () => {
