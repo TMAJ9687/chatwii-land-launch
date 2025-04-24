@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
+import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
 
 const getCutoffTimestamp = (role: string) => {
   const now = new Date();
@@ -33,6 +34,13 @@ export const useMessages = (
     // Check if enough time has passed since last fetch
     const now = Date.now();
     if (now - lastFetchTimeRef.current < FETCH_COOLDOWN) {
+      return;
+    }
+    
+    // Special handling for mock VIP user
+    if (isMockUser(selectedUserId)) {
+      setMessages(getMockVipMessages(currentUserId));
+      setIsLoading(false);
       return;
     }
     

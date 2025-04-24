@@ -6,6 +6,9 @@ import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { supabase } from '@/lib/supabase';
 import { MessageList } from './chat/MessageList';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { InfoCircle } from 'lucide-react';
+import { isMockUser } from '@/utils/mockUsers';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -29,6 +32,7 @@ export const ChatArea = ({
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
   const { blockedUsers, blockUser } = useBlockedUsers();
+  const isMockVipUser = isMockUser(selectedUser.id);
   
   useEffect(() => {
     const savedRevealedImages = localStorage.getItem('revealedImages');
@@ -42,6 +46,12 @@ export const ChatArea = ({
     const maxRetries = 3;
     
     const markMessagesAsRead = async () => {
+      // Skip database operations for mock user
+      if (isMockVipUser) {
+        if (onMessagesRead) onMessagesRead();
+        return;
+      }
+      
       if (currentUserId && selectedUser.id) {
         try {
           const { error } = await supabase
@@ -69,7 +79,7 @@ export const ChatArea = ({
     };
 
     markMessagesAsRead();
-  }, [currentUserId, selectedUser.id, onMessagesRead]);
+  }, [currentUserId, selectedUser.id, onMessagesRead, isMockVipUser]);
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
 
@@ -94,6 +104,15 @@ export const ChatArea = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {isMockVipUser && (
+        <Alert className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 m-4">
+          <InfoCircle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-800 dark:text-amber-300">
+            This is a demo VIP user. You can see messages but cannot interact with this account.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <MessageList
         messages={messages}
         currentUserId={currentUserId}

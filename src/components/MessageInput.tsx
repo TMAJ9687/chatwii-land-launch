@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Send, Smile, Paperclip, Mic } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -13,6 +13,13 @@ import { useImageMessage } from '@/hooks/useImageMessage';
 import { ImagePreview } from './chat/ImagePreview';
 import { VoicePreview } from './chat/VoicePreview';
 import { toast } from 'sonner';
+import { isMockUser } from '@/utils/mockUsers';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MessageInputProps {
   onSendMessage: (content: string, imageUrl?: string) => void;
@@ -24,6 +31,7 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
   const [uploadingMessage, setUploadingMessage] = useState(false);
   const { canInteractWithUser } = useBlockedUsers();
   const canSendToUser = canInteractWithUser(receiverId);
+  const isMockVipUser = isMockUser(receiverId);
 
   const {
     message,
@@ -51,7 +59,7 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
     handleRecordToggle,
     handleSendVoice,
     handleCancelVoice
-  } = useVoiceMessage(currentUserId, canSendToUser);
+  } = useVoiceMessage(currentUserId, canSendToUser && !isMockVipUser);
 
   const {
     fileInputRef,
@@ -62,9 +70,14 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
     clearFileSelection,
     triggerFileInput,
     handleImageUpload
-  } = useImageMessage(currentUserId, canSendToUser, hasReachedLimit, isVip, dailyLimit);
+  } = useImageMessage(currentUserId, canSendToUser && !isMockVipUser, hasReachedLimit, isVip, dailyLimit);
 
   const handleSendMessage = async () => {
+    if (isMockVipUser) {
+      toast.error("This is a demo VIP user. You cannot send messages to this account.");
+      return;
+    }
+    
     if (!canSendToUser) {
       toast.error("You cannot send messages to this user");
       return;
@@ -93,6 +106,11 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
   };
 
   const handleSendVoiceMessage = async () => {
+    if (isMockVipUser) {
+      toast.error("This is a demo VIP user. You cannot send messages to this account.");
+      return;
+    }
+    
     setUploadingMessage(true);
     try {
       const voiceUrl = await handleSendVoice();
@@ -104,6 +122,31 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
       setUploadingMessage(false);
     }
   };
+
+  // If this is a mock user, show a disabled input with explanatory text
+  if (isMockVipUser) {
+    return (
+      <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">
+        <Input
+          value="This is a demo VIP user. You cannot send messages to this account."
+          disabled
+          className="flex-1 bg-gray-100 dark:bg-gray-800 text-muted-foreground"
+        />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Info className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              This is a demo VIP user created to showcase the VIP features.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">

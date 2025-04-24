@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { isMockUser } from '@/utils/mockUsers';
 
 export const useGlobalMessages = (currentUserId: string | null) => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -29,6 +30,13 @@ export const useGlobalMessages = (currentUserId: string | null) => {
   // Mark messages as read when opening a chat
   const markMessagesAsRead = async (senderId: string) => {
     if (!currentUserId) return;
+    
+    // Skip database operations for mock user
+    if (isMockUser(senderId)) {
+      console.log('Skipping markMessagesAsRead for mock user');
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('messages')
@@ -62,6 +70,9 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           filter: `receiver_id=eq.${currentUserId}`,
         },
         async (payload) => {
+          // Skip handling for mock user
+          if (isMockUser(payload.new.sender_id)) return;
+          
           // Extract the sender's information
           const { data: senderProfile } = await supabase
             .from('profiles')

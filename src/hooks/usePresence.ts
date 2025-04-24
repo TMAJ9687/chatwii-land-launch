@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { MOCK_VIP_USER } from '@/utils/mockUsers';
 
 interface PresenceUser {
   user_id: string;
@@ -90,23 +91,9 @@ export const usePresence = (currentUserId: string | null) => {
         console.log('Online users after sync:', users.length);
         
         // Add mock VIP user to showcase VIP functionality
-        const mockVipUser: PresenceUser = {
-          user_id: 'mock-vip-user-id',
-          nickname: 'VIP_Amanda',
-          role: 'vip',
-          avatar_url: 'https://i.pravatar.cc/150?img=5',
-          country: 'fr',
-          gender: 'Female',
-          age: 28,
-          vip_status: true,
-          profile_theme: 'gold',
-          interests: ['Travel', 'Photography', 'Music'],
-          is_current_user: false
-        };
-        
         // Only add the mock user if it's not already in the list
-        if (!users.some(u => u.user_id === mockVipUser.user_id)) {
-          users.push(mockVipUser);
+        if (!users.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
+          users.push(MOCK_VIP_USER);
         }
         
         setOnlineUsers(users);
@@ -122,23 +109,9 @@ export const usePresence = (currentUserId: string | null) => {
           })).filter(p => !existingIds.has(p.user_id));
           
           // Ensure our mock VIP user is always included
-          const mockVipUser: PresenceUser = {
-            user_id: 'mock-vip-user-id',
-            nickname: 'VIP_Amanda',
-            role: 'vip',
-            avatar_url: 'https://i.pravatar.cc/150?img=5',
-            country: 'fr',
-            gender: 'Female',
-            age: 28,
-            vip_status: true,
-            profile_theme: 'gold',
-            interests: ['Travel', 'Photography', 'Music'],
-            is_current_user: false
-          };
-          
           // Add the mock user if it's not in the list
-          if (!existingIds.has(mockVipUser.user_id) && !newOnes.some(u => u.user_id === mockVipUser.user_id)) {
-            return [...prev, ...newOnes, mockVipUser];
+          if (!existingIds.has(MOCK_VIP_USER.user_id) && !newOnes.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
+            return [...prev, ...newOnes, MOCK_VIP_USER];
           }
           
           return [...prev, ...newOnes];
@@ -150,7 +123,7 @@ export const usePresence = (currentUserId: string | null) => {
         setOnlineUsers(prev => {
           // Filter out users who left, but keep the mock VIP user
           const filtered = prev.filter(user => 
-            !leftPresences.some(left => left.user_id === user.user_id) || user.user_id === 'mock-vip-user-id'
+            !leftPresences.some(left => left.user_id === user.user_id) || user.user_id === MOCK_VIP_USER.user_id
           );
           return filtered;
         });

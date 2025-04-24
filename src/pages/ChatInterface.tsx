@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +25,7 @@ import { ChatContent } from '@/components/chat/ChatContent';
 import { Message } from '@/types/message';
 import { toast } from 'sonner';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
+import { isMockUser } from '@/utils/mockUsers';
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -124,6 +124,10 @@ const ChatInterface = () => {
           filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
         },
         async (payload) => {
+          if (isMockUser(payload.new.sender_id) || isMockUser(payload.new.receiver_id)) {
+            return;
+          }
+          
           if (selectedUserId && 
              ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
               (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
@@ -184,6 +188,11 @@ const ChatInterface = () => {
 
     if (!canInteractWithUser(selectedUserId)) {
       toast.error("You cannot send messages to this user");
+      return;
+    }
+
+    if (isMockUser(selectedUserId)) {
+      toast.error("This is a demo VIP user. You cannot send messages to this account.");
       return;
     }
 
