@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -73,8 +74,10 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
+        // Fix: Convert Supabase builder to a proper Promise
         const { data, error } = await withTimeout(
-          supabase.from('reports').insert(reportObject),
+          // Use Promise.resolve to ensure this is treated as a Promise
+          Promise.resolve(supabase.from('reports').insert(reportObject)).then(result => result),
           5000
         );
         
