@@ -73,20 +73,15 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
-        const insertPromise = new Promise<any>(async (resolve, reject) => {
-          const { data, error } = await supabase
-            .from('reports')
-            .insert(reportObject);
-          
-          if (error) reject(error);
-          else resolve(data);
-        });
+        const { data, error } = await withTimeout(
+          supabase.from('reports').insert(reportObject),
+          5000
+        );
         
-        await withTimeout(insertPromise, 5000);
+        if (error) throw error;
         
         console.log(`Report submission took ${Date.now() - start}ms`);
-        
-        return true;
+        return data;
       } catch (error: any) {
         console.error('Report submission error:', error);
         if (error.message?.includes('timed out')) {
