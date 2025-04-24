@@ -1,8 +1,9 @@
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+// Using Deno Deploy's native Request/Response types instead of importing server
+// This removes the dependency on the external module that's causing errors
 
 // Function to handle country detection using Cloudflare headers
-serve(async (req) => {
+Deno.serve(async (req) => {
   const headers = req.headers;
   
   // Get country from Cloudflare headers

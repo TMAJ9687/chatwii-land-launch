@@ -12,7 +12,7 @@ type RealtimeOptions = {
 
 export function useRealtimeUpdates<T = any>(
   options: RealtimeOptions,
-  onDataChange: (payload: { new: T; old: T | null }) => void
+  onDataChange: (payload: { new: T; old: T | null; eventType: string }) => void
 ) {
   const { table, event = '*', schema = 'public', filter } = options;
 
@@ -21,9 +21,11 @@ export function useRealtimeUpdates<T = any>(
     // No need to call rpc function as it doesn't exist anymore
     
     // Subscribe to changes
-    const channel = supabase.channel(`table-changes-${table}`)
-      .on(
-        'postgres_changes',
+    const channel = supabase.channel(`table-changes-${table}`);
+    
+    // Configure the channel with postgres changes
+    channel
+      .on('postgres_changes', 
         {
           event: event,
           schema: schema,
@@ -31,7 +33,11 @@ export function useRealtimeUpdates<T = any>(
           filter: filter,
         },
         (payload) => {
-          onDataChange(payload as { new: T; old: T | null });
+          onDataChange({ 
+            new: payload.new as T, 
+            old: payload.old as T | null,
+            eventType: payload.eventType
+          });
         }
       )
       .subscribe((status) => {
@@ -57,7 +63,7 @@ export function useProfileUpdates(onProfileUpdate: (profile: any) => void) {
 }
 
 // Hook specifically for report updates
-export function useReportsUpdates(onReportUpdate: (report: any) => void) {
+export function useReportsUpdates(onReportUpdate: (payload: { new: any; old: any | null; eventType: string }) => void) {
   useRealtimeUpdates(
     { table: 'reports', event: '*' },
     (payload) => {
