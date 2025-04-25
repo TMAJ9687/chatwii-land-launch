@@ -6,6 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 const PRICEIDS = {
   YEARLY: "price_YEARLY",
@@ -107,7 +114,9 @@ function PlanCard({
         className={`w-full ${selected ? "bg-chatwii-orange" : "bg-gray-200 dark:bg-gray-700"} hover:bg-chatwii-peach text-white mt-3`}
         onClick={onSelect}
         disabled={loading}
-      >{selected ? "Selected" : "Select Plan"}</Button>
+      >
+        {selected ? "Selected" : "Select Plan"}
+      </Button>
     </div>
   );
 }
@@ -158,7 +167,7 @@ const PayPalButton = ({ plan, disabled }: { plan: typeof PLAN_DETAILS[0], disabl
 };
 
 const VipPlansPage: React.FC = () => {
-  const [selectedPlanIdx, setSelectedPlanIdx] = useState(2);
+  const [selectedPlanIdx, setSelectedPlanIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
   const [registrationData, setRegistrationData] = useState<{email: string, nickname: string} | null>(null);
@@ -307,18 +316,30 @@ const VipPlansPage: React.FC = () => {
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-4">
         Choose your <span className="text-chatwii-peach">VIP Plan</span>
       </h1>
-      
-      <div className="flex flex-wrap justify-center gap-4 mb-8">
-        {PLAN_DETAILS.map((plan, idx) => (
-          <PlanCard
-            key={plan.label}
-            plan={plan}
-            selected={selectedPlanIdx === idx}
-            onSelect={() => handlePlanSelect(idx)}
-            loading={loading}
-          />
-        ))}
-      </div>
+
+      <Carousel
+        className="w-full max-w-xs mb-8"
+        opts={{
+          align: "center",
+          loop: true
+        }}
+        onSelect={(index) => handlePlanSelect(index)}
+      >
+        <CarouselContent>
+          {PLAN_DETAILS.map((plan, idx) => (
+            <CarouselItem key={plan.label}>
+              <PlanCard
+                plan={plan}
+                selected={selectedPlanIdx === idx}
+                onSelect={() => handlePlanSelect(idx)}
+                loading={loading}
+              />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselPrevious className="absolute left-0 -translate-x-full" />
+        <CarouselNext className="absolute right-0 translate-x-full" />
+      </Carousel>
       
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
         <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
