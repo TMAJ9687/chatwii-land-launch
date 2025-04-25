@@ -129,51 +129,72 @@ export const ReportUserPopup = ({
     reportMutation.mutate({ reason });
   };
 
+  // TEMPORARY: Simple modal for debugging focus freeze!
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Report {reportedUser.nickname}</DialogTitle>
-          <DialogDescription>
-            Please select a reason for reporting this user. This report will be reviewed by our administrators.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
-            {REPORT_REASONS.map((reason) => (
-              <div key={reason.id} className="flex items-center space-x-2">
-                <RadioGroupItem value={reason.id} id={reason.id} />
-                <Label htmlFor={reason.id}>{reason.label}</Label>
-              </div>
-            ))}
-          </RadioGroup>
-
-          {selectedReason === 'other' && (
-            <Textarea
-              placeholder="Please describe the issue (max 120 characters)"
-              value={otherReason}
-              onChange={(e) => setOtherReason(e.target.value.slice(0, 120))}
-              className="h-20"
-            />
+    <div
+      style={{
+        position: "fixed",
+        top: "50%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        background: "white",
+        padding: 32,
+        zIndex: 9999,
+        border: "1px solid #eee",
+        boxShadow: "0 8px 32px #0002"
+      }}
+    >
+      <button
+        onClick={onClose}
+        style={{
+          float: "right",
+          background: "none",
+          border: "none",
+          fontSize: 20,
+          cursor: "pointer"
+        }}
+        aria-label="Close"
+      >✖</button>
+      <h2 style={{ marginTop: 0, marginBottom: 16 }}>Report {reportedUser.nickname}</h2>
+      <div style={{ marginBottom: 16 }}>
+        <select
+          style={{ width: "100%", marginBottom: 8, padding: 8 }}
+          value={selectedReason}
+          onChange={e => setSelectedReason(e.target.value)}
+        >
+          <option value="">Select a reason...</option>
+          {REPORT_REASONS.map(reason =>
+            <option value={reason.id} key={reason.id}>{reason.label}</option>
           )}
-
-          <Button
-            onClick={handleSubmit}
-            disabled={reportMutation.isPending || submitAttempted}
-            className="w-full"
-          >
-            {reportMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              'Submit Report'
-            )}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </select>
+        {selectedReason === "other" && (
+          <textarea
+            placeholder="Please describe the issue (max 120 characters)"
+            value={otherReason}
+            onChange={e => setOtherReason(e.target.value.slice(0, 120))}
+            style={{ width: "100%", height: 60, marginBottom: 8, padding: 8 }}
+            maxLength={120}
+          />
+        )}
+      </div>
+      <button
+        onClick={handleSubmit}
+        disabled={reportMutation.isPending || submitAttempted}
+        style={{
+          width: "100%",
+          padding: "10px 0",
+          background: "#fc8181",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          fontWeight: "bold",
+          cursor: reportMutation.isPending || submitAttempted ? "not-allowed" : "pointer"
+        }}
+      >
+        {reportMutation.isPending ? "Submitting..." : "Submit Report"}
+      </button>
+    </div>
   );
+
 };
