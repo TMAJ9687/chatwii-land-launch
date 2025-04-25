@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ImageModal } from './ImageModal';
@@ -7,6 +8,7 @@ import { MessageList } from './chat/MessageList';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { isMockUser } from '@/utils/mockUsers';
+import { ReportUserPopup } from './ReportUserPopup';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -17,8 +19,6 @@ interface ChatAreaProps {
   };
   onClose?: () => void;
   onMessagesRead?: () => void;
-  showReportPopup: boolean;
-  setShowReportPopup: (show: boolean) => void;
 }
 
 export const ChatArea = ({
@@ -26,12 +26,11 @@ export const ChatArea = ({
   currentUserId,
   selectedUser,
   onClose,
-  onMessagesRead,
-  showReportPopup,
-  setShowReportPopup
+  onMessagesRead
 }: ChatAreaProps) => {
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
+  const [showReportPopup, setShowReportPopup] = useState(false);
   const { blockedUsers, blockUser } = useBlockedUsers();
   const isMockVipUser = isMockUser(selectedUser.id);
 
@@ -97,6 +96,13 @@ export const ChatArea = ({
     }
   };
 
+  // Reset report popup when chat closes
+  useEffect(() => {
+    return () => {
+      setShowReportPopup(false);
+    };
+  }, [selectedUser.id]);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {isMockVipUser && (
@@ -116,7 +122,11 @@ export const ChatArea = ({
         toggleImageReveal={toggleImageReveal}
       />
 
-      {/* ReportUserPopup will now only be rendered in ChatInterface! */}
+      <ReportUserPopup
+        isOpen={showReportPopup}
+        onClose={() => setShowReportPopup(false)}
+        reportedUser={selectedUser}
+      />
 
       {fullScreenImage && (
         <ImageModal
