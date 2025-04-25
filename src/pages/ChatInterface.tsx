@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +25,6 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { Message } from '@/types/message';
 import { toast } from 'sonner';
-import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { isMockUser } from '@/utils/mockUsers';
 
 const ChatInterface = () => {
@@ -33,6 +33,7 @@ const ChatInterface = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const [showReportPopup, setShowReportPopup] = useState(false);
   
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();

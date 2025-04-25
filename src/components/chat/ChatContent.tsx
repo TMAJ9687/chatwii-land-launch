@@ -1,3 +1,4 @@
+
 import { ChatArea } from '@/components/ChatArea';
 import { MessageWithMedia } from '@/types/message';
 
@@ -9,8 +10,6 @@ interface ChatContentProps {
   onClose?: () => void;
   onSendMessage: (content: string, imageUrl?: string) => void;
   onMessagesRead?: () => void;
-  showReportPopup: boolean;
-  setShowReportPopup: (show: boolean) => void;
 }
 
 export const ChatContent = ({
@@ -21,8 +20,6 @@ export const ChatContent = ({
   onClose,
   onSendMessage,
   onMessagesRead,
-  showReportPopup,
-  setShowReportPopup,
 }: ChatContentProps) => {
   if (!selectedUserId) return null;
 
@@ -36,8 +33,6 @@ export const ChatContent = ({
       }}
       onClose={onClose}
       onMessagesRead={onMessagesRead}
-      showReportPopup={showReportPopup}
-      setShowReportPopup={setShowReportPopup}
     />
   );
 };
