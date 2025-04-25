@@ -1,13 +1,7 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 
 interface ReportUserPopupProps {
   isOpen: boolean;
@@ -18,6 +12,16 @@ interface ReportUserPopupProps {
   };
 }
 
+const REPORT_REASONS = [
+  { id: 'underage', label: 'Under age', description: 'User is below 18' },
+  { id: 'harassment', label: 'Harassment / Bullying', description: 'Sending terrible texts' },
+  { id: 'hate', label: 'Hate Speech / Discrimination', description: 'Racism / sexism' },
+  { id: 'spam', label: 'Spam / Scams', description: 'Spamming the chat and phishing' },
+  { id: 'impersonation', label: 'Impersonation', description: 'Pretending to be someone they are not' },
+  { id: 'explicit', label: 'Explicit / Inappropriate Content', description: 'Sharing NSFW material' },
+  { id: 'other', label: 'Other', description: '' }
+];
+
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([
     promise,
@@ -26,16 +30,6 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
     ),
   ]);
 };
-
-const REPORT_REASONS = [
-  { id: 'underage', label: 'Under age (user is below 18)' },
-  { id: 'harassment', label: 'Harassment/Bullying (sending terrible texts)' },
-  { id: 'hate', label: 'Hate Speech/Discrimination (racism/sexism)' },
-  { id: 'spam', label: 'Spam/Scams (spamming the chat and phishing)' },
-  { id: 'impersonation', label: 'Impersonation (pretending to be someone they are not)' },
-  { id: 'explicit', label: 'Explicit/Inappropriate Content (sharing NSFW material)' },
-  { id: 'other', label: 'Other' }
-];
 
 export const ReportUserPopup = ({
   isOpen,
@@ -46,26 +40,18 @@ export const ReportUserPopup = ({
   const [otherReason, setOtherReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // This function resets all local state
   const resetForm = () => {
     setSelectedReason('');
     setOtherReason('');
     setSubmitAttempted(false);
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      resetForm();
-      onClose();
-    }
-  };
+  // Only show the modal if open
+  if (!isOpen) return null;
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
       try {
-        const start = Date.now();
-        console.log('Starting report submission...');
-
         const { data: { user } } = await withTimeout(supabase.auth.getUser(), 5000);
         if (!user) throw new Error('Not authenticated');
 
@@ -82,11 +68,8 @@ export const ReportUserPopup = ({
         );
 
         if (error) throw error;
-
-        console.log(`Report submission took ${Date.now() - start}ms`);
         return data;
       } catch (error: any) {
-        console.error('Report submission error:', error);
         if (error.message?.includes('timed out')) {
           throw new Error('Request timed out. Please try again later.');
         }
@@ -95,21 +78,17 @@ export const ReportUserPopup = ({
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      // onClose will also reset the form
-      handleOpenChange(false);
+      handleClose();
     },
     onError: (error: any) => {
-      console.error('Report submission error:', error);
       toast.error(error.message || 'Failed to submit report. Please try again later.');
       setSubmitAttempted(false);
-      // Optionally close or keep open; here we keep open for retry
     },
-    onSettled: () => {
-      setSubmitAttempted(false);
-    }
+    onSettled: () => setSubmitAttempted(false)
   });
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (submitAttempted || reportMutation.isPending) return;
 
     if (!selectedReason) {
@@ -117,126 +96,113 @@ export const ReportUserPopup = ({
       return;
     }
 
-    const reason = selectedReason === 'other' ? otherReason :
-      REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
-
     if (selectedReason === 'other' && !otherReason.trim()) {
       toast.error('Please provide a reason');
       return;
     }
 
     setSubmitAttempted(true);
+
+    const reason =
+      selectedReason === 'other'
+        ? otherReason
+        : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
+
     reportMutation.mutate({ reason });
   };
 
-  // Pretty fallback modal to avoid freezing, with overlay!
-  if (!isOpen) return null;
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   return (
     <>
+      {/* Overlay */}
       <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.4)",
-          zIndex: 9998,
-        }}
-        onClick={onClose}
-        aria-label="Close Report Modal"
+        className="fixed inset-0 z-50 bg-black/30 transition-opacity"
+        onClick={handleClose}
+        aria-label="Close report popup"
       />
+      {/* Modal */}
       <div
-        style={{
-          position: "fixed",
-          top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "white",
-          padding: "2rem",
-          zIndex: 9999,
-          borderRadius: "16px",
-          minWidth: "340px",
-          maxWidth: "94vw",
-          boxShadow: "0 8px 40px #0003"
-        }}
+        className="fixed z-50 left-1/2 top-1/2 bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 border border-gray-100"
+        style={{ minWidth: 320 }}
         role="dialog"
         aria-modal="true"
       >
         <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            right: 20,
-            top: 18,
-            background: "none",
-            border: "none",
-            fontSize: 22,
-            cursor: "pointer",
-            color: "#999",
-          }}
+          type="button"
+          className="absolute right-3 top-3 text-gray-400 hover:text-red-500"
+          onClick={handleClose}
           aria-label="Close"
-        >✖</button>
-        <h2 style={{ marginTop: 0, marginBottom: 20, fontSize: "1.4rem" }}>
-          Report <span style={{ color: "#FC8181" }}>{reportedUser.nickname}</span>
-        </h2>
-        <div style={{ marginBottom: 16 }}>
-          <select
-            style={{
-              width: "100%",
-              marginBottom: 12,
-              padding: 10,
-              borderRadius: 6,
-              border: "1px solid #ccc",
-              fontSize: "1rem",
-            }}
-            value={selectedReason}
-            onChange={e => setSelectedReason(e.target.value)}
-          >
-            <option value="">Select a reason...</option>
-            {REPORT_REASONS.map(reason =>
-              <option value={reason.id} key={reason.id}>{reason.label}</option>
-            )}
-          </select>
-          {selectedReason === "other" && (
-            <textarea
-              placeholder="Please describe the issue (max 120 characters)"
-              value={otherReason}
-              onChange={e => setOtherReason(e.target.value.slice(0, 120))}
-              style={{
-                width: "100%",
-                height: 64,
-                marginBottom: 10,
-                padding: 8,
-                borderRadius: 6,
-                border: "1px solid #ccc",
-                fontSize: "1rem"
-              }}
-              maxLength={120}
-            />
-          )}
-        </div>
-        <button
-          onClick={handleSubmit}
-          disabled={reportMutation.isPending || submitAttempted}
-          style={{
-            width: "100%",
-            padding: "12px 0",
-            background: "#fc8181",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            fontWeight: "bold",
-            fontSize: "1.08rem",
-            cursor: reportMutation.isPending || submitAttempted ? "not-allowed" : "pointer",
-            opacity: reportMutation.isPending || submitAttempted ? 0.8 : 1,
-            marginTop: 4,
-            letterSpacing: 0.1,
-            boxShadow: "0 2px 16px #fc818125"
-          }}
         >
-          {reportMutation.isPending ? "Submitting..." : "Submit Report"}
+          ×
         </button>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+          Report <span className="text-red-500">{reportedUser.nickname}</span>
+        </h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Why are you reporting this user? Select a reason below.
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            {REPORT_REASONS.map(reason => (
+              <label
+                key={reason.id}
+                htmlFor={`reason-${reason.id}`}
+                className={`flex items-start p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border border-transparent transition`}
+              >
+                <input
+                  type="radio"
+                  id={`reason-${reason.id}`}
+                  name="report_reason"
+                  value={reason.id}
+                  checked={selectedReason === reason.id}
+                  onChange={() => setSelectedReason(reason.id)}
+                  className="mt-1.5 mr-3 text-red-600 focus:ring-red-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-100">{reason.label}</span>
+                  {reason.description && (
+                    <p className="text-xs text-gray-500 mt-0.5">{reason.description}</p>
+                  )}
+                </div>
+              </label>
+            ))}
+            {/* Show textarea if "Other" is selected */}
+            {selectedReason === 'other' && (
+              <textarea
+                className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 text-xs"
+                placeholder="Please provide more details..."
+                value={otherReason}
+                onChange={e => setOtherReason(e.target.value.slice(0, 120))}
+                rows={3}
+                maxLength={120}
+                required
+                autoFocus
+              />
+            )}
+          </div>
+          <div className="mt-4 flex justify-end space-x-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-500"
+              onClick={handleClose}
+              disabled={reportMutation.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
+              disabled={reportMutation.isPending || submitAttempted}
+            >
+              {reportMutation.isPending ? "Submitting..." : "Submit Report"}
+            </button>
+          </div>
+        </form>
       </div>
     </>
   );
-
-
 };
