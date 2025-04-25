@@ -70,45 +70,51 @@ const ChatInterface = () => {
     updateSelectedUserId(selectedUserId);
   }, [selectedUserId, updateSelectedUserId]);
 
-  useEffect(() => {
-    const checkAuthAndLoadProfile = async () => {
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/');
-        return;
-      }
-      
-      setCurrentUserId(session.user.id);
+useEffect(() => {
+  let cancelled = false; // ADD this for cleanup!
 
-      const { data: dbProfile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (!error && dbProfile) {
-        setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
-        setCurrentUserRole(dbProfile.role || 'standard');
-        setProfile(dbProfile);
-      } else {
-        console.error("Error loading profile:", error);
-        setCurrentUserRole('standard');
-        setProfile({
-          id: session.user.id,
-          nickname: "Unknown",
-          role: "standard",
-          avatar_url: null,
-          vip_status: false,
-        });
-      }
+  const checkAuthAndLoadProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
 
-      checkRulesAccepted();
-    };
+    if (!session) {
+      setCurrentUserId(null);   // Reset state to prevent bugs
+      setProfile(null);
+      navigate('/');
+      return;
+    }
 
-    checkAuthAndLoadProfile();
-  }, [navigate, checkRulesAccepted]);
+    setCurrentUserId(session.user.id);
+
+    // Use maybeSingle() and check for both error and missing data!
+    const { data: dbProfile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (cancelled) return; // Don't update state if effect is cleaned up
+
+    if (!error && dbProfile) {
+      setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
+      setCurrentUserRole(dbProfile.role || 'standard');
+      setProfile(dbProfile);
+    } else {
+      // If profile is missing (after delete), log out fully!
+      setCurrentUserId(null);
+      setProfile(null);
+      // Avoid infinite fallback "unknown" profile; instead force logout:
+      await supabase.auth.signOut();
+      navigate('/');
+      return;
+    }
+
+    checkRulesAccepted();
+  };
+
+  checkAuthAndLoadProfile();
+  return () => { cancelled = true; };
+}, [navigate, checkRulesAccepted]);
+
 
   useEffect(() => {
     if (!currentUserId) return;
