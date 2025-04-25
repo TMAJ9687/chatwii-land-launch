@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -11,9 +11,12 @@ import { registerSchema } from '@/utils/validationSchemas';
 import { Form } from '@/components/ui/form';
 import { FormField } from '@/components/form/FormField';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { VipNicknameInput } from "@/components/vip/VipNicknameInput";
 
 const VipRegistrationPage = () => {
   const navigate = useNavigate();
+  const [nickname, setNickname] = useState('');
+  const [isNicknameValid, setIsNicknameValid] = useState(false);
   
   const {
     form,
@@ -23,29 +26,49 @@ const VipRegistrationPage = () => {
   } = useHookForm(
     registerSchema,
     {
-      nickname: '',
       email: '',
       password: '',
       confirmPassword: ''
     },
     async (data) => {
+      if (!isNicknameValid) {
+        toast.error("Please provide a valid nickname");
+        return;
+      }
+
+      // Check nickname availability on server-side
+      const { data: isAvailable, error: checkError } = await supabase.rpc('is_nickname_available', { 
+        check_nickname: nickname 
+      });
+
+      if (checkError) throw checkError;
+
+      if (!isAvailable) {
+        throw new Error("This nickname is already taken. Please choose another one.");
+      }
+
+      // Sign up user
       const { error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: {
-            nickname: data.nickname
+            nickname: nickname
           }
         }
       });
       
       if (error) throw error;
       
+      // Save details and navigate to payment
+      localStorage.setItem('vip_registration_email', data.email);
+      localStorage.setItem('vip_registration_nickname', nickname);
+      
       toast.success("Registration successful!", {
-        description: "Please set up your profile to continue."
+        description: "Please complete payment to continue."
       });
       
-      navigate('/vip/profile-setup');
+      navigate('/vip-plans');
     }
   );
 
@@ -72,11 +95,10 @@ const VipRegistrationPage = () => {
           
           <Form {...form}>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <FormField
-                form={form}
-                name="nickname"
-                label="Nickname"
-                placeholder="Enter your nickname"
+              <VipNicknameInput 
+                value={nickname} 
+                onChange={setNickname} 
+                onValidityChange={setIsNicknameValid}
               />
               
               <FormField
@@ -109,9 +131,9 @@ const VipRegistrationPage = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-chatwii-peach hover:bg-chatwii-orange"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isNicknameValid}
               >
-                {isSubmitting ? "Registering..." : "Register"}
+                {isSubmitting ? "Registering..." : "Continue to Payment Plans"}
               </Button>
               
               <p className="text-sm text-center mt-4">

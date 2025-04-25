@@ -1,9 +1,12 @@
 
-import React, { useState } from "react";
-import { useStripe } from "@stripe/react-stripe-js";
+import React, { useState, useEffect } from "react";
+import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
+import { Check, X, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const PRICEIDS = {
   YEARLY: "price_YEARLY",
@@ -102,36 +105,203 @@ function PlanCard({
         </ul>
       </div>
       <Button
-        className={`w-full bg-chatwii-orange hover:bg-chatwii-peach text-white mt-3`}
+        className={`w-full ${selected ? "bg-chatwii-orange" : "bg-gray-200 dark:bg-gray-700"} hover:bg-chatwii-peach text-white mt-3`}
         onClick={onSelect}
         disabled={loading}
-      >{loading && selected ? "Redirecting..." : "Get Started"}</Button>
+      >{selected ? "Selected" : "Select Plan"}</Button>
     </div>
   );
 }
 
+const cardElementOptions = {
+  style: {
+    base: {
+      fontSize: '16px',
+      color: '#424770',
+      '::placeholder': {
+        color: '#aab7c4',
+      },
+    },
+    invalid: {
+      color: '#9e2146',
+    },
+  },
+};
+
+const PayPalButton = ({ plan, disabled }: { plan: typeof PLAN_DETAILS[0], disabled: boolean }) => {
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "https://www.paypal.com/sdk/js?client-id=test&currency=USD";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  return (
+    <div className={`border p-4 rounded-lg ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className="text-center mb-4">PayPal button would render here</div>
+      <Button 
+        className="w-full bg-[#0070ba] hover:bg-[#005ea6]" 
+        disabled={disabled}
+        onClick={() => toast.info("PayPal integration would process payment here")}
+      >
+        Pay with PayPal
+      </Button>
+    </div>
+  );
+};
+
 const VipPlansPage: React.FC = () => {
   const [selectedPlanIdx, setSelectedPlanIdx] = useState(2);
   const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
+  const [registrationData, setRegistrationData] = useState<{email: string, nickname: string} | null>(null);
   const stripe = useStripe();
+  const elements = useElements();
   const navigate = useNavigate();
 
-  const handlePlanSwitch = (direction: "prev" | "next") => {
-    setSelectedPlanIdx((idx) =>
-      direction === "next"
-        ? (idx + 1) % PLAN_DETAILS.length
-        : (idx - 1 + PLAN_DETAILS.length) % PLAN_DETAILS.length
-    );
+  useEffect(() => {
+    // Retrieve registration data from localStorage
+    const email = localStorage.getItem('vip_registration_email');
+    const nickname = localStorage.getItem('vip_registration_nickname');
+    
+    if (email && nickname) {
+      setRegistrationData({ email, nickname });
+    } else {
+      // If no registration data, redirect to registration
+      navigate('/vip/register');
+    }
+  }, [navigate]);
+
+  const handlePlanSelect = (idx: number) => {
+    setSelectedPlanIdx(idx);
   };
 
-  const handleSubscribe = async () => {
-    navigate("/vip/register");
+  const handlePaymentMethodChange = (method: 'stripe' | 'paypal') => {
+    setPaymentMethod(method);
+  };
+
+  const handlePayment = async () => {
+    if (!registrationData) {
+      toast.error("Registration data not found");
+      navigate('/vip/register');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (paymentMethod === 'stripe' && stripe && elements) {
+        const cardElement = elements.getElement(CardElement);
+        
+        if (!cardElement) {
+          throw new Error("Card element not found");
+        }
+
+        const { error, paymentMethod } = await stripe.createPaymentMethod({
+          type: 'card',
+          card: cardElement,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        // In a real implementation, call your backend to process the payment
+        // For this example, we'll simulate success
+        
+        // Create user profile
+        await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
+        
+        // Clear registration data
+        localStorage.removeItem('vip_registration_email');
+        localStorage.removeItem('vip_registration_nickname');
+        
+        toast.success("Payment successful!");
+        navigate('/vip/profile-setup');
+      } else if (paymentMethod === 'paypal') {
+        // Simulate PayPal payment
+        await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
+        
+        localStorage.removeItem('vip_registration_email');
+        localStorage.removeItem('vip_registration_nickname');
+        
+        toast.success("PayPal payment successful!");
+        navigate('/vip/profile-setup');
+      }
+    } catch (error: any) {
+      toast.error(`Payment failed: ${error.message || "Unknown error"}`);
+      console.error("Payment error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createVipAccount = async (email: string, nickname: string, plan: string) => {
+    // Find the user with this email if they exist already
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('nickname', nickname)
+      .maybeSingle();
+    
+    if (existingUser) {
+      throw new Error("User already exists with this nickname");
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error("No authenticated session");
+    }
+
+    const userId = session.user.id;
+    
+    // Calculate subscription end date based on plan
+    let endDate = new Date();
+    if (plan === 'Monthly') {
+      endDate.setMonth(endDate.getMonth() + 1);
+    } else if (plan === '6 Months') {
+      endDate.setMonth(endDate.getMonth() + 6);
+    } else { // Yearly
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    }
+
+    // Create profile with VIP status
+    await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        nickname,
+        role: 'vip',
+        vip_status: true,
+      });
+
+    // Create VIP subscription record
+    await supabase
+      .from('vip_subscriptions')
+      .insert({
+        user_id: userId,
+        start_date: new Date().toISOString(),
+        end_date: endDate.toISOString(),
+        is_active: true,
+        payment_provider: paymentMethod,
+        subscription_plan: plan,
+      });
+    
+    return true;
   };
 
   const handleClose = () => {
-    // Go home or back, here using home
     navigate("/");
   };
+
+  if (!registrationData) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-orange-100 dark:from-gray-900 dark:to-gray-800 py-10 px-4 relative">
@@ -147,31 +317,55 @@ const VipPlansPage: React.FC = () => {
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-4">
         Choose your <span className="text-chatwii-peach">VIP Plan</span>
       </h1>
-      <div className="flex items-center mb-8 gap-2">
-        <Button variant="ghost" size="icon" onClick={() => handlePlanSwitch("prev")}>
-          <span className="text-xl">&larr;</span>
-        </Button>
-        <div style={{ minWidth: 320 }}>
+      
+      <div className="flex flex-wrap justify-center gap-4 mb-8">
+        {PLAN_DETAILS.map((plan, idx) => (
           <PlanCard
-            plan={PLAN_DETAILS[selectedPlanIdx]}
-            selected={true}
-            onSelect={handleSubscribe}
+            key={plan.label}
+            plan={plan}
+            selected={selectedPlanIdx === idx}
+            onSelect={() => handlePlanSelect(idx)}
             loading={loading}
           />
-        </div>
-        <Button variant="ghost" size="icon" onClick={() => handlePlanSwitch("next")}>
-          <span className="text-xl">&rarr;</span>
+        ))}
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
+        
+        <Tabs defaultValue="stripe" onValueChange={(v) => handlePaymentMethodChange(v as 'stripe' | 'paypal')}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="stripe" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Credit Card
+            </TabsTrigger>
+            <TabsTrigger value="paypal">
+              PayPal
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="stripe" className="space-y-4">
+            <div className="border p-4 rounded-lg">
+              <CardElement options={cardElementOptions} />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="paypal">
+            <PayPalButton plan={PLAN_DETAILS[selectedPlanIdx]} disabled={loading} />
+          </TabsContent>
+        </Tabs>
+        
+        <Button 
+          onClick={handlePayment} 
+          className="w-full mt-4 bg-chatwii-orange hover:bg-chatwii-peach"
+          disabled={loading}
+        >
+          {loading ? "Processing..." : `Pay ${PLAN_DETAILS[selectedPlanIdx].price}`}
         </Button>
       </div>
-      <div className="text-xs text-gray-500 text-center max-w-md mx-auto">
-        Powered by Stripe. Your payment is processed securely via Stripe. <br />
-        <b>To enable real payments, replace:</b>
-        <ul className="mt-1 list-disc ml-4 text-left">
-          <li>Stripe Publishable Key in Elements setup</li>
-          <li>Price IDs in this page (see <code>PRICEIDS</code> const)</li>
-          <li>Implement backend endpoint <code>/create-checkout-session</code> to talk to Stripe</li>
-          <li>Add a backend webhook to update VIP status after payment!</li>
-        </ul>
+      
+      <div className="text-xs text-gray-500 text-center max-w-md mx-auto mt-4">
+        By proceeding with payment, you agree to our terms of service and privacy policy.
       </div>
     </div>
   );

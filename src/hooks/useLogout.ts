@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -49,7 +50,9 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
       await supabase.removeAllChannels();
       await supabase.auth.signOut({ scope: 'local' });
 
-      // Clear local storage to reset any remembered state (optional but safer)
+      // Clear local storage (including VIP registration data)
+      localStorage.removeItem('vip_registration_email');
+      localStorage.removeItem('vip_registration_nickname');
       window.localStorage.clear();
 
       // Reload to clean up any hanging state in memory
