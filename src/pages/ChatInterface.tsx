@@ -25,6 +25,7 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { Message } from '@/types/message';
 import { toast } from 'sonner';
+import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { isMockUser } from '@/utils/mockUsers';
 
 const ChatInterface = () => {
