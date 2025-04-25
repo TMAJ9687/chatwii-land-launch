@@ -8,6 +8,7 @@ export const useChatState = () => {
   const [showRules, setShowRules] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'none' | 'inbox' | 'history' | 'blocked'>('none');
+  const [showReportPopup, setShowReportPopup] = useState(false);
   const { blockedUsers, blockUser } = useBlockedUsers();
 
   const handleCloseChat = () => {
@@ -58,6 +59,8 @@ export const useChatState = () => {
     handleAcceptRules,
     checkRulesAccepted,
     isBlocked,
+    showReportPopup,
+    setShowReportPopup,
     handleBlockUser
   };
 };

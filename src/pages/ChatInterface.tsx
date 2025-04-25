@@ -33,13 +33,12 @@ const ChatInterface = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [showReportPopup, setShowReportPopup] = useState(false);
-
+  
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
   const { unreadCount, fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
-
+  
   const { 
     selectedUserId,
     selectedUserNickname,
@@ -53,6 +52,8 @@ const ChatInterface = () => {
     handleAcceptRules,
     checkRulesAccepted,
     isBlocked,
+    showReportPopup,
+    setShowReportPopup,
     handleBlockUser
   } = useChatState();
 
@@ -78,7 +79,7 @@ const ChatInterface = () => {
         navigate('/');
         return;
       }
-
+      
       setCurrentUserId(session.user.id);
 
       const { data: dbProfile, error } = await supabase
@@ -86,7 +87,7 @@ const ChatInterface = () => {
         .select('*')
         .eq('id', session.user.id)
         .single();
-
+      
       if (!error && dbProfile) {
         setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
         setCurrentUserRole(dbProfile.role || 'standard');
@@ -126,13 +127,13 @@ const ChatInterface = () => {
           if (isMockUser(payload.new.sender_id) || isMockUser(payload.new.receiver_id)) {
             return;
           }
-
+          
           if (selectedUserId && 
              ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
               (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
-
+            
             const newMessage = payload.new as Message;
-
+            
             setMessages(current => {
               const exists = current.some(msg =>
                 (msg.id === newMessage.id) ||
@@ -140,18 +141,18 @@ const ChatInterface = () => {
                   msg.sender_id === newMessage.sender_id &&
                   Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
               );
-
+              
               if (!exists) {
                 return [...current, { ...newMessage, media: null }];
               }
               return current;
             });
-
+            
             const { data: mediaData } = await supabase
               .from('message_media')
               .select('*')
               .eq('message_id', newMessage.id);
-
+              
             if (mediaData?.length) {
               setMessages(current =>
                 current.map(msg =>
@@ -167,7 +168,7 @@ const ChatInterface = () => {
       .subscribe();
 
     globalChannelRef.current = channel;
-
+      
     return () => {
       if (globalChannelRef.current) {
         supabase.removeChannel(globalChannelRef.current);
@@ -316,7 +317,7 @@ const ChatInterface = () => {
               isBlocked={isBlocked}
             />
           )}
-
+          
           <ChatContent
             selectedUserId={selectedUserId}
             selectedUserNickname={selectedUserNickname}
@@ -367,7 +368,6 @@ const ChatInterface = () => {
         />
       )}
 
-      {/* ONLY HERE! */}
       <ReportUserPopup
         isOpen={showReportPopup}
         onClose={() => setShowReportPopup(false)}
