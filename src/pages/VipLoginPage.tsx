@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -78,19 +78,12 @@ const VipLoginPage = () => {
       if (error) throw error;
       
       // Successful login
-      toast({
-        title: "Login successful!",
-        description: "Welcome back to ChatWii VIP.",
-      });
+      toast.success("Login successful!");
       
-      // Navigate to chat interface
-      navigate('/chat');
+      // Navigate to profile setup page for VIP users instead of chat
+      navigate('/vip/profile-setup');
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Invalid email or password.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Invalid email or password.");
       console.error("Login error:", error);
     } finally {
       setIsSubmitting(false);

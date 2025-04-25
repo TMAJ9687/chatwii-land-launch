@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -8,20 +7,46 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useDetectCountry } from "@/hooks/useDetectCountry";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import { COUNTRIES } from "@/constants/countries";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { 
+  Card, 
+  CardContent 
+} from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const ageOptions = Array.from({ length: 63 }, (_, i) => 18 + i);
+const INTERESTS = [
+  "Music", "Sports", "Gaming", "Travel", "Movies",
+  "Food", "Technology", "Art", "Books", "Fashion",
+  "Photography", "Nature", "Fitness", "Cooking", "Dancing"
+];
 
 const VipProfileSetupPage = () => {
   const navigate = useNavigate();
   const [nickname, setNickname] = useState('');
   const [gender, setGender] = useState<string>('');
   const [age, setAge] = useState<string>('');
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const { country, countryCode } = useDetectCountry();
+  const [vipAvatars, setVipAvatars] = useState<string[]>([]);
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const { country: detectedCountry, countryCode } = useDetectCountry();
+  const [countrySearchQuery, setCountrySearchQuery] = useState('');
+  
+  const filteredCountries = countrySearchQuery 
+    ? COUNTRIES.filter(c => c.toLowerCase().includes(countrySearchQuery.toLowerCase()))
+    : COUNTRIES;
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -45,65 +70,97 @@ const VipProfileSetupPage = () => {
         setGender(profile.gender || '');
         setAge(profile.age?.toString() || '');
         setAvatarUrl(profile.avatar_url || '');
+        setSelectedCountry(profile.country || detectedCountry || '');
+        
+        // Fetch user interests
+        const { data: userInterests } = await supabase
+          .from('user_interests')
+          .select('interests(name)')
+          .eq('user_id', session.user.id);
+        
+        if (userInterests && userInterests.length > 0) {
+          const interests = userInterests.map((i: any) => i.interests?.name).filter(Boolean);
+          setSelectedInterests(interests);
+        }
       } else {
         // No profile - redirect to registration
         navigate('/vip/register');
       }
     };
     
-    checkAuth();
-  }, [navigate]);
-
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-    
-    // Validate file is image
-    if (!file.type.startsWith('image/')) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    
-    // Validate file size
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large. Maximum size is 5MB");
-      return;
-    }
-    
-    setIsUploading(true);
-    try {
-      // Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+    // Load avatars based on gender
+    const loadVipAvatars = async (gender: string) => {
+      // Default to male avatars if gender is not specified
+      const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
       
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-      
-      if (uploadError) throw uploadError;
-      
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const { data } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("id", 1)
+        .single();
         
-      if (data) {
-        setAvatarUrl(data.publicUrl);
-        
-        // Update profile with avatar
-        await supabase
-          .from('profiles')
-          .update({ avatar_url: data.publicUrl })
-          .eq('id', currentUser.id);
-          
-        toast.success("Avatar updated successfully");
+      if (data?.settings?.avatars && data.settings.avatars[genderKey]) {
+        setVipAvatars(data.settings.avatars[genderKey] || []);
+      } else {
+        // If no avatars found, set empty array
+        setVipAvatars([]);
       }
-    } catch (error: any) {
-      toast.error(`Avatar upload failed: ${error.message || "Unknown error"}`);
-      console.error("Avatar upload error:", error);
-    } finally {
-      setIsUploading(false);
+    };
+    
+    checkAuth();
+    
+    // Initialize country from detected country
+    if (detectedCountry && !selectedCountry) {
+      setSelectedCountry(detectedCountry);
     }
+    
+  }, [navigate, detectedCountry]);
+  
+  // Load avatars when gender changes
+  useEffect(() => {
+    if (gender) {
+      loadVipAvatars(gender);
+    }
+  }, [gender]);
+  
+  const loadVipAvatars = async (gender: string) => {
+    // Default to male avatars if gender is not specified
+    const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
+    
+    const { data } = await supabase
+      .from("site_settings")
+      .select("settings")
+      .eq("id", 1)
+      .single();
+      
+    if (data?.settings?.avatars && data.settings.avatars[genderKey]) {
+      setVipAvatars(data.settings.avatars[genderKey] || []);
+    } else {
+      // If no avatars found, set empty array
+      setVipAvatars([]);
+    }
+  };
+
+  const handleInterestToggle = (interest: string) => {
+    setSelectedInterests(prev => {
+      // If already selected, remove it
+      if (prev.includes(interest)) {
+        return prev.filter(i => i !== interest);
+      }
+      
+      // If not selected and less than 3 interests, add it
+      if (prev.length < 3) {
+        return [...prev, interest];
+      }
+      
+      // Otherwise, keep the same
+      return prev;
+    });
+  };
+
+  const handleAvatarSelect = (url: string) => {
+    setAvatarUrl(url);
+    setAvatarDialogOpen(false);
   };
 
   const handleSubmitProfile = async () => {
@@ -117,18 +174,77 @@ const VipProfileSetupPage = () => {
       return;
     }
     
+    if (!avatarUrl) {
+      toast.error("Please select an avatar");
+      return;
+    }
+    
+    if (!selectedCountry) {
+      toast.error("Please select your country");
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
+      // Update profile with all information
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           gender,
           age: parseInt(age),
-          country: country || null
+          country: selectedCountry,
+          avatar_url: avatarUrl
         })
         .eq('id', currentUser.id);
       
       if (profileError) throw profileError;
+      
+      // Update user interests
+      if (selectedInterests.length > 0) {
+        // First, delete existing interests
+        await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', currentUser.id);
+        
+        // Then insert new interests
+        for (const interest of selectedInterests) {
+          // Get or create interest
+          let interestId;
+          
+          // Check if interest exists
+          const { data: existingInterest } = await supabase
+            .from('interests')
+            .select('id')
+            .eq('name', interest)
+            .maybeSingle();
+            
+          if (existingInterest) {
+            interestId = existingInterest.id;
+          } else {
+            // Create new interest
+            const { data: newInterest } = await supabase
+              .from('interests')
+              .insert({ name: interest })
+              .select('id')
+              .single();
+              
+            if (newInterest) {
+              interestId = newInterest.id;
+            }
+          }
+          
+          if (interestId) {
+            // Insert user interest
+            await supabase
+              .from('user_interests')
+              .insert({
+                user_id: currentUser.id,
+                interest_id: interestId
+              });
+          }
+        }
+      }
       
       toast.success("Profile updated successfully!");
       navigate('/chat');
@@ -137,20 +253,6 @@ const VipProfileSetupPage = () => {
       console.error("Profile update error:", error);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-  
-  // If profile fields change, silently update
-  const handleFieldChange = async (field: string, value: any) => {
-    try {
-      await supabase
-        .from('profiles')
-        .update({ [field]: value })
-        .eq('id', currentUser.id);
-        
-      toast.success(`${field} updated successfully`);
-    } catch (error) {
-      console.error(`Error updating ${field}:`, error);
     }
   };
 
@@ -163,39 +265,58 @@ const VipProfileSetupPage = () => {
           </h1>
           
           <div className="space-y-6">
-            {/* Avatar Upload */}
+            {/* Avatar Selection */}
             <div className="flex flex-col items-center">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-100 mb-4">
-                {avatarUrl ? (
-                  <img 
-                    src={avatarUrl} 
-                    alt="User avatar" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
-                    <span className="text-3xl text-gray-400">{nickname?.charAt(0)?.toUpperCase() || '?'}</span>
-                  </div>
-                )}
-                
-                <label 
-                  htmlFor="avatar-upload" 
-                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 hover:opacity-100 transition cursor-pointer"
-                >
-                  <span className="text-white text-sm">Change</span>
-                </label>
-                
-                <input 
-                  id="avatar-upload" 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleAvatarChange}
-                  disabled={isUploading}
-                />
-              </div>
-              
-              {isUploading && <p className="text-sm text-gray-500">Uploading avatar...</p>}
+              <Label className="mb-2 text-center">Select Your Avatar</Label>
+              <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="p-0 h-24 w-24 rounded-full overflow-hidden">
+                    {avatarUrl ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt="User avatar" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
+                        <span className="text-3xl text-gray-400">{nickname?.charAt(0)?.toUpperCase() || '?'}</span>
+                      </div>
+                    )}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Choose Your VIP Avatar</DialogTitle>
+                  </DialogHeader>
+                  {vipAvatars.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-4 py-4">
+                      {vipAvatars.map((url, index) => (
+                        <Card 
+                          key={index} 
+                          className={`cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                            avatarUrl === url ? 'ring-2 ring-chatwii-orange' : ''
+                          }`}
+                          onClick={() => handleAvatarSelect(url)}
+                        >
+                          <CardContent className="p-3 flex items-center justify-center">
+                            <Avatar className="h-16 w-16">
+                              <AvatarImage src={url} alt={`Avatar option ${index + 1}`} />
+                              <AvatarFallback>VIP</AvatarFallback>
+                            </Avatar>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-gray-500">
+                      {gender ? 
+                        "No VIP avatars available for your gender. Please contact support." :
+                        "Please select your gender first to see available avatars."
+                      }
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
             
             {/* Nickname Display (Read-only) */}
@@ -216,7 +337,9 @@ const VipProfileSetupPage = () => {
               <Label htmlFor="gender">Gender</Label>
               <Select value={gender} onValueChange={(value) => {
                 setGender(value);
-                handleFieldChange('gender', value);
+                // Reset avatar when gender changes
+                setAvatarUrl('');
+                loadVipAvatars(value);
               }}>
                 <SelectTrigger id="gender">
                   <SelectValue placeholder="Select gender" />
@@ -231,10 +354,7 @@ const VipProfileSetupPage = () => {
             {/* Age Selection */}
             <div className="space-y-2">
               <Label htmlFor="age">Age</Label>
-              <Select value={age} onValueChange={(value) => {
-                setAge(value);
-                handleFieldChange('age', parseInt(value));
-              }}>
+              <Select value={age} onValueChange={setAge}>
                 <SelectTrigger id="age">
                   <SelectValue placeholder="Select your age" />
                 </SelectTrigger>
@@ -246,22 +366,108 @@ const VipProfileSetupPage = () => {
               </Select>
             </div>
             
-            {/* Country Display */}
+            {/* Country Selection */}
             <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
-                value={country || ''}
-                readOnly
-                tabIndex={-1}
-                className="bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-              />
+              <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+                <SelectTrigger id="country" className="w-full">
+                  <SelectValue placeholder="Select your country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="py-2 px-3 sticky top-0 bg-white dark:bg-gray-800 z-10">
+                    <Input
+                      placeholder="Search countries..."
+                      value={countrySearchQuery}
+                      onChange={(e) => setCountrySearchQuery(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  {filteredCountries.map(country => {
+                    // Get country code for flag
+                    const code = getCountryCode(country);
+                    const flagUrl = code ? `https://flagcdn.com/24x18/${code.toLowerCase()}.png` : '';
+                    
+                    return (
+                      <SelectItem key={country} value={country} className="flex items-center">
+                        <div className="flex items-center gap-2">
+                          {flagUrl && (
+                            <img 
+                              src={flagUrl} 
+                              alt={`${country} flag`}
+                              className="w-5 h-auto inline-block mr-2"
+                              style={{ verticalAlign: 'middle' }}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          {country}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedCountry && (
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-md">
+                  {(() => {
+                    const code = getCountryCode(selectedCountry);
+                    const flagUrl = code ? `https://flagcdn.com/24x18/${code.toLowerCase()}.png` : '';
+                    
+                    return (
+                      <>
+                        {flagUrl && (
+                          <img 
+                            src={flagUrl} 
+                            alt={`${selectedCountry} flag`}
+                            className="w-5 h-auto"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span>{selectedCountry}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+            
+            {/* Interests Selection */}
+            <div className="space-y-2">
+              <Label>Interests (Select up to 3)</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {INTERESTS.map(interest => (
+                  <Button
+                    key={interest}
+                    type="button"
+                    variant={selectedInterests.includes(interest) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleInterestToggle(interest)}
+                    className={`flex items-center justify-center ${
+                      selectedInterests.includes(interest) 
+                        ? 'bg-chatwii-orange text-white hover:bg-chatwii-peach' 
+                        : ''
+                    }`}
+                    disabled={!selectedInterests.includes(interest) && selectedInterests.length >= 3}
+                  >
+                    {selectedInterests.includes(interest) && (
+                      <Check className="h-3 w-3 mr-1" />
+                    )}
+                    {interest}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Selected: {selectedInterests.length}/3
+              </p>
             </div>
             
             <Button 
               onClick={handleSubmitProfile}
               className="w-full bg-chatwii-peach hover:bg-chatwii-orange flex items-center justify-center gap-2"
-              disabled={isSubmitting || !gender || !age}
+              disabled={isSubmitting || !gender || !age || !avatarUrl || !selectedCountry}
             >
               {isSubmitting ? "Saving..." : "Go to Chat"}
               <ArrowRight className="h-4 w-4" />
@@ -271,6 +477,34 @@ const VipProfileSetupPage = () => {
       </div>
     </div>
   );
+};
+
+// Helper function to get country codes for flags
+const getCountryCode = (country: string): string | null => {
+  const countryMappings: Record<string, string> = {
+    'United States': 'us',
+    'United Kingdom': 'gb',
+    'Afghanistan': 'af',
+    'Albania': 'al',
+    'Algeria': 'dz',
+    'Andorra': 'ad',
+    'Angola': 'ao',
+    'Argentina': 'ar',
+    'Armenia': 'am',
+    'Australia': 'au',
+    'Austria': 'at',
+    'Azerbaijan': 'az',
+    // Add more mappings as needed
+  };
+  
+  // Try to get from mapping
+  if (countryMappings[country]) {
+    return countryMappings[country];
+  }
+  
+  // Default: convert to lowercase and take first two chars
+  // This is a simplistic approach and won't work for all countries
+  return country.toLowerCase().substring(0, 2);
 };
 
 export default VipProfileSetupPage;

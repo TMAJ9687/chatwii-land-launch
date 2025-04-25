@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+
+import React, { useState, useEffect } from "react";
 import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
-import { Check, X, CreditCard } from "lucide-react";
+import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Carousel,
   CarouselContent,
@@ -13,6 +13,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { PlanCard } from "@/components/vip/PlanCard";
+import { PaymentSection } from "@/components/vip/PaymentSection";
 
 const PRICEIDS = {
   YEARLY: "price_YEARLY",
@@ -85,86 +87,6 @@ const PLAN_DETAILS = [
     ],
   },
 ];
-
-function PlanCard({
-  plan,
-  selected,
-  onSelect,
-  loading,
-}: {
-  plan: typeof PLAN_DETAILS[0];
-  selected: boolean;
-  onSelect: () => void;
-  loading: boolean;
-}) {
-  return (
-    <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg border-2 ${selected ? "border-chatwii-orange" : "border-gray-100"} p-6 w-full max-w-xs mx-auto space-y-4 flex flex-col justify-between`}>
-      <div>
-        <div className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">{plan.price}</div>
-        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">{plan.subtitle}</div>
-        <ul className="space-y-2 mb-2">
-          {plan.features.map((feat) =>
-            <li key={feat} className="flex items-center gap-2 text-gray-800 dark:text-gray-100 text-sm">
-              <Check className="h-4 w-4 text-green-500 flex-shrink-0" /> {feat}
-            </li>
-          )}
-        </ul>
-      </div>
-      <Button
-        className={`w-full ${selected ? "bg-chatwii-orange" : "bg-gray-200 dark:bg-gray-700"} hover:bg-chatwii-peach text-white mt-3`}
-        onClick={onSelect}
-        disabled={loading}
-      >
-        {selected ? "Selected" : "Select Plan"}
-      </Button>
-    </div>
-  );
-}
-
-const cardElementOptions = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#424770',
-      '::placeholder': {
-        color: '#aab7c4',
-      },
-    },
-    invalid: {
-      color: '#9e2146',
-    },
-  },
-};
-
-const PayPalButton = ({ plan, disabled }: { plan: typeof PLAN_DETAILS[0], disabled: boolean }) => {
-  const paypalContainerRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (!window.paypal && !document.querySelector('script[src*="paypal"]')) {
-      const script = document.createElement('script');
-      script.src = "https://www.paypal.com/sdk/js?client-id=test&currency=USD";
-      script.async = true;
-      script.dataset.paypalScript = 'true';
-      document.body.appendChild(script);
-    }
-    
-    return () => {
-    };
-  }, []);
-
-  return (
-    <div className={`border p-4 rounded-lg ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-      <div className="text-center mb-4" ref={paypalContainerRef}>PayPal button would render here</div>
-      <Button 
-        className="w-full bg-[#0070ba] hover:bg-[#005ea6]" 
-        disabled={disabled}
-        onClick={() => toast.info("PayPal integration would process payment here")}
-      >
-        Pay with PayPal
-      </Button>
-    </div>
-  );
-};
 
 const VipPlansPage: React.FC = () => {
   const [selectedPlanIdx, setSelectedPlanIdx] = useState(0);
@@ -340,39 +262,13 @@ const VipPlansPage: React.FC = () => {
         <CarouselNext className="absolute right-0 translate-x-full" />
       </Carousel>
       
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-        
-        <Tabs defaultValue="stripe" onValueChange={(v) => handlePaymentMethodChange(v as 'stripe' | 'paypal')}>
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="stripe" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Credit Card
-            </TabsTrigger>
-            <TabsTrigger value="paypal">
-              PayPal
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="stripe" className="space-y-4">
-            <div className="border p-4 rounded-lg">
-              <CardElement options={cardElementOptions} />
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="paypal">
-            <PayPalButton plan={PLAN_DETAILS[selectedPlanIdx]} disabled={loading} />
-          </TabsContent>
-        </Tabs>
-        
-        <Button 
-          onClick={handlePayment} 
-          className="w-full mt-4 bg-chatwii-orange hover:bg-chatwii-peach"
-          disabled={loading}
-        >
-          {loading ? "Processing..." : `Pay ${PLAN_DETAILS[selectedPlanIdx].price}`}
-        </Button>
-      </div>
+      <PaymentSection
+        selectedPlanIdx={selectedPlanIdx}
+        planDetails={PLAN_DETAILS}
+        loading={loading}
+        onPaymentMethodChange={handlePaymentMethodChange}
+        onPayment={handlePayment}
+      />
       
       <div className="text-xs text-gray-500 text-center max-w-md mx-auto mt-4">
         By proceeding with payment, you agree to our terms of service and privacy policy.

@@ -35,7 +35,7 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
                                 user.app_metadata?.provider === 'anonymous';
           }
 
-          // Delete profile for standard and anonymous users
+          // Delete profile ONLY for standard and anonymous users, NEVER for VIP users
           if (shouldDeleteProfile) {
             const result = await deleteUserProfile(user.id);
             if (!result.success) {
@@ -50,10 +50,14 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
       await supabase.removeAllChannels();
       await supabase.auth.signOut({ scope: 'local' });
 
-      // Clear local storage (including VIP registration data)
+      // Clear local storage (VIP registration data still needs to be cleared)
       localStorage.removeItem('vip_registration_email');
       localStorage.removeItem('vip_registration_nickname');
-      window.localStorage.clear();
+      
+      // Only clear other items for non-VIP users
+      if (shouldDeleteProfile) {
+        window.localStorage.clear();
+      }
 
       // Reload to clean up any hanging state in memory
       setTimeout(() => {
