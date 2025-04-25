@@ -323,11 +323,10 @@ const VipPlansPage: React.FC = () => {
           align: "center",
           loop: true
         }}
-        onSelect={(index) => handlePlanSelect(index)}
       >
         <CarouselContent>
           {PLAN_DETAILS.map((plan, idx) => (
-            <CarouselItem key={plan.label}>
+            <CarouselItem key={plan.label} onClick={() => handlePlanSelect(idx)}>
               <PlanCard
                 plan={plan}
                 selected={selectedPlanIdx === idx}
