@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -46,24 +45,21 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
         }
       }
 
-      // Remove all channels after profile deletion to prevent further queries
+      // Remove all Supabase channels and sign out
       await supabase.removeAllChannels();
-      
-      // Sign out first so no more requests are made using the auth token
-      const { error: signOutError } = await supabase.auth.signOut({
-        scope: 'local'
-      });
-      
-      if (signOutError) throw signOutError;
-      
-      // Navigate after successful sign out
+      await supabase.auth.signOut({ scope: 'local' });
+
+      // Clear local storage to reset any remembered state (optional but safer)
+      window.localStorage.clear();
+
+      // Reload to clean up any hanging state in memory
       setTimeout(() => {
-        navigate(redirectPath, { replace: true });
+        window.location.replace(redirectPath);
       }, 100);
     } catch (error) {
       console.error('Logout process failed:', error);
       toast.error("An unexpected error occurred during logout");
-      navigate('/', { replace: true });
+      window.location.replace('/');
     } finally {
       setIsLoggingOut(false);
     }
