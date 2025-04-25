@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { Check, X, CreditCard } from "lucide-react";
@@ -129,20 +128,24 @@ const cardElementOptions = {
 };
 
 const PayPalButton = ({ plan, disabled }: { plan: typeof PLAN_DETAILS[0], disabled: boolean }) => {
+  const paypalContainerRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://www.paypal.com/sdk/js?client-id=test&currency=USD";
-    script.async = true;
-    document.body.appendChild(script);
-
+    if (!window.paypal && !document.querySelector('script[src*="paypal"]')) {
+      const script = document.createElement('script');
+      script.src = "https://www.paypal.com/sdk/js?client-id=test&currency=USD";
+      script.async = true;
+      script.dataset.paypalScript = 'true';
+      document.body.appendChild(script);
+    }
+    
     return () => {
-      document.body.removeChild(script);
     };
   }, []);
 
   return (
     <div className={`border p-4 rounded-lg ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-      <div className="text-center mb-4">PayPal button would render here</div>
+      <div className="text-center mb-4" ref={paypalContainerRef}>PayPal button would render here</div>
       <Button 
         className="w-full bg-[#0070ba] hover:bg-[#005ea6]" 
         disabled={disabled}
@@ -164,14 +167,12 @@ const VipPlansPage: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Retrieve registration data from localStorage
     const email = localStorage.getItem('vip_registration_email');
     const nickname = localStorage.getItem('vip_registration_nickname');
     
     if (email && nickname) {
       setRegistrationData({ email, nickname });
     } else {
-      // If no registration data, redirect to registration
       navigate('/vip/register');
     }
   }, [navigate]);
@@ -210,20 +211,14 @@ const VipPlansPage: React.FC = () => {
           throw error;
         }
 
-        // In a real implementation, call your backend to process the payment
-        // For this example, we'll simulate success
-        
-        // Create user profile
         await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
         
-        // Clear registration data
         localStorage.removeItem('vip_registration_email');
         localStorage.removeItem('vip_registration_nickname');
         
         toast.success("Payment successful!");
         navigate('/vip/profile-setup');
       } else if (paymentMethod === 'paypal') {
-        // Simulate PayPal payment
         await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
         
         localStorage.removeItem('vip_registration_email');
@@ -241,7 +236,6 @@ const VipPlansPage: React.FC = () => {
   };
 
   const createVipAccount = async (email: string, nickname: string, plan: string) => {
-    // Find the user with this email if they exist already
     const { data: existingUser } = await supabase
       .from('profiles')
       .select('id')
@@ -260,7 +254,6 @@ const VipPlansPage: React.FC = () => {
 
     const userId = session.user.id;
     
-    // Calculate subscription end date based on plan
     let endDate = new Date();
     if (plan === 'Monthly') {
       endDate.setMonth(endDate.getMonth() + 1);
@@ -270,7 +263,6 @@ const VipPlansPage: React.FC = () => {
       endDate.setFullYear(endDate.getFullYear() + 1);
     }
 
-    // Create profile with VIP status
     await supabase
       .from('profiles')
       .insert({
@@ -280,7 +272,6 @@ const VipPlansPage: React.FC = () => {
         vip_status: true,
       });
 
-    // Create VIP subscription record
     await supabase
       .from('vip_subscriptions')
       .insert({
@@ -305,7 +296,6 @@ const VipPlansPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-white to-orange-100 dark:from-gray-900 dark:to-gray-800 py-10 px-4 relative">
-      {/* Close Button */}
       <button
         onClick={handleClose}
         className="absolute top-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 z-50 focus:outline-none"
