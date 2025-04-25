@@ -88,33 +88,13 @@ const VipProfileSetupPage = () => {
       }
     };
     
-    // Load avatars based on gender
-    const loadVipAvatars = async (gender: string) => {
-      // Default to male avatars if gender is not specified
-      const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
-      
-      const { data } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .single();
-        
-      if (data?.settings?.avatars && data.settings.avatars[genderKey]) {
-        setVipAvatars(data.settings.avatars[genderKey] || []);
-      } else {
-        // If no avatars found, set empty array
-        setVipAvatars([]);
-      }
-    };
-    
-    checkAuth();
-    
     // Initialize country from detected country
     if (detectedCountry && !selectedCountry) {
       setSelectedCountry(detectedCountry);
     }
     
-  }, [navigate, detectedCountry]);
+    checkAuth();
+  }, [navigate, detectedCountry, selectedCountry]);
   
   // Load avatars when gender changes
   useEffect(() => {
@@ -127,16 +107,36 @@ const VipProfileSetupPage = () => {
     // Default to male avatars if gender is not specified
     const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
     
-    const { data } = await supabase
-      .from("site_settings")
-      .select("settings")
-      .eq("id", 1)
-      .single();
-      
-    if (data?.settings?.avatars && data.settings.avatars[genderKey]) {
-      setVipAvatars(data.settings.avatars[genderKey] || []);
-    } else {
-      // If no avatars found, set empty array
+    try {
+      const { data } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("id", 1)
+        .single();
+        
+      if (data?.settings) {
+        // Check if settings is a string (it should be an object)
+        const settingsData = typeof data.settings === 'string' 
+          ? JSON.parse(data.settings) 
+          : data.settings;
+        
+        // Now check for avatars property in the parsed settings
+        if (settingsData && 
+            settingsData.avatars && 
+            Array.isArray(settingsData.avatars[genderKey])) {
+          setVipAvatars(settingsData.avatars[genderKey]);
+        } else {
+          // If no avatars found or not in expected format, set empty array
+          console.log('No avatar data found in expected format:', settingsData);
+          setVipAvatars([]);
+        }
+      } else {
+        // If no settings data found at all, set empty array
+        console.log('No settings data found');
+        setVipAvatars([]);
+      }
+    } catch (error) {
+      console.error('Error loading avatars:', error);
       setVipAvatars([]);
     }
   };
