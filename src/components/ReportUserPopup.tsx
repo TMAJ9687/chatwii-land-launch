@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -22,7 +21,7 @@ interface ReportUserPopupProps {
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([
     promise,
-    new Promise<never>((_, reject) => 
+    new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Request timed out')), ms)
     ),
   ]);
@@ -47,14 +46,17 @@ export const ReportUserPopup = ({
   const [otherReason, setOtherReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
+  // This function resets all local state
+  const resetForm = () => {
+    setSelectedReason('');
+    setOtherReason('');
+    setSubmitAttempted(false);
+  };
+
   const handleOpenChange = (open: boolean) => {
     if (!open) {
+      resetForm();
       onClose();
-      setTimeout(() => {
-        setSelectedReason('');
-        setOtherReason('');
-        setSubmitAttempted(false);
-      }, 300);
     }
   };
 
@@ -63,7 +65,7 @@ export const ReportUserPopup = ({
       try {
         const start = Date.now();
         console.log('Starting report submission...');
-        
+
         const { data: { user } } = await withTimeout(supabase.auth.getUser(), 5000);
         if (!user) throw new Error('Not authenticated');
 
@@ -74,15 +76,13 @@ export const ReportUserPopup = ({
           status: 'pending'
         };
 
-        // Fix: Convert Supabase builder to a proper Promise
         const { data, error } = await withTimeout(
-          // Use Promise.resolve to ensure this is treated as a Promise
           Promise.resolve(supabase.from('reports').insert(reportObject)).then(result => result),
           5000
         );
-        
+
         if (error) throw error;
-        
+
         console.log(`Report submission took ${Date.now() - start}ms`);
         return data;
       } catch (error: any) {
@@ -95,13 +95,14 @@ export const ReportUserPopup = ({
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      onClose();
+      // onClose will also reset the form
+      handleOpenChange(false);
     },
     onError: (error: any) => {
       console.error('Report submission error:', error);
       toast.error(error.message || 'Failed to submit report. Please try again later.');
       setSubmitAttempted(false);
-      onClose();
+      // Optionally close or keep open; here we keep open for retry
     },
     onSettled: () => {
       setSubmitAttempted(false);
@@ -110,13 +111,13 @@ export const ReportUserPopup = ({
 
   const handleSubmit = async () => {
     if (submitAttempted || reportMutation.isPending) return;
-    
+
     if (!selectedReason) {
       toast.error('Please select a reason');
       return;
     }
 
-    const reason = selectedReason === 'other' ? otherReason : 
+    const reason = selectedReason === 'other' ? otherReason :
       REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
 
     if (selectedReason === 'other' && !otherReason.trim()) {
@@ -157,7 +158,7 @@ export const ReportUserPopup = ({
             />
           )}
 
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={reportMutation.isPending || submitAttempted}
             className="w-full"
