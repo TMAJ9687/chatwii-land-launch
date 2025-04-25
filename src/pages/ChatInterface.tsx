@@ -326,6 +326,8 @@ const ChatInterface = () => {
             onClose={handleCloseChat}
             onSendMessage={handleSendMessage}
             onMessagesRead={() => fetchUnreadCount()}
+            showReportPopup={showReportPopup}                 // ✅ add this line!
+            setShowReportPopup={setShowReportPopup}           // ✅ and this!
           />
         </main>
       </div>
