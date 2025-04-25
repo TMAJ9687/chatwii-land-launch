@@ -31,7 +31,7 @@ export const ReportUserPopup = ({
   const [otherReason, setOtherReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Reset form when modal opens or closes or when new user is selected
+  // Reset form state on open/close or user change
   useEffect(() => {
     if (!isOpen) {
       setSelectedReason('');
@@ -85,7 +85,7 @@ export const ReportUserPopup = ({
     reportMutation.mutate({ reason });
   };
 
-  // Fallback modal with safe overlay, no dialog dependencies!
+  // No modal if not open!
   if (!isOpen) return null;
 
   return (
@@ -94,7 +94,7 @@ export const ReportUserPopup = ({
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.20)",
+          background: "rgba(0,0,0,0.35)",
           zIndex: 9998,
         }}
         onClick={onClose}
@@ -108,10 +108,10 @@ export const ReportUserPopup = ({
           background: "white",
           padding: "1.3rem 1rem 1rem 1rem",
           zIndex: 9999,
-          borderRadius: "12px",
-          minWidth: "280px",
+          borderRadius: "13px",
+          minWidth: "270px",
           maxWidth: "94vw",
-          boxShadow: "0 8px 32px #0001",
+          boxShadow: "0 8px 32px #0002",
           fontFamily: "inherit",
         }}
         role="dialog"
@@ -122,16 +122,14 @@ export const ReportUserPopup = ({
           style={{
             position: "absolute",
             right: 10,
-            top: 8,
+            top: 7,
             background: "none",
             border: "none",
-            fontSize: 17,
+            fontSize: 16,
             cursor: "pointer",
             color: "#aaa",
-            lineHeight: "1",
-            padding: 0,
-            width: 28,
-            height: 28,
+            width: 26,
+            height: 26,
             display: "flex",
             alignItems: "center",
             justifyContent: "center"
@@ -139,8 +137,8 @@ export const ReportUserPopup = ({
           aria-label="Close"
         >✕</button>
         <h2 style={{
-          margin: "0 0 12px 0",
-          fontSize: "1.1rem",
+          margin: "0 0 13px 0",
+          fontSize: "1.09rem",
           fontWeight: 600,
           letterSpacing: 0.1,
         }}>
@@ -154,7 +152,7 @@ export const ReportUserPopup = ({
               padding: "7px 9px",
               borderRadius: 5,
               border: "1px solid #ddd",
-              fontSize: "0.97rem",
+              fontSize: "0.96rem",
               background: "#fafafa",
               color: "#333"
             }}
@@ -174,7 +172,7 @@ export const ReportUserPopup = ({
               onChange={e => setOtherReason(e.target.value.slice(0, 120))}
               style={{
                 width: "100%",
-                height: 48,
+                height: 40,
                 marginBottom: 8,
                 padding: "7px 9px",
                 borderRadius: 5,
@@ -194,13 +192,13 @@ export const ReportUserPopup = ({
           disabled={reportMutation.isPending || submitAttempted}
           style={{
             width: "100%",
-            padding: "9px 0",
+            padding: "8px 0",
             background: "#fc8181",
             color: "white",
             border: "none",
             borderRadius: 7,
             fontWeight: 500,
-            fontSize: "1rem",
+            fontSize: "0.98rem",
             cursor: reportMutation.isPending || submitAttempted ? "not-allowed" : "pointer",
             opacity: reportMutation.isPending || submitAttempted ? 0.7 : 1,
             letterSpacing: 0.1,
