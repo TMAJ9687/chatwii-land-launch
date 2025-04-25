@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { isMockUser } from '@/utils/mockUsers';
 // 👇 Import ChatHeader!
-import { ChatHeader } from '@/components/ChatHeader';
+import { ChatHeader } from '@/components/chat/ChatHeader';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
