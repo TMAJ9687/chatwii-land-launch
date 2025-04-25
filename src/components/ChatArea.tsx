@@ -8,8 +8,6 @@ import { MessageList } from './chat/MessageList';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { isMockUser } from '@/utils/mockUsers';
-// 👇 Import ChatHeader!
-import { ChatHeader } from '@/components/chat/ChatHeader';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -47,12 +45,10 @@ export const ChatArea = ({
     const maxRetries = 3;
     
     const markMessagesAsRead = async () => {
-      // Skip database operations for mock user
       if (isMockVipUser) {
         if (onMessagesRead) onMessagesRead();
         return;
       }
-      
       if (currentUserId && selectedUser.id) {
         try {
           const { error } = await supabase
@@ -61,24 +57,20 @@ export const ChatArea = ({
             .eq('sender_id', selectedUser.id)
             .eq('receiver_id', currentUserId)
             .eq('is_read', false);
-          
           if (error) {
             if (retryCount < maxRetries) {
               retryCount++;
-              console.log(`Retrying markMessagesAsRead (attempt ${retryCount})`);
               setTimeout(markMessagesAsRead, 1000 * retryCount);
               return;
             }
             throw error;
           }
-          
           if (onMessagesRead) onMessagesRead();
         } catch (error) {
           console.error('Error marking messages as read:', error);
         }
       }
     };
-
     markMessagesAsRead();
   }, [currentUserId, selectedUser.id, onMessagesRead, isMockVipUser]);
 
@@ -103,22 +95,8 @@ export const ChatArea = ({
     }
   };
 
-  // 💡 NEW: Handles clicking "Report User" in the header
-  const handleReportUser = () => {
-    setShowReportPopup(true);
-  };
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* 👇 Add the header at the top */}
-      <ChatHeader
-        nickname={selectedUser.nickname}
-        onClose={onClose}
-        onReportUser={handleReportUser}
-        onBlockUser={handleBlockUser}
-        isBlocked={isBlocked}
-      />
-
       {isMockVipUser && (
         <Alert className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 m-4">
           <Info className="h-4 w-4 text-amber-500" />
@@ -136,11 +114,13 @@ export const ChatArea = ({
         toggleImageReveal={toggleImageReveal}
       />
 
-      <ReportUserPopup
-        isOpen={showReportPopup}
-        onClose={() => setShowReportPopup(false)}
-        reportedUser={selectedUser}
-      />
+      {showReportPopup && (
+        <ReportUserPopup
+          isOpen={showReportPopup}
+          onClose={() => setShowReportPopup(false)}
+          reportedUser={selectedUser}
+        />
+      )}
 
       {fullScreenImage && (
         <ImageModal 
