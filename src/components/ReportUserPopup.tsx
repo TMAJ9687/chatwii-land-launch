@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 interface ReportUserPopupProps {
   isOpen: boolean;
@@ -13,23 +17,14 @@ interface ReportUserPopupProps {
 }
 
 const REPORT_REASONS = [
-  { id: 'underage', label: 'Under age', description: 'User is below 18' },
-  { id: 'harassment', label: 'Harassment / Bullying', description: 'Sending terrible texts' },
-  { id: 'hate', label: 'Hate Speech / Discrimination', description: 'Racism / sexism' },
-  { id: 'spam', label: 'Spam / Scams', description: 'Spamming the chat and phishing' },
-  { id: 'impersonation', label: 'Impersonation', description: 'Pretending to be someone they are not' },
-  { id: 'explicit', label: 'Explicit / Inappropriate Content', description: 'Sharing NSFW material' },
-  { id: 'other', label: 'Other', description: '' }
+  { id: 'underage', label: 'Under age', desc: 'User is below 18' },
+  { id: 'harassment', label: 'Harassment / Bullying', desc: 'Sending terrible texts' },
+  { id: 'hate', label: 'Hate Speech / Discrimination', desc: 'Racism / sexism' },
+  { id: 'spam', label: 'Spam / Scams', desc: 'Spamming the chat and phishing' },
+  { id: 'impersonation', label: 'Impersonation', desc: 'Pretending to be someone they are not' },
+  { id: 'explicit', label: 'Explicit / Inappropriate Content', desc: 'Sharing NSFW material' },
+  { id: 'other', label: 'Other', desc: '' }
 ];
-
-const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out')), ms)
-    ),
-  ]);
-};
 
 export const ReportUserPopup = ({
   isOpen,
@@ -40,45 +35,43 @@ export const ReportUserPopup = ({
   const [otherReason, setOtherReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedReason('');
+      setOtherReason('');
+      setSubmitAttempted(false);
+    }
+  }, [isOpen, reportedUser?.id]);
+
   const resetForm = () => {
     setSelectedReason('');
     setOtherReason('');
     setSubmitAttempted(false);
   };
 
-  // Only show the modal if open
-  if (!isOpen) return null;
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      resetForm();
+      onClose();
+    }
+  };
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
-      try {
-        const { data: { user } } = await withTimeout(supabase.auth.getUser(), 5000);
-        if (!user) throw new Error('Not authenticated');
-
-        const reportObject = {
-          reporter_id: user.id,
-          reported_id: reportedUser.id,
-          reason,
-          status: 'pending'
-        };
-
-        const { data, error } = await withTimeout(
-          Promise.resolve(supabase.from('reports').insert(reportObject)).then(result => result),
-          5000
-        );
-
-        if (error) throw error;
-        return data;
-      } catch (error: any) {
-        if (error.message?.includes('timed out')) {
-          throw new Error('Request timed out. Please try again later.');
-        }
-        throw error;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const reportObject = {
+        reporter_id: user.id,
+        reported_id: reportedUser.id,
+        reason,
+        status: 'pending'
+      };
+      const { error } = await supabase.from('reports').insert(reportObject);
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
-      handleClose();
+      handleOpenChange(false);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to submit report. Please try again later.');
@@ -96,113 +89,94 @@ export const ReportUserPopup = ({
       return;
     }
 
+    const reason = selectedReason === 'other' ? otherReason : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
     if (selectedReason === 'other' && !otherReason.trim()) {
       toast.error('Please provide a reason');
       return;
     }
 
     setSubmitAttempted(true);
-
-    const reason =
-      selectedReason === 'other'
-        ? otherReason
-        : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
-
     reportMutation.mutate({ reason });
   };
 
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
+  if (!isOpen) return null;
 
   return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-50 bg-black/30 transition-opacity"
-        onClick={handleClose}
-        aria-label="Close report popup"
-      />
-      {/* Modal */}
-      <div
-        className="fixed z-50 left-1/2 top-1/2 bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 border border-gray-100"
-        style={{ minWidth: 320 }}
-        role="dialog"
-        aria-modal="true"
-      >
-        <button
-          type="button"
-          className="absolute right-3 top-3 text-gray-400 hover:text-red-500"
-          onClick={handleClose}
-          aria-label="Close"
-        >
-          ×
-        </button>
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
-          Report <span className="text-red-500">{reportedUser.nickname}</span>
-        </h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Why are you reporting this user? Select a reason below.
-        </p>
-        <form onSubmit={handleSubmit}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm w-full rounded-xl bg-white dark:bg-neutral-900 shadow-xl p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle className="text-lg font-semibold text-gray-800 dark:text-white">
+            Report <span className="text-red-500">{reportedUser?.nickname || "User"}</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs text-gray-500 dark:text-gray-300">
+            Why are you reporting this user? Select a reason below.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="px-6 pt-2 pb-6">
           <div className="space-y-2">
-            {REPORT_REASONS.map(reason => (
+            {REPORT_REASONS.map((reason) => (
               <label
                 key={reason.id}
-                htmlFor={`reason-${reason.id}`}
-                className={`flex items-start p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border border-transparent transition`}
+                className={`flex items-start gap-2.5 p-2 rounded-md border border-transparent hover:bg-gray-50 dark:hover:bg-neutral-800 transition cursor-pointer ${
+                  selectedReason === reason.id ? 'ring-2 ring-red-200 dark:ring-red-600' : ''
+                }`}
               >
                 <input
                   type="radio"
-                  id={`reason-${reason.id}`}
-                  name="report_reason"
+                  name="reason"
                   value={reason.id}
                   checked={selectedReason === reason.id}
                   onChange={() => setSelectedReason(reason.id)}
-                  className="mt-1.5 mr-3 text-red-600 focus:ring-red-500"
+                  className="mt-1.5 accent-red-500"
+                  disabled={reportMutation.isPending}
                 />
                 <div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-100">{reason.label}</span>
-                  {reason.description && (
-                    <p className="text-xs text-gray-500 mt-0.5">{reason.description}</p>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-100">{reason.label}</div>
+                  {reason.desc && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{reason.desc}</div>
                   )}
                 </div>
               </label>
             ))}
-            {/* Show textarea if "Other" is selected */}
             {selectedReason === 'other' && (
-              <textarea
-                className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 text-xs"
-                placeholder="Please provide more details..."
+              <Textarea
                 value={otherReason}
-                onChange={e => setOtherReason(e.target.value.slice(0, 120))}
+                onChange={(e) => setOtherReason(e.target.value.slice(0, 120))}
+                placeholder="Please provide more details..."
+                className="w-full mt-2 p-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 text-xs"
                 rows={3}
                 maxLength={120}
-                required
-                autoFocus
+                disabled={reportMutation.isPending}
               />
             )}
           </div>
-          <div className="mt-4 flex justify-end space-x-2">
-            <button
+          <div className="mt-5 flex justify-end space-x-2">
+            <Button
               type="button"
-              className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-500"
-              onClick={handleClose}
+              variant="secondary"
+              className="text-xs"
+              onClick={onClose}
               disabled={reportMutation.isPending}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500"
+              className="text-xs bg-red-600 hover:bg-red-700"
               disabled={reportMutation.isPending || submitAttempted}
             >
-              {reportMutation.isPending ? "Submitting..." : "Submit Report"}
-            </button>
+              {reportMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Report"
+              )}
+            </Button>
           </div>
         </form>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 };
