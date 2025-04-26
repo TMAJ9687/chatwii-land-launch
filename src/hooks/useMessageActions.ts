@@ -131,19 +131,25 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       setIsDeletingConversation(true);
       toast.loading('Deleting conversation...');
       
-      // Use a more efficient query to mark all messages as deleted
-      const { error } = await supabase.rpc('mark_conversation_deleted', {
-        user_id_a: currentUserId,
-        user_id_b: partnerId
-      }).catch(async () => {
-        // Fallback method if the RPC doesn't exist
-        return await supabase
-          .from('messages')
-          .update({ deleted_at: new Date().toISOString() })
-          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUserId})`);
-      });
-
-      if (error) throw error;
+      // Fix: Use a direct SQL query instead of RPC
+      // First, delete messages sent by current user to partner
+      const { error: error1 } = await supabase
+        .from('messages')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('sender_id', currentUserId)
+        .eq('receiver_id', partnerId);
+        
+      if (error1) throw error1;
+      
+      // Then, delete messages received by current user from partner
+      const { error: error2 } = await supabase
+        .from('messages')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('sender_id', partnerId)
+        .eq('receiver_id', currentUserId);
+      
+      if (error2) throw error2;
+      
       toast.dismiss();
       toast.success('Conversation deleted');
     } catch (error) {

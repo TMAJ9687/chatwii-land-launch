@@ -9,6 +9,8 @@ interface MessageListProps {
   onImageClick: (url: string) => void;
   revealedImages: Set<number>;
   toggleImageReveal: (messageId: number) => void;
+  isTyping?: boolean;
+  isVipUser?: boolean;
 }
 
 export const MessageList = ({ 
@@ -16,7 +18,9 @@ export const MessageList = ({
   currentUserId, 
   onImageClick,
   revealedImages,
-  toggleImageReveal
+  toggleImageReveal,
+  isTyping = false,
+  isVipUser = false
 }: MessageListProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -26,7 +30,7 @@ export const MessageList = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -38,8 +42,18 @@ export const MessageList = ({
           onImageClick={onImageClick}
           revealedImages={revealedImages}
           toggleImageReveal={toggleImageReveal}
+          isVipUser={isVipUser}
         />
       ))}
+      
+      {isTyping && isVipUser && (
+        <div className="flex items-center space-x-1 opacity-70 ml-2">
+          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
+        </div>
+      )}
+      
       <div ref={messagesEndRef} />
     </div>
   );

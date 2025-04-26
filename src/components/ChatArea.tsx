@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -18,6 +19,8 @@ interface ChatAreaProps {
   };
   onClose?: () => void;
   onMessagesRead?: () => void;
+  isTyping?: boolean; // Added isTyping property
+  isVipUser?: boolean; // Added isVipUser property
 }
 
 export const ChatArea = ({ 
@@ -25,7 +28,9 @@ export const ChatArea = ({
   currentUserId, 
   selectedUser,
   onClose,
-  onMessagesRead
+  onMessagesRead,
+  isTyping = false, // Default to false
+  isVipUser = false // Default to false
 }: ChatAreaProps) => {
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
@@ -118,6 +123,8 @@ export const ChatArea = ({
         onImageClick={(url) => setFullScreenImage(url)}
         revealedImages={revealedImages}
         toggleImageReveal={toggleImageReveal}
+        isTyping={isTyping}
+        isVipUser={isVipUser}
       />
 
       <ReportUserPopup

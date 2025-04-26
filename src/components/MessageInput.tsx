@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Send, Smile, Paperclip, Mic, Info } from 'lucide-react';
 import { Button } from './ui/button';
@@ -13,6 +14,7 @@ import { ImagePreview } from './chat/ImagePreview';
 import { VoicePreview } from './chat/VoicePreview';
 import { toast } from 'sonner';
 import { isMockUser } from '@/utils/mockUsers';
+import { debounce } from 'lodash';
 import {
   Tooltip,
   TooltipContent,
