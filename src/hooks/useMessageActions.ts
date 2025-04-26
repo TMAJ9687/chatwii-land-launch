@@ -129,23 +129,16 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       setTranslatingMessageId(message.id);
       
       // Using a more reliable translation service that doesn't require API keys
-      const response = await fetch('https://api.mymemory.translated.net/get', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        // Using query parameters instead of body for GET request
-        // Add a fake email to increase rate limit (can be replaced with user's email in production)
-        // The langpair parameter auto-detects source language and translates to English
-      });
-
+      // Create the API URL with search parameters
       const apiUrl = new URL('https://api.mymemory.translated.net/get');
       apiUrl.searchParams.append('q', message.content);
       apiUrl.searchParams.append('langpair', 'auto|en');
       apiUrl.searchParams.append('de', 'temp@chatwii.com'); // Add a dummy email to increase rate limit
       
-      const response = await fetch(apiUrl.toString());
-      if (!response.ok) throw new Error('Translation failed');
+      const translationResponse = await fetch(apiUrl.toString());
+      if (!translationResponse.ok) throw new Error('Translation failed');
       
-      const data = await response.json();
+      const data = await translationResponse.json();
       
       if (data.responseStatus !== 200 || !data.responseData) {
         throw new Error('Invalid translation response');

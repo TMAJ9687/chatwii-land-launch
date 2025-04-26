@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -115,15 +114,20 @@ const ChatInterface = () => {
           filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
         },
         async (payload) => {
-          if (isMockUser(payload.new.sender_id) || isMockUser(payload.new.receiver_id)) {
+          const payloadNew = payload.new as Record<string, any>;
+          
+          // Skip if sender or receiver is a mock user
+          if (payloadNew && (
+              isMockUser(payloadNew.sender_id as string) || 
+              isMockUser(payloadNew.receiver_id as string))) {
             return;
           }
           
-          if (selectedUserId && 
-             ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
-              (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
+          if (selectedUserId && payloadNew && 
+             ((payloadNew.sender_id === currentUserId && payloadNew.receiver_id === selectedUserId) ||
+              (payloadNew.sender_id === selectedUserId && payloadNew.receiver_id === currentUserId))) {
             
-            const newMessage = payload.new as Message;
+            const newMessage = payloadNew as Message;
             
             setMessages(current => {
               const exists = current.some(msg =>
@@ -203,7 +207,6 @@ const ChatInterface = () => {
     channelsRef.current.messageChannel = channel;
   }, [currentUserId, selectedUserId, setMessages]);
 
-  // Effect for setting up reactions channel
   const setupReactionsChannel = useCallback(() => {
     if (!currentUserId || !selectedUserId) return;
 
@@ -285,7 +288,6 @@ const ChatInterface = () => {
     return () => { cancelled = true; };
   }, [navigate, checkRulesAccepted]);
 
-  // Setup and cleanup messaging channels
   useEffect(() => {
     setupMessageChannel();
     setupReactionsChannel();
@@ -295,7 +297,6 @@ const ChatInterface = () => {
     };
   }, [currentUserId, selectedUserId, setupMessageChannel, setupReactionsChannel, cleanupChannels]);
 
-  // Effect to fetch messages when a user is selected
   useEffect(() => {
     if (selectedUserId && currentUserId && !isLoading) {
       // Set a flag to indicate we've just selected a new user
@@ -307,7 +308,6 @@ const ChatInterface = () => {
     }
   }, [selectedUserId, currentUserId, fetchMessages, isLoading, resetState]);
 
-  // Clear the new user flag after a delay
   useEffect(() => {
     if (hasSelectedNewUser) {
       const timer = setTimeout(() => {
@@ -409,13 +409,11 @@ const ChatInterface = () => {
 
   const handleDeleteConversation = () => {
     if (selectedUserId && !isDeletingConversation) {
-      deleteConversation(selectedUserId).then(() => {
-        fetchMessages(); // Refresh the messages after deletion
-      });
+      deleteConversation(selectedUserId);
+      fetchMessages();
     }
   };
 
-  // Show error notification if messages fail to load
   useEffect(() => {
     if (messagesError && !hasSelectedNewUser) {
       toast.error(messagesError);
