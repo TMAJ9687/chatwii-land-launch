@@ -1,10 +1,11 @@
+
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { MessageWithMedia } from '@/types/message';
 import { VoiceMessagePlayer } from '../VoiceMessagePlayer';
 import { useState } from 'react';
 import { useMessageActions } from '@/hooks/useMessageActions';
-import { MessageActions } from '@/components/MessageActions';
+import { MessageActions } from './MessageActions';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;

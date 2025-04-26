@@ -30,11 +30,27 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     if (!isVipUser) return;
     
     try {
+      // First, we need to get the original message to know the receiver_id
+      const { data: originalMessage, error: fetchError } = await supabase
+        .from('messages')
+        .select('sender_id, receiver_id')
+        .eq('id', messageId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Determine the receiver_id - if the current user sent the original message,
+      // reply to the person who received it, otherwise reply to the sender
+      const receiverId = originalMessage.sender_id === currentUserId 
+        ? originalMessage.receiver_id 
+        : originalMessage.sender_id;
+
       const { error } = await supabase
         .from('messages')
         .insert({
           content,
           sender_id: currentUserId,
+          receiver_id: receiverId,
           reply_to: messageId,
           is_read: false
         });

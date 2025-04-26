@@ -64,56 +64,65 @@ const ChatInterface = () => {
     isLoading 
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
+  const {
+    handleUnsendMessage,
+    handleReplyToMessage,
+    handleReactToMessage,
+    translateMessage,
+    deleteConversation,
+    translatingMessageId
+  } = useMessageActions(currentUserId || '', isVipUser);
+
   const globalChannelRef = useRef<any>(null);
 
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
   }, [selectedUserId, updateSelectedUserId]);
 
-useEffect(() => {
-  let cancelled = false; // ADD this for cleanup!
+  useEffect(() => {
+    let cancelled = false; // ADD this for cleanup!
 
-  const checkAuthAndLoadProfile = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const checkAuthAndLoadProfile = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session) {
-      setCurrentUserId(null);   // Reset state to prevent bugs
-      setProfile(null);
-      navigate('/');
-      return;
-    }
+      if (!session) {
+        setCurrentUserId(null);   // Reset state to prevent bugs
+        setProfile(null);
+        navigate('/');
+        return;
+      }
 
-    setCurrentUserId(session.user.id);
+      setCurrentUserId(session.user.id);
 
-    // Use maybeSingle() and check for both error and missing data!
-    const { data: dbProfile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle();
+      // Use maybeSingle() and check for both error and missing data!
+      const { data: dbProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
 
-    if (cancelled) return; // Don't update state if effect is cleaned up
+      if (cancelled) return; // Don't update state if effect is cleaned up
 
-    if (!error && dbProfile) {
-      setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
-      setCurrentUserRole(dbProfile.role || 'standard');
-      setProfile(dbProfile);
-    } else {
-      // If profile is missing (after delete), log out fully!
-      setCurrentUserId(null);
-      setProfile(null);
-      // Avoid infinite fallback "unknown" profile; instead force logout:
-      await supabase.auth.signOut();
-      navigate('/');
-      return;
-    }
+      if (!error && dbProfile) {
+        setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
+        setCurrentUserRole(dbProfile.role || 'standard');
+        setProfile(dbProfile);
+      } else {
+        // If profile is missing (after delete), log out fully!
+        setCurrentUserId(null);
+        setProfile(null);
+        // Avoid infinite fallback "unknown" profile; instead force logout:
+        await supabase.auth.signOut();
+        navigate('/');
+        return;
+      }
 
-    checkRulesAccepted();
-  };
+      checkRulesAccepted();
+    };
 
-  checkAuthAndLoadProfile();
-  return () => { cancelled = true; };
-}, [navigate, checkRulesAccepted]);
+    checkAuthAndLoadProfile();
+    return () => { cancelled = true; };
+  }, [navigate, checkRulesAccepted]);
 
 
   useEffect(() => {
@@ -268,6 +277,13 @@ useEffect(() => {
     }
   };
 
+  const handleDeleteConversation = () => {
+    if (selectedUserId) {
+      deleteConversation(selectedUserId);
+      handleCloseChat();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border py-3 px-4 flex items-center justify-between">
@@ -320,7 +336,9 @@ useEffect(() => {
               onClose={handleCloseChat}
               onReportUser={() => setShowReportPopup(true)}
               onBlockUser={handleBlockUser}
+              onDeleteConversation={handleDeleteConversation}
               isBlocked={isBlocked}
+              isVipUser={isVipUser}
             />
           )}
           

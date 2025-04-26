@@ -6,6 +6,10 @@ export interface Message {
   receiver_id: string;
   created_at: string;
   is_read?: boolean;
+  deleted_at?: string | null;
+  reply_to?: number | null;
+  translated_content?: string | null;
+  language_code?: string | null;
 }
 
 export interface MessageMedia {
