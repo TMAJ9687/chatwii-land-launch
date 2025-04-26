@@ -14,6 +14,8 @@ interface ChatContentProps {
   onSendMessage: (content: string, imageUrl?: string) => void;
   onMessagesRead: () => void;
   isVipUser?: boolean;
+  isTyping?: boolean;
+  onTypingStatusChange?: (isTyping: boolean) => void;
 }
 
 export const ChatContent = ({
@@ -25,8 +27,10 @@ export const ChatContent = ({
   onSendMessage,
   onMessagesRead,
   isVipUser = false,
+  isTyping = false,
+  onTypingStatusChange,
 }: ChatContentProps) => {
-  const [isTyping, setIsTyping] = useState(false);
+  // Now typing status is managed by the parent component and passed as prop
   
   // Only for VIP users: track and share typing status
   useEffect(() => {
@@ -37,12 +41,16 @@ export const ChatContent = ({
     typingChannel
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (payload.userId === selectedUserId) {
-          setIsTyping(payload.isTyping);
+          if (onTypingStatusChange) {
+            onTypingStatusChange(payload.isTyping);
+          }
           
           // Auto-reset typing indicator after 5 seconds if no new typing event
           if (payload.isTyping) {
             setTimeout(() => {
-              setIsTyping(false);
+              if (onTypingStatusChange) {
+                onTypingStatusChange(false);
+              }
             }, 5000);
           }
         }
@@ -52,7 +60,7 @@ export const ChatContent = ({
     return () => {
       supabase.removeChannel(typingChannel);
     };
-  }, [selectedUserId, currentUserId, isVipUser]);
+  }, [selectedUserId, currentUserId, isVipUser, onTypingStatusChange]);
 
   if (!selectedUserId) {
     return (
@@ -86,14 +94,7 @@ export const ChatContent = ({
         currentUserId={currentUserId}
         receiverId={selectedUserId}
         isVipUser={isVipUser}
-        onTypingStatusChange={isVipUser ? (isTyping) => {
-          supabase.channel(`typing:${selectedUserId}-${currentUserId}`)
-            .send({
-              type: 'broadcast',
-              event: 'typing',
-              payload: { userId: currentUserId, isTyping }
-            });
-        } : undefined}
+        onTypingStatusChange={isVipUser ? onTypingStatusChange : undefined}
       />
     </>
   );
