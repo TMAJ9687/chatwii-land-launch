@@ -1,13 +1,15 @@
-
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { MessageWithMedia } from '@/types/message';
 import { VoiceMessagePlayer } from '../VoiceMessagePlayer';
 import { useState } from 'react';
+import { useMessageActions } from '@/hooks/useMessageActions';
+import { MessageActions } from '@/components/MessageActions';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
   currentUserId: string;
+  isVipUser?: boolean;
   onImageClick: (url: string) => void;
   revealedImages: Set<number>;
   toggleImageReveal: (messageId: number) => void;
@@ -16,19 +18,28 @@ interface MessageBubbleProps {
 export const MessageBubble = ({ 
   message, 
   currentUserId, 
+  isVipUser = false,
   onImageClick, 
   revealedImages,
   toggleImageReveal 
 }: MessageBubbleProps) => {
   const [loadingImage, setLoadingImage] = useState(true);
   const isCurrentUser = message.sender_id === currentUserId;
+  
+  const {
+    handleUnsendMessage,
+    handleReplyToMessage,
+    handleReactToMessage,
+    translateMessage,
+    translatingMessageId
+  } = useMessageActions(currentUserId, isVipUser || false);
 
   const handleImageLoad = () => {
     setLoadingImage(false);
   };
 
   return (
-    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} relative group`}>
       <div
         className={`max-w-[70%] rounded-lg p-3 ${
           isCurrentUser
@@ -36,8 +47,30 @@ export const MessageBubble = ({
             : 'bg-muted'
         }`}
       >
-        {/* Text content */}
-        {message.content && <p className="break-words">{message.content}</p>}
+        {/* Reply preview if this is a reply */}
+        {message.reply_to && (
+          <div className="text-sm opacity-70 mb-1 pb-1 border-b">
+            {/* Show reply preview content */}
+            ↪️ Reply to message
+          </div>
+        )}
+
+        {/* Regular message content */}
+        {message.content && !message.deleted_at && (
+          <div>
+            <p className="break-words">{message.content}</p>
+            {message.translated_content && (
+              <p className="text-sm opacity-70 mt-1 italic">
+                {message.translated_content}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Deleted message placeholder */}
+        {message.deleted_at && (
+          <p className="italic text-sm opacity-70">Message removed</p>
+        )}
 
         {/* Image media */}
         {message.media && message.media.media_type === 'image' && (
@@ -78,6 +111,17 @@ export const MessageBubble = ({
           </div>
         )}
         
+        {/* Message Actions */}
+        <MessageActions
+          message={message}
+          isCurrentUser={isCurrentUser}
+          isVipUser={isVipUser}
+          onUnsend={() => handleUnsendMessage(message.id)}
+          onReply={() => handleReplyToMessage(message.id, message.content || '')}
+          onReact={(emoji) => handleReactToMessage(message.id, emoji)}
+          onTranslate={() => translateMessage(message)}
+        />
+
         {/* Timestamp */}
         <span className={`text-xs block mt-1 ${
           isCurrentUser

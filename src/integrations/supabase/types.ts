@@ -225,30 +225,74 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: number
+          message_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: never
+          message_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: never
+          message_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string | null
           created_at: string
+          deleted_at: string | null
           id: number
           is_read: boolean | null
+          language_code: string | null
           receiver_id: string
+          reply_to: number | null
           sender_id: string
+          translated_content: string | null
         }
         Insert: {
           content?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: number
           is_read?: boolean | null
+          language_code?: string | null
           receiver_id: string
+          reply_to?: number | null
           sender_id: string
+          translated_content?: string | null
         }
         Update: {
           content?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: number
           is_read?: boolean | null
+          language_code?: string | null
           receiver_id?: string
+          reply_to?: number | null
           sender_id?: string
+          translated_content?: string | null
         }
         Relationships: [
           {
@@ -256,6 +300,13 @@ export type Database = {
             columns: ["receiver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {
