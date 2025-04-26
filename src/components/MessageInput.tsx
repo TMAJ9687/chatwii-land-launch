@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Send, Smile, Paperclip, Mic, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -25,9 +24,17 @@ interface MessageInputProps {
   onSendMessage: (content: string, imageUrl?: string) => void;
   currentUserId: string | null;
   receiverId: string;
+  isVipUser?: boolean;
+  onTypingStatusChange?: (isTyping: boolean) => void;
 }
 
-export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: MessageInputProps) => {
+export const MessageInput = ({ 
+  onSendMessage, 
+  currentUserId, 
+  receiverId,
+  isVipUser = false,
+  onTypingStatusChange 
+}: MessageInputProps) => {
   const [uploadingMessage, setUploadingMessage] = useState(false);
   const { canInteractWithUser } = useBlockedUsers();
   const canSendToUser = canInteractWithUser(receiverId);
@@ -71,6 +78,26 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
     triggerFileInput,
     handleImageUpload
   } = useImageMessage(currentUserId, canSendToUser && !isMockVipUser, hasReachedLimit, isVip, dailyLimit);
+
+  const debouncedTypingStatus = useCallback(
+    debounce((isTyping: boolean) => {
+      if (onTypingStatusChange) {
+        onTypingStatusChange(isTyping);
+      }
+    }, 300),
+    [onTypingStatusChange]
+  );
+
+  useEffect(() => {
+    if (isVipUser && message.length > 0) {
+      debouncedTypingStatus(true);
+      const timeout = setTimeout(() => {
+        debouncedTypingStatus(false);
+      }, 5000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [message, isVipUser, debouncedTypingStatus]);
 
   const handleSendMessage = async () => {
     if (isMockVipUser) {
@@ -123,7 +150,6 @@ export const MessageInput = ({ onSendMessage, currentUserId, receiverId }: Messa
     }
   };
 
-  // If this is a mock user, show a disabled input with explanatory text
   if (isMockVipUser) {
     return (
       <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">

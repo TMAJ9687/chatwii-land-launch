@@ -35,7 +35,7 @@ export const MessageActions = ({
   if (!isVipUser) return null;
 
   return (
-    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-0 flex items-center gap-1 p-1">
+    <div className="absolute right-0 top-0 flex items-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
       <Button
         variant="ghost"
         size="icon"
@@ -65,7 +65,7 @@ export const MessageActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {message.language_code && (
+          {message.content && message.language_code !== 'en' && (
             <DropdownMenuItem onClick={onTranslate}>
               <Languages className="h-4 w-4 mr-2" />
               Translate

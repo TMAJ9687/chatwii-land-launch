@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -72,7 +71,8 @@ const ChatInterface = () => {
     handleReactToMessage,
     translateMessage,
     deleteConversation,
-    translatingMessageId
+    translatingMessageId,
+    isDeletingConversation
   } = useMessageActions(currentUserId || '', isVipUser);
 
   const globalChannelRef = useRef<any>(null);
@@ -280,9 +280,10 @@ const ChatInterface = () => {
   };
 
   const handleDeleteConversation = () => {
-    if (selectedUserId) {
+    if (selectedUserId && !isDeletingConversation) {
       deleteConversation(selectedUserId);
-      handleCloseChat();
+      // Don't close the chat immediately, wait for the operation to complete
+      // The toast will show the status
     }
   };
 
@@ -352,6 +353,7 @@ const ChatInterface = () => {
             onClose={handleCloseChat}
             onSendMessage={handleSendMessage}
             onMessagesRead={() => fetchUnreadCount()}
+            isVipUser={isVipUser}
           />
         </main>
       </div>

@@ -10,6 +10,8 @@ export interface Message {
   reply_to?: number | null;
   translated_content?: string | null;
   language_code?: string | null;
+  is_delivered?: boolean;
+  is_typing?: boolean;
 }
 
 export interface MessageMedia {
@@ -21,6 +23,15 @@ export interface MessageMedia {
   created_at: string;
 }
 
+export interface MessageReaction {
+  id: number;
+  message_id: number;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface MessageWithMedia extends Message {
   media?: MessageMedia | null;
+  reactions?: MessageReaction[] | null;
 }

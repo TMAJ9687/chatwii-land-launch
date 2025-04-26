@@ -7,6 +7,7 @@ import { debounce } from 'lodash';
 
 export const useMessageActions = (currentUserId: string, isVipUser: boolean) => {
   const [translatingMessageId, setTranslatingMessageId] = useState<number | null>(null);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
   const handleUnsendMessage = async (messageId: number) => {
     if (!isVipUser) return;
@@ -27,7 +28,7 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
   };
 
   const handleReplyToMessage = async (messageId: number, content: string) => {
-    if (!isVipUser) return;
+    if (!isVipUser || !content) return;
     
     try {
       // First, we need to get the original message to know the receiver_id
@@ -56,6 +57,7 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
         });
 
       if (error) throw error;
+      toast.success('Reply sent');
     } catch (error) {
       console.error('Error replying to message:', error);
       toast.error('Failed to send reply');
@@ -73,10 +75,11 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
           user_id: currentUserId,
           emoji
         }, {
-          onConflict: 'message_id,user_id,emoji'
+          onConflict: 'message_id,user_id'
         });
 
       if (error) throw error;
+      toast.success('Reaction added');
     } catch (error) {
       console.error('Error reacting to message:', error);
       toast.error('Failed to add reaction');
@@ -112,6 +115,7 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
         .eq('id', message.id);
 
       if (error) throw error;
+      toast.success('Message translated');
     } catch (error) {
       console.error('Error translating message:', error);
       toast.error('Failed to translate message');
@@ -121,19 +125,33 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
   }, 500);
 
   const deleteConversation = async (partnerId: string) => {
-    if (!isVipUser) return;
+    if (!isVipUser || isDeletingConversation) return;
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUserId})`);
+      setIsDeletingConversation(true);
+      toast.loading('Deleting conversation...');
+      
+      // Use a more efficient query to mark all messages as deleted
+      const { error } = await supabase.rpc('mark_conversation_deleted', {
+        user_id_a: currentUserId,
+        user_id_b: partnerId
+      }).catch(async () => {
+        // Fallback method if the RPC doesn't exist
+        return await supabase
+          .from('messages')
+          .update({ deleted_at: new Date().toISOString() })
+          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUserId})`);
+      });
 
       if (error) throw error;
+      toast.dismiss();
       toast.success('Conversation deleted');
     } catch (error) {
       console.error('Error deleting conversation:', error);
+      toast.dismiss();
       toast.error('Failed to delete conversation');
+    } finally {
+      setIsDeletingConversation(false);
     }
   };
 
@@ -143,6 +161,7 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     handleReactToMessage,
     translateMessage,
     deleteConversation,
-    translatingMessageId
+    translatingMessageId,
+    isDeletingConversation
   };
 };

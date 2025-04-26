@@ -123,14 +123,22 @@ export const MessageBubble = ({
           onTranslate={() => translateMessage(message)}
         />
 
-        {/* Timestamp */}
-        <span className={`text-xs block mt-1 ${
-          isCurrentUser
-            ? 'text-primary-foreground/70'
-            : 'text-muted-foreground'
-        }`}>
-          {format(new Date(message.created_at), 'HH:mm')}
-        </span>
+        {/* Timestamp and Status */}
+        <div className="flex items-center justify-between mt-1">
+          <span className={`text-xs ${
+            isCurrentUser
+              ? 'text-primary-foreground/70'
+              : 'text-muted-foreground'
+          }`}>
+            {format(new Date(message.created_at), 'HH:mm')}
+          </span>
+          
+          {isCurrentUser && isVipUser && (
+            <span className="text-xs text-muted-foreground ml-2">
+              {message.is_read ? 'Read' : 'Sent'}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
