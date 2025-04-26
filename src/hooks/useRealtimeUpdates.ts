@@ -24,9 +24,11 @@ export function useRealtimeUpdates({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let channel;
+    
     try {
       // Create a channel for database changes
-      const channel = supabase
+      channel = supabase
         .channel(`${tableName}_changes`)
         .on(
           'postgres_changes',
@@ -75,17 +77,19 @@ export function useRealtimeUpdates({
             setIsConnected(false);
           }
         });
-
-      // Cleanup function
-      return () => {
-        supabase.removeChannel(channel);
-      };
     } catch (err: any) {
       console.error(`Error setting up realtime updates for ${tableName}:`, err);
       setError(err.message || "Failed to setup realtime updates");
       toast.error(`Realtime connection error: ${err.message}`);
-      return () => {}; // Empty cleanup if setup failed
     }
+
+    // Cleanup function
+    return () => {
+      if (channel) {
+        console.log(`Cleaning up realtime updates for ${tableName}`);
+        supabase.removeChannel(channel);
+      }
+    };
   }, [tableName, schema, filter, onInsert, onUpdate, onDelete]);
 
   return { isConnected, error };

@@ -34,6 +34,7 @@ const ChatInterface = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const [isTyping, setIsTyping] = useState(false);
   
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
@@ -82,13 +83,13 @@ const ChatInterface = () => {
   }, [selectedUserId, updateSelectedUserId]);
 
   useEffect(() => {
-    let cancelled = false; // ADD this for cleanup!
+    let cancelled = false;
 
     const checkAuthAndLoadProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        setCurrentUserId(null);   // Reset state to prevent bugs
+        setCurrentUserId(null);
         setProfile(null);
         navigate('/');
         return;
@@ -96,24 +97,21 @@ const ChatInterface = () => {
 
       setCurrentUserId(session.user.id);
 
-      // Use maybeSingle() and check for both error and missing data!
       const { data: dbProfile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
 
-      if (cancelled) return; // Don't update state if effect is cleaned up
+      if (cancelled) return;
 
       if (!error && dbProfile) {
         setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
         setCurrentUserRole(dbProfile.role || 'standard');
         setProfile(dbProfile);
       } else {
-        // If profile is missing (after delete), log out fully!
         setCurrentUserId(null);
         setProfile(null);
-        // Avoid infinite fallback "unknown" profile; instead force logout:
         await supabase.auth.signOut();
         navigate('/');
         return;
@@ -125,7 +123,6 @@ const ChatInterface = () => {
     checkAuthAndLoadProfile();
     return () => { cancelled = true; };
   }, [navigate, checkRulesAccepted]);
-
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -165,29 +162,36 @@ const ChatInterface = () => {
               return current;
             });
             
-            const { data: mediaData } = await supabase
-              .from('message_media')
-              .select('*')
-              .eq('message_id', newMessage.id);
-              
-            if (mediaData?.length) {
-              setMessages(current =>
-                current.map(msg =>
-                  msg.id === newMessage.id
-                    ? { ...msg, media: mediaData[0] }
-                    : msg
-                )
-              );
+            try {
+              const { data: mediaData } = await supabase
+                .from('message_media')
+                .select('*')
+                .eq('message_id', newMessage.id);
+                
+              if (mediaData?.length) {
+                setMessages(current =>
+                  current.map(msg =>
+                    msg.id === newMessage.id
+                      ? { ...msg, media: mediaData[0] }
+                      : msg
+                  )
+                );
+              }
+            } catch (error) {
+              console.error('Error fetching media for message:', error);
             }
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Message channel status:', status);
+      });
 
     globalChannelRef.current = channel;
       
     return () => {
       if (globalChannelRef.current) {
+        console.log('Cleaning up message channel');
         supabase.removeChannel(globalChannelRef.current);
         globalChannelRef.current = null;
       }
@@ -199,6 +203,10 @@ const ChatInterface = () => {
       fetchMessages();
     }
   }, [selectedUserId, currentUserId, fetchMessages, isLoading]);
+
+  const handleTypingStatusChange = (isTyping: boolean) => {
+    setIsTyping(isTyping);
+  };
 
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     if (!selectedUserId || !currentUserId) return;
@@ -213,77 +221,80 @@ const ChatInterface = () => {
       return;
     }
 
-    const { data: recipientProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', selectedUserId)
-      .single();
+    try {
+      const { data: recipientProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', selectedUserId)
+        .single();
 
-    const optimisticMessage = {
-      id: Date.now(),
-      content: content || (imageUrl ? '[Image]' : ''),
-      sender_id: currentUserId,
-      receiver_id: selectedUserId,
-      created_at: new Date().toISOString(),
-      is_read: false,
-      media: imageUrl ? {
+      const optimisticMessage = {
         id: Date.now(),
-        message_id: Date.now(),
-        user_id: currentUserId,
-        file_url: imageUrl,
-        media_type: imageUrl.includes('voice') ? 'voice' : 'image',
-        created_at: new Date().toISOString()
-      } : null
-    };
-
-    setMessages(current => [...current, optimisticMessage]);
-
-    const { data: messageData, error: messageError } = await supabase
-      .from('messages')
-      .insert({
         content: content || (imageUrl ? '[Image]' : ''),
         sender_id: currentUserId,
         receiver_id: selectedUserId,
-        is_read: false
-      })
-      .select()
-      .single();
-
-    if (messageError) {
-      setMessages(current =>
-        current.filter(msg => msg.id !== optimisticMessage.id)
-      );
-      toast.error("Failed to send message");
-      console.error('Error sending message:', messageError);
-      return;
-    }
-
-    if (recipientProfile?.role === 'bot' && content) {
-      handleBotResponse(selectedUserId, currentUserId, content);
-    }
-
-    if (imageUrl && messageData) {
-      const { error: mediaError } = await supabase
-        .from('message_media')
-        .insert({
-          message_id: messageData.id,
+        created_at: new Date().toISOString(),
+        is_read: false,
+        media: imageUrl ? {
+          id: Date.now(),
+          message_id: Date.now(),
           user_id: currentUserId,
           file_url: imageUrl,
-          media_type: imageUrl.includes('voice') ? 'voice' : 'image'
-        });
+          media_type: imageUrl.includes('voice') ? 'voice' : 'image',
+          created_at: new Date().toISOString()
+        } : null
+      };
 
-      if (mediaError) {
-        toast.error("Failed to attach media to message");
-        console.error('Error creating media record:', mediaError);
+      setMessages(current => [...current, optimisticMessage]);
+
+      const { data: messageData, error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          content: content || (imageUrl ? '[Image]' : ''),
+          sender_id: currentUserId,
+          receiver_id: selectedUserId,
+          is_read: false
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        setMessages(current =>
+          current.filter(msg => msg.id !== optimisticMessage.id)
+        );
+        toast.error("Failed to send message");
+        console.error('Error sending message:', messageError);
+        return;
       }
+
+      if (recipientProfile?.role === 'bot' && content) {
+        handleBotResponse(selectedUserId, currentUserId, content);
+      }
+
+      if (imageUrl && messageData) {
+        const { error: mediaError } = await supabase
+          .from('message_media')
+          .insert({
+            message_id: messageData.id,
+            user_id: currentUserId,
+            file_url: imageUrl,
+            media_type: imageUrl.includes('voice') ? 'voice' : 'image'
+          });
+
+        if (mediaError) {
+          toast.error("Failed to attach media to message");
+          console.error('Error creating media record:', mediaError);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      toast.error("An error occurred while sending your message");
     }
   };
 
   const handleDeleteConversation = () => {
     if (selectedUserId && !isDeletingConversation) {
       deleteConversation(selectedUserId);
-      // Don't close the chat immediately, wait for the operation to complete
-      // The toast will show the status
     }
   };
 
@@ -354,6 +365,8 @@ const ChatInterface = () => {
             onSendMessage={handleSendMessage}
             onMessagesRead={() => fetchUnreadCount()}
             isVipUser={isVipUser}
+            isTyping={isTyping}
+            onTypingStatusChange={handleTypingStatusChange}
           />
         </main>
       </div>

@@ -131,7 +131,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       setIsDeletingConversation(true);
       toast.loading('Deleting conversation...');
       
-      // Fix: Use a direct SQL query instead of RPC
       // First, delete messages sent by current user to partner
       const { error: error1 } = await supabase
         .from('messages')
