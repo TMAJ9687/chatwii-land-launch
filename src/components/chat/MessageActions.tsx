@@ -34,6 +34,10 @@ export const MessageActions = ({
 
   if (!isVipUser) return null;
 
+  // Only show translate option if the message has content and is not in English
+  const showTranslate = message.content && 
+    (!message.language_code || message.language_code !== 'en');
+
   return (
     <div className="absolute right-0 top-0 flex items-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
       <Button
@@ -65,7 +69,7 @@ export const MessageActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {message.content && message.language_code !== 'en' && (
+          {showTranslate && (
             <DropdownMenuItem onClick={onTranslate}>
               <Languages className="h-4 w-4 mr-2" />
               Translate

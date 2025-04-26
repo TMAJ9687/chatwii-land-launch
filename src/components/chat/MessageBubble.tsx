@@ -3,9 +3,10 @@ import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { MessageWithMedia } from '@/types/message';
 import { VoiceMessagePlayer } from '../VoiceMessagePlayer';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { MessageActions } from './MessageActions';
+import { supabase } from '@/lib/supabase';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -25,15 +26,43 @@ export const MessageBubble = ({
   toggleImageReveal 
 }: MessageBubbleProps) => {
   const [loadingImage, setLoadingImage] = useState(true);
+  const [replyMessage, setReplyMessage] = useState<MessageWithMedia | null>(null);
   const isCurrentUser = message.sender_id === currentUserId;
   
   const {
     handleUnsendMessage,
-    handleReplyToMessage,
+    startReply,
     handleReactToMessage,
     translateMessage,
     translatingMessageId
   } = useMessageActions(currentUserId, isVipUser || false);
+
+  // Fetch the message this is replying to, if any
+  useEffect(() => {
+    if (!message.reply_to) return;
+    
+    const fetchReplyMessage = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*, message_media(*)')
+          .eq('id', message.reply_to)
+          .single();
+          
+        if (error) throw error;
+        
+        setReplyMessage({
+          ...data,
+          media: data.message_media?.[0] || null,
+          reactions: []
+        });
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+      }
+    };
+    
+    fetchReplyMessage();
+  }, [message.reply_to]);
 
   const handleImageLoad = () => {
     setLoadingImage(false);
@@ -49,10 +78,16 @@ export const MessageBubble = ({
         }`}
       >
         {/* Reply preview if this is a reply */}
-        {message.reply_to && (
-          <div className="text-sm opacity-70 mb-1 pb-1 border-b">
-            {/* Show reply preview content */}
-            ↪️ Reply to message
+        {message.reply_to && replyMessage && (
+          <div className={`text-sm opacity-80 mb-2 pb-1 border-b ${
+            isCurrentUser
+              ? 'border-primary-foreground/20'
+              : 'border-muted-foreground/20'
+          }`}>
+            <div className="font-medium mb-0.5">↪️ Reply to</div>
+            <div className="truncate">
+              {replyMessage.content || (replyMessage.media ? '[Media message]' : '[Message]')}
+            </div>
           </div>
         )}
 
@@ -112,13 +147,27 @@ export const MessageBubble = ({
           </div>
         )}
         
+        {/* Display reactions if there are any */}
+        {message.reactions && message.reactions.length > 0 && (
+          <div className="flex flex-wrap mt-1 gap-1">
+            {message.reactions.map((reaction, index) => (
+              <span 
+                key={`${reaction.id || index}-${reaction.emoji}`}
+                className="inline-block bg-background/20 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-xs"
+              >
+                {reaction.emoji}
+              </span>
+            ))}
+          </div>
+        )}
+        
         {/* Message Actions */}
         <MessageActions
           message={message}
           isCurrentUser={isCurrentUser}
           isVipUser={isVipUser}
           onUnsend={() => handleUnsendMessage(message.id)}
-          onReply={() => handleReplyToMessage(message.id, message.content || '')}
+          onReply={() => startReply(message.id)}
           onReact={(emoji) => handleReactToMessage(message.id, emoji)}
           onTranslate={() => translateMessage(message)}
         />

@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +28,7 @@ import { Message } from '@/types/message';
 import { toast } from 'sonner';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { isMockUser } from '@/utils/mockUsers';
+import { debounce } from 'lodash';
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -35,6 +37,7 @@ const ChatInterface = () => {
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [hasSelectedNewUser, setHasSelectedNewUser] = useState(false);
   
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
@@ -63,11 +66,15 @@ const ChatInterface = () => {
     messages, 
     setMessages,
     fetchMessages,
-    isLoading 
+    isLoading,
+    error: messagesError,
+    resetState
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   const {
     handleUnsendMessage,
+    startReply,
+    cancelReply,
     handleReplyToMessage,
     handleReactToMessage,
     translateMessage,
@@ -76,7 +83,161 @@ const ChatInterface = () => {
     isDeletingConversation
   } = useMessageActions(currentUserId || '', isVipUser);
 
-  const globalChannelRef = useRef<any>(null);
+  const channelsRef = useRef<Record<string, any>>({});
+  
+  const cleanupChannels = useCallback(() => {
+    Object.entries(channelsRef.current).forEach(([name, channel]) => {
+      if (channel) {
+        console.log(`Cleaning up channel: ${name}`);
+        supabase.removeChannel(channel);
+        delete channelsRef.current[name];
+      }
+    });
+  }, []);
+
+  const setupMessageChannel = useCallback(() => {
+    if (!currentUserId) return;
+
+    // Clean up any existing channel
+    if (channelsRef.current.messageChannel) {
+      supabase.removeChannel(channelsRef.current.messageChannel);
+      delete channelsRef.current.messageChannel;
+    }
+
+    const channel = supabase
+      .channel('all-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+        },
+        async (payload) => {
+          if (isMockUser(payload.new.sender_id) || isMockUser(payload.new.receiver_id)) {
+            return;
+          }
+          
+          if (selectedUserId && 
+             ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
+              (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
+            
+            const newMessage = payload.new as Message;
+            
+            setMessages(current => {
+              const exists = current.some(msg =>
+                (msg.id === newMessage.id) ||
+                (msg.content === newMessage.content &&
+                  msg.sender_id === newMessage.sender_id &&
+                  Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
+              );
+              
+              if (!exists) {
+                return [...current, { ...newMessage, media: null, reactions: [] }];
+              }
+              return current;
+            });
+            
+            try {
+              const { data: mediaData } = await supabase
+                .from('message_media')
+                .select('*')
+                .eq('message_id', newMessage.id);
+                
+              if (mediaData?.length) {
+                setMessages(current =>
+                  current.map(msg =>
+                    msg.id === newMessage.id
+                      ? { ...msg, media: mediaData[0] }
+                      : msg
+                  )
+                );
+              }
+
+              // Also fetch reactions
+              const { data: reactionsData } = await supabase
+                .from('message_reactions')
+                .select('*')
+                .eq('message_id', newMessage.id);
+                
+              if (reactionsData?.length) {
+                setMessages(current =>
+                  current.map(msg =>
+                    msg.id === newMessage.id
+                      ? { ...msg, reactions: reactionsData }
+                      : msg
+                  )
+                );
+              }
+            } catch (error) {
+              console.error('Error fetching media or reactions for message:', error);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+        },
+        (payload) => {
+          if (selectedUserId) {
+            setMessages(current =>
+              current.map(msg =>
+                msg.id === payload.new.id
+                  ? { ...msg, ...payload.new }
+                  : msg
+              )
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Message channel status:', status);
+      });
+
+    channelsRef.current.messageChannel = channel;
+  }, [currentUserId, selectedUserId, setMessages]);
+
+  // Effect for setting up reactions channel
+  const setupReactionsChannel = useCallback(() => {
+    if (!currentUserId || !selectedUserId) return;
+
+    // Clean up any existing channel
+    if (channelsRef.current.reactionsChannel) {
+      supabase.removeChannel(channelsRef.current.reactionsChannel);
+      delete channelsRef.current.reactionsChannel;
+    }
+
+    const channel = supabase
+      .channel('message-reactions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'message_reactions'
+        },
+        async (payload) => {
+          // Skip mock user updates
+          if (payload.new && (isMockUser(payload.new.user_id))) return;
+          
+          // Only refresh messages when reactions change
+          if (selectedUserId) {
+            fetchMessages();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Reactions channel status:', status);
+      });
+
+    channelsRef.current.reactionsChannel = channel;
+  }, [currentUserId, selectedUserId, fetchMessages]);
 
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
@@ -124,85 +285,38 @@ const ChatInterface = () => {
     return () => { cancelled = true; };
   }, [navigate, checkRulesAccepted]);
 
+  // Setup and cleanup messaging channels
   useEffect(() => {
-    if (!currentUserId) return;
-
-    const channel = supabase
-      .channel('all-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
-        },
-        async (payload) => {
-          if (isMockUser(payload.new.sender_id) || isMockUser(payload.new.receiver_id)) {
-            return;
-          }
-          
-          if (selectedUserId && 
-             ((payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedUserId) ||
-              (payload.new.sender_id === selectedUserId && payload.new.receiver_id === currentUserId))) {
-            
-            const newMessage = payload.new as Message;
-            
-            setMessages(current => {
-              const exists = current.some(msg =>
-                (msg.id === newMessage.id) ||
-                (msg.content === newMessage.content &&
-                  msg.sender_id === newMessage.sender_id &&
-                  Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
-              );
-              
-              if (!exists) {
-                return [...current, { ...newMessage, media: null }];
-              }
-              return current;
-            });
-            
-            try {
-              const { data: mediaData } = await supabase
-                .from('message_media')
-                .select('*')
-                .eq('message_id', newMessage.id);
-                
-              if (mediaData?.length) {
-                setMessages(current =>
-                  current.map(msg =>
-                    msg.id === newMessage.id
-                      ? { ...msg, media: mediaData[0] }
-                      : msg
-                  )
-                );
-              }
-            } catch (error) {
-              console.error('Error fetching media for message:', error);
-            }
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Message channel status:', status);
-      });
-
-    globalChannelRef.current = channel;
-      
+    setupMessageChannel();
+    setupReactionsChannel();
+    
     return () => {
-      if (globalChannelRef.current) {
-        console.log('Cleaning up message channel');
-        supabase.removeChannel(globalChannelRef.current);
-        globalChannelRef.current = null;
-      }
+      cleanupChannels();
     };
-  }, [currentUserId, selectedUserId, setMessages]);
+  }, [currentUserId, selectedUserId, setupMessageChannel, setupReactionsChannel, cleanupChannels]);
 
+  // Effect to fetch messages when a user is selected
   useEffect(() => {
     if (selectedUserId && currentUserId && !isLoading) {
+      // Set a flag to indicate we've just selected a new user
+      setHasSelectedNewUser(true);
+      
+      // Reset state and fetch fresh messages
+      resetState();
       fetchMessages();
     }
-  }, [selectedUserId, currentUserId, fetchMessages, isLoading]);
+  }, [selectedUserId, currentUserId, fetchMessages, isLoading, resetState]);
+
+  // Clear the new user flag after a delay
+  useEffect(() => {
+    if (hasSelectedNewUser) {
+      const timer = setTimeout(() => {
+        setHasSelectedNewUser(false);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [hasSelectedNewUser]);
 
   const handleTypingStatusChange = (isTyping: boolean) => {
     setIsTyping(isTyping);
@@ -242,7 +356,8 @@ const ChatInterface = () => {
           file_url: imageUrl,
           media_type: imageUrl.includes('voice') ? 'voice' : 'image',
           created_at: new Date().toISOString()
-        } : null
+        } : null,
+        reactions: []
       };
 
       setMessages(current => [...current, optimisticMessage]);
@@ -294,9 +409,18 @@ const ChatInterface = () => {
 
   const handleDeleteConversation = () => {
     if (selectedUserId && !isDeletingConversation) {
-      deleteConversation(selectedUserId);
+      deleteConversation(selectedUserId).then(() => {
+        fetchMessages(); // Refresh the messages after deletion
+      });
     }
   };
+
+  // Show error notification if messages fail to load
+  useEffect(() => {
+    if (messagesError && !hasSelectedNewUser) {
+      toast.error(messagesError);
+    }
+  }, [messagesError, hasSelectedNewUser]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -338,7 +462,7 @@ const ChatInterface = () => {
         <aside className="w-full max-w-xs border-r border-border">
           <UserList
             users={onlineUsers}
-            onUserSelect={(userId) => handleUserSelect(userId, '')}
+            onUserSelect={(userId, nickname) => handleUserSelect(userId, nickname || '')}
             selectedUserId={selectedUserId ?? undefined}
           />
         </aside>

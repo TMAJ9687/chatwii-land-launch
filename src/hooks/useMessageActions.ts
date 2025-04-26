@@ -8,6 +8,9 @@ import { debounce } from 'lodash';
 export const useMessageActions = (currentUserId: string, isVipUser: boolean) => {
   const [translatingMessageId, setTranslatingMessageId] = useState<number | null>(null);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyToMessageId, setReplyToMessageId] = useState<number | null>(null);
+  const [replyContent, setReplyContent] = useState<string>('');
 
   const handleUnsendMessage = async (messageId: number) => {
     if (!isVipUser) return;
@@ -25,6 +28,18 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       console.error('Error unsending message:', error);
       toast.error('Failed to unsend message');
     }
+  };
+
+  const startReply = (messageId: number) => {
+    if (!isVipUser) return;
+    setIsReplying(true);
+    setReplyToMessageId(messageId);
+  };
+
+  const cancelReply = () => {
+    setIsReplying(false);
+    setReplyToMessageId(null);
+    setReplyContent('');
   };
 
   const handleReplyToMessage = async (messageId: number, content: string) => {
@@ -58,6 +73,9 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
 
       if (error) throw error;
       toast.success('Reply sent');
+      
+      // Reset reply state
+      cancelReply();
     } catch (error) {
       console.error('Error replying to message:', error);
       toast.error('Failed to send reply');
@@ -68,17 +86,35 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     if (!isVipUser) return;
 
     try {
-      const { error } = await supabase
+      // First try to update any existing reaction by this user on this message
+      const { data: existingReaction } = await supabase
         .from('message_reactions')
-        .upsert({
-          message_id: messageId,
-          user_id: currentUserId,
-          emoji
-        }, {
-          onConflict: 'message_id,user_id'
-        });
-
-      if (error) throw error;
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+        
+      if (existingReaction) {
+        // Update existing reaction
+        const { error } = await supabase
+          .from('message_reactions')
+          .update({ emoji })
+          .eq('id', existingReaction.id);
+          
+        if (error) throw error;
+      } else {
+        // Insert new reaction
+        const { error } = await supabase
+          .from('message_reactions')
+          .insert({
+            message_id: messageId,
+            user_id: currentUserId,
+            emoji
+          });
+          
+        if (error) throw error;
+      }
+      
       toast.success('Reaction added');
     } catch (error) {
       console.error('Error reacting to message:', error);
@@ -92,25 +128,37 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     try {
       setTranslatingMessageId(message.id);
       
-      const response = await fetch('https://libretranslate.com/translate', {
-        method: 'POST',
+      // Using a more reliable translation service that doesn't require API keys
+      const response = await fetch('https://api.mymemory.translated.net/get', {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          q: message.content,
-          source: 'auto',
-          target: 'en' // Default to English, could be made configurable
-        })
+        // Using query parameters instead of body for GET request
+        // Add a fake email to increase rate limit (can be replaced with user's email in production)
+        // The langpair parameter auto-detects source language and translates to English
       });
 
+      const apiUrl = new URL('https://api.mymemory.translated.net/get');
+      apiUrl.searchParams.append('q', message.content);
+      apiUrl.searchParams.append('langpair', 'auto|en');
+      apiUrl.searchParams.append('de', 'temp@chatwii.com'); // Add a dummy email to increase rate limit
+      
+      const response = await fetch(apiUrl.toString());
       if (!response.ok) throw new Error('Translation failed');
       
       const data = await response.json();
       
+      if (data.responseStatus !== 200 || !data.responseData) {
+        throw new Error('Invalid translation response');
+      }
+      
+      const translatedText = data.responseData.translatedText;
+      const detectedLanguage = data.responseData.detectedLanguage || 'auto';
+      
       const { error } = await supabase
         .from('messages')
         .update({
-          translated_content: data.translatedText,
-          language_code: data.detectedLanguage?.language || 'unknown'
+          translated_content: translatedText,
+          language_code: detectedLanguage
         })
         .eq('id', message.id);
 
@@ -162,11 +210,17 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
 
   return {
     handleUnsendMessage,
+    startReply,
+    cancelReply,
+    setReplyContent,
     handleReplyToMessage,
     handleReactToMessage,
     translateMessage,
     deleteConversation,
     translatingMessageId,
-    isDeletingConversation
+    isDeletingConversation,
+    isReplying,
+    replyToMessageId,
+    replyContent
   };
 };

@@ -10,8 +10,10 @@ import { useImageCounter } from '@/hooks/useImageCounter';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useVoiceMessage } from '@/hooks/useVoiceMessage';
 import { useImageMessage } from '@/hooks/useImageMessage';
+import { useMessageActions } from '@/hooks/useMessageActions';
 import { ImagePreview } from './chat/ImagePreview';
 import { VoicePreview } from './chat/VoicePreview';
+import { ReplyComposer } from './chat/ReplyComposer';
 import { toast } from 'sonner';
 import { isMockUser } from '@/utils/mockUsers';
 import { debounce } from 'lodash';
@@ -21,6 +23,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { supabase } from '@/lib/supabase';
+import { MessageWithMedia } from '@/types/message';
 
 interface MessageInputProps {
   onSendMessage: (content: string, imageUrl?: string) => void;
@@ -50,6 +54,47 @@ export const MessageInput = ({
     handleKeyPress,
     handleEmojiClick
   } = useMessageInput({ onSendMessage });
+
+  const { 
+    isReplying,
+    replyToMessageId,
+    replyContent,
+    setReplyContent,
+    cancelReply,
+    handleReplyToMessage
+  } = useMessageActions(currentUserId || '', isVipUser);
+
+  const [replyToMessage, setReplyToMessage] = useState<MessageWithMedia | null>(null);
+
+  // Fetch reply message details if needed
+  useEffect(() => {
+    if (!replyToMessageId) {
+      setReplyToMessage(null);
+      return;
+    }
+    
+    const fetchReplyMessage = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*, message_media(*)')
+          .eq('id', replyToMessageId)
+          .single();
+          
+        if (error) throw error;
+        
+        setReplyToMessage({
+          ...data,
+          media: data.message_media?.[0] || null,
+          reactions: []
+        });
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+      }
+    };
+    
+    fetchReplyMessage();
+  }, [replyToMessageId]);
 
   const { 
     imagesUsedToday, 
@@ -91,15 +136,23 @@ export const MessageInput = ({
   );
 
   useEffect(() => {
-    if (isVipUser && message.length > 0) {
+    if (isVipUser && (message.length > 0 || replyContent.length > 0)) {
       debouncedTypingStatus(true);
-      const timeout = setTimeout(() => {
-        debouncedTypingStatus(false);
-      }, 5000);
-      
-      return () => clearTimeout(timeout);
     }
-  }, [message, isVipUser, debouncedTypingStatus]);
+    
+    return () => {
+      debouncedTypingStatus.cancel();
+    };
+  }, [message, replyContent, isVipUser, debouncedTypingStatus]);
+
+  // Force typing indicator to false when component unmounts
+  useEffect(() => {
+    return () => {
+      if (isVipUser && onTypingStatusChange) {
+        onTypingStatusChange(false);
+      }
+    };
+  }, [isVipUser, onTypingStatusChange]);
 
   const handleSendMessage = async () => {
     if (isMockVipUser) {
@@ -115,6 +168,10 @@ export const MessageInput = ({
     if (message.trim()) {
       onSendMessage(message.trim());
       setMessage('');
+      // Reset typing indicator
+      if (onTypingStatusChange) {
+        onTypingStatusChange(false);
+      }
       return;
     }
     
@@ -124,6 +181,10 @@ export const MessageInput = ({
         const imageUrl = await handleImageUpload();
         if (imageUrl) {
           onSendMessage("", imageUrl);
+          // Reset typing indicator
+          if (onTypingStatusChange) {
+            onTypingStatusChange(false);
+          }
         }
       } catch (error) {
         console.error('Error uploading image:', error);
@@ -131,6 +192,16 @@ export const MessageInput = ({
       } finally {
         setUploadingMessage(false);
       }
+    }
+  };
+
+  const handleSendReply = (content: string) => {
+    if (!replyToMessageId || !content.trim()) return;
+    
+    handleReplyToMessage(replyToMessageId, content);
+    // Reset typing indicator
+    if (onTypingStatusChange) {
+      onTypingStatusChange(false);
     }
   };
 
@@ -146,6 +217,10 @@ export const MessageInput = ({
       if (voiceUrl) {
         onSendMessage('[Voice message]', voiceUrl);
         handleCancelVoice();
+        // Reset typing indicator
+        if (onTypingStatusChange) {
+          onTypingStatusChange(false);
+        }
       }
     } finally {
       setUploadingMessage(false);
@@ -177,101 +252,129 @@ export const MessageInput = ({
   }
 
   return (
-    <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-
-      {previewUrl && <ImagePreview previewUrl={previewUrl} onCancel={clearFileSelection} />}
-
-      {showVoicePreview && audioBlob && localAudioUrl && (
-        <VoicePreview 
-          audioUrl={localAudioUrl}
-          onSend={handleSendVoiceMessage}
-          onCancel={handleCancelVoice}
-          disabled={audioUploading || uploadingMessage}
+    <div className="flex flex-col bg-background">
+      {/* Reply composer if in reply mode */}
+      {isReplying && (
+        <ReplyComposer 
+          originalMessage={replyToMessage}
+          onSendReply={handleSendReply}
+          onCancel={cancelReply}
         />
       )}
-
-      {!isVip && (
-        <div className="absolute bottom-full right-0 bg-background border rounded-t-lg px-3 py-1 text-xs text-muted-foreground">
-          Images: {imagesUsedToday}/{dailyLimit}
-        </div>
-      )}
-
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full"
-            disabled={!canSendToUser}
-          >
-            <Smile className="h-5 w-5" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-full p-0" sideOffset={5} align="start">
-          <EmojiPicker onEmojiClick={handleEmojiClick} />
-        </PopoverContent>
-      </Popover>
-
-      <Button 
-        variant={isRecording ? "destructive" : "ghost"}
-        size="icon"
-        className={`rounded-full transition-all duration-200 ${
-          !isVip ? 'opacity-50 cursor-not-allowed' : ''
-        } ${isRecording ? 'animate-pulse' : ''}`}
-        onClick={handleRecordToggle}
-        disabled={imageUploading || audioUploading || uploadingMessage || !canSendToUser || !isVip}
-        title={!isVip ? "VIP-only feature" : "Record voice message"}
-      >
-        <Mic className="h-5 w-5" />
-      </Button>
-
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="rounded-full"
-        onClick={triggerFileInput}
-        disabled={imageUploading || uploadingMessage || isRecording || hasReachedLimit || !canSendToUser}
-      >
-        <Paperclip className="h-5 w-5" />
-      </Button>
-      
-      <div className="flex-1 relative">
-        <Input
-          ref={inputRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={canSendToUser ? "Type a message..." : "You cannot message this user"}
-          className="pr-16"
-          maxLength={charLimit}
-          disabled={imageUploading || uploadingMessage || isRecording || !canSendToUser}
+    
+      {/* Regular message input */}
+      <div className="p-4 border-t border-border flex gap-2 items-center relative">
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelect}
         />
-        <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
-          message.length > charLimit ? 'text-destructive' : 'text-muted-foreground'
-        }`}>
-          {message.length}/{charLimit}
+
+        {previewUrl && <ImagePreview previewUrl={previewUrl} onCancel={clearFileSelection} />}
+
+        {showVoicePreview && audioBlob && localAudioUrl && (
+          <VoicePreview 
+            audioUrl={localAudioUrl}
+            onSend={handleSendVoiceMessage}
+            onCancel={handleCancelVoice}
+            disabled={audioUploading || uploadingMessage}
+          />
+        )}
+
+        {!isVip && (
+          <div className="absolute bottom-full right-0 bg-background border rounded-t-lg px-3 py-1 text-xs text-muted-foreground">
+            Images: {imagesUsedToday}/{dailyLimit}
+          </div>
+        )}
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-full"
+              disabled={!canSendToUser || isReplying}
+            >
+              <Smile className="h-5 w-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" sideOffset={5} align="start">
+            <EmojiPicker onEmojiClick={handleEmojiClick} />
+          </PopoverContent>
+        </Popover>
+
+        <Button 
+          variant={isRecording ? "destructive" : "ghost"}
+          size="icon"
+          className={`rounded-full transition-all duration-200 ${
+            !isVip ? 'opacity-50 cursor-not-allowed' : ''
+          } ${isRecording ? 'animate-pulse' : ''}`}
+          onClick={handleRecordToggle}
+          disabled={imageUploading || audioUploading || uploadingMessage || !canSendToUser || !isVip || isReplying}
+          title={!isVip ? "VIP-only feature" : "Record voice message"}
+        >
+          <Mic className="h-5 w-5" />
+        </Button>
+
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="rounded-full"
+          onClick={triggerFileInput}
+          disabled={imageUploading || uploadingMessage || isRecording || hasReachedLimit || !canSendToUser || isReplying}
+        >
+          <Paperclip className="h-5 w-5" />
+        </Button>
+        
+        <div className="flex-1 relative">
+          {!isReplying ? (
+            <>
+              <Input
+                ref={inputRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={canSendToUser ? "Type a message..." : "You cannot message this user"}
+                className="pr-16"
+                maxLength={charLimit}
+                disabled={imageUploading || uploadingMessage || isRecording || !canSendToUser || isReplying}
+              />
+              <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
+                message.length > charLimit ? 'text-destructive' : 'text-muted-foreground'
+              }`}>
+                {message.length}/{charLimit}
+              </div>
+            </>
+          ) : (
+            <div className="h-10 flex items-center px-3 bg-muted/40 rounded-md text-sm text-muted-foreground">
+              Composing reply...
+            </div>
+          )}
         </div>
+        
+        <Button 
+          onClick={handleSendMessage}
+          size="icon"
+          className="rounded-full"
+          disabled={(
+            (!message.trim() && !selectedFile) || 
+            message.length > charLimit || 
+            imageUploading || 
+            uploadingMessage || 
+            isRecording || 
+            !canSendToUser || 
+            isReplying
+          )}
+        >
+          <Send className="h-5 w-5" />
+        </Button>
+
+        {recordingError && (
+          <span className="text-destructive text-xs ml-2">{recordingError}</span>
+        )}
       </div>
-      
-      <Button 
-        onClick={handleSendMessage}
-        size="icon"
-        className="rounded-full"
-        disabled={(!message.trim() && !selectedFile) || message.length > charLimit || imageUploading || uploadingMessage || isRecording || !canSendToUser}
-      >
-        <Send className="h-5 w-5" />
-      </Button>
-
-      {recordingError && (
-        <span className="text-destructive text-xs ml-2">{recordingError}</span>
-      )}
     </div>
   );
 };
