@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -20,6 +21,7 @@ import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { usePresence } from '@/hooks/usePresence';
 import { useMessages } from '@/hooks/useMessages';
 import { useChatState } from '@/hooks/useChatState';
+import { useMessageActions } from '@/hooks/useMessageActions';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { Message } from '@/types/message';
