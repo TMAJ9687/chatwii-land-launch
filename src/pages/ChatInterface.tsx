@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -84,23 +83,20 @@ const ChatInterface = () => {
     isVipUser
   );
 
-  // Set up message and reaction channels
   const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
   const { setupReactionsChannel } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
 
   const handleDeleteConversation = useCallback(() => {
     if (selectedUserId && !isDeletingConversation) {
-      // Use async/await inside a separate function to properly handle the Promise
-      const performDelete = async () => {
-        await deleteConversation(selectedUserId);
-        fetchMessages();
-      };
-      
-      // Call the async function but don't return its Promise
-      performDelete().catch(error => {
-        console.error("Error deleting conversation:", error);
-        toast.error("Failed to delete conversation");
-      });
+      (async () => {
+        try {
+          await deleteConversation(selectedUserId);
+          fetchMessages();
+        } catch (error) {
+          console.error("Error deleting conversation:", error);
+          toast.error("Failed to delete conversation");
+        }
+      })();
     }
   }, [selectedUserId, isDeletingConversation, deleteConversation, fetchMessages]);
 
