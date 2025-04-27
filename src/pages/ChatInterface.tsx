@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
@@ -102,6 +101,11 @@ const ChatInterfaceContent = () => {
     );
   }
   
+  const sidebarUserSelect = (userId: string) => {
+    contextHandleUserSelect(userId, '');
+    setActiveSidebar('none');
+  };
+
   return (
     <ChatLayout unreadCount={unreadCount} isVipUser={isVipUser}>
       <div className="flex h-[calc(100vh-60px)]">
@@ -146,10 +150,7 @@ const ChatInterfaceContent = () => {
         onClose={() => setActiveSidebar('none')}
         title="Inbox"
       >
-        <InboxSidebar onUserSelect={(userId) => {
-          handleUserSelect(userId, '');
-          setActiveSidebar('none');
-        }} />
+        <InboxSidebar onUserSelect={sidebarUserSelect} />
       </SidebarContainer>
 
       <SidebarContainer
@@ -157,10 +158,7 @@ const ChatInterfaceContent = () => {
         onClose={() => setActiveSidebar('none')}
         title="Chat History"
       >
-        <HistorySidebar onUserSelect={(userId) => {
-          handleUserSelect(userId, '');
-          setActiveSidebar('none');
-        }} />
+        <HistorySidebar onUserSelect={sidebarUserSelect} />
       </SidebarContainer>
 
       <SidebarContainer
