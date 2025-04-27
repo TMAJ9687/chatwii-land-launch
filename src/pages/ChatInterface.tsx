@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
@@ -21,19 +20,18 @@ import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 
-// Inner component that uses the ChatContext
 const ChatInterfaceContent = () => {
   const navigate = useNavigate();
   const { 
     selectedUserId, 
-    selectedUserNickname, 
+    selectedUserNickname,
     showRules, 
     setShowRules,
     acceptedRules, 
     activeSidebar,
     setActiveSidebar,
     handleCloseChat,
-    handleUserSelect,
+    handleUserSelect: contextHandleUserSelect,
     handleAcceptRules,
     checkRulesAccepted,
     isBlocked,
@@ -72,10 +70,8 @@ const ChatInterfaceContent = () => {
     isVipUser
   );
 
-  // Setup channels for realtime communication
   useChannelSetup(currentUserId, selectedUserId, setMessages, fetchMessages);
 
-  // Check if rules have been accepted when user profile is loaded
   useEffect(() => {
     if (currentUserId) {
       checkRulesAccepted();
@@ -84,6 +80,10 @@ const ChatInterfaceContent = () => {
 
   const handleTypingStatusChange = (isTyping: boolean) => {
     setIsTyping(isTyping);
+  };
+
+  const handleUserSelect = (userId: string, nickname: string) => {
+    contextHandleUserSelect(userId, nickname);
   };
 
   if (profileLoading) {
@@ -100,7 +100,7 @@ const ChatInterfaceContent = () => {
         <aside className="w-full max-w-xs border-r border-border">
           <UserList
             users={onlineUsers}
-            onUserSelect={(userId, nickname) => handleUserSelect(userId, nickname || '')}
+            onUserSelect={handleUserSelect}
             selectedUserId={selectedUserId ?? undefined}
           />
         </aside>
@@ -183,7 +183,6 @@ const ChatInterfaceContent = () => {
   );
 };
 
-// Wrapper component that provides the ChatContext
 const ChatInterface = () => {
   return (
     <ChatProvider>
