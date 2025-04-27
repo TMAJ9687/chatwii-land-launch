@@ -108,7 +108,7 @@ export const useMessages = (
         }
         
         const messageWithMedia: MessageWithMedia = {
-          id: message.id || '',  // Ensure id is a string
+          id: String(message.id || ''),  // Convert ID to string
           content: message.content || '',
           sender_id: message.sender_id || '',
           receiver_id: message.receiver_id || '',
@@ -120,7 +120,7 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          reactions: [] // Initialize with empty array to satisfy TypeScript
+          reactions: Array.isArray(message.reactions) ? message.reactions : [] // Ensure reactions is an array
         };
         
         formattedMessages.push(messageWithMedia);
