@@ -15,7 +15,7 @@ interface UserListProps {
 }
 
 export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps) => {
-  const { blockedUsers, unblockUser } = useBlockedUsers();
+  const { blockedUsers, unblockUser, fetchBlockedUsers } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [userInterests, setUserInterests] = useState<Record<string, string[]>>({});
@@ -127,6 +127,12 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     }
   };
 
+  const handleUnblockUser = async (userId: string) => {
+    if (unblockUser) {
+      await unblockUser(userId, localStorage.getItem('userId'));
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
@@ -172,7 +178,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             isBlocked={blockedUsers.includes(user.user_id)}
             onUnblock={
               blockedUsers.includes(user.user_id)
-                ? () => unblockUser(user.user_id)
+                ? () => handleUnblockUser(user.user_id)
                 : undefined
             }
             role={user.role}

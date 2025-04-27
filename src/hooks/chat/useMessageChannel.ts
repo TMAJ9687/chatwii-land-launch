@@ -1,6 +1,6 @@
 
 import { useCallback } from 'react';
-import { createDocument, queryDocuments, subscribeToDocument, subscribeToQuery } from '@/lib/firebase';
+import { queryDocuments, subscribeToQuery } from '@/lib/firebase';
 import { useChannelManagement } from './useChannelManagement';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';

@@ -113,7 +113,7 @@ export const queryDocuments = async (
   const queryConstraints: QueryConstraint[] = [];
   
   // Add conditions
-  if (conditions.length > 0) {
+  if (conditions && conditions.length > 0) {
     conditions.forEach(({ field, operator, value }) => {
       queryConstraints.push(where(field, operator, value));
     });
@@ -132,10 +132,35 @@ export const queryDocuments = async (
   const q = query(collectionRef, ...queryConstraints);
   const querySnapshot = await getDocs(q);
   
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  return querySnapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      // Ensure these fields are explicitly included
+      content: data.content,
+      sender_id: data.sender_id,
+      receiver_id: data.receiver_id,
+      is_read: data.is_read,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      deleted_at: data.deleted_at,
+      translated_content: data.translated_content,
+      language_code: data.language_code,
+      reply_to: data.reply_to,
+      message_id: data.message_id,
+      user_id: data.user_id,
+      file_url: data.file_url,
+      media_type: data.media_type,
+      emoji: data.emoji,
+      blocker_id: data.blocker_id,
+      blocked_id: data.blocked_id,
+      role: data.role,
+      settings: data.settings,
+      upload_count: data.upload_count,
+      participants: data.participants
+    };
+  });
 };
 
 // Subscribe to document changes
@@ -148,7 +173,32 @@ export const subscribeToDocument = (
   
   return onSnapshot(docRef, (doc) => {
     if (doc.exists()) {
-      onNext({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      onNext({
+        id: doc.id,
+        ...data,
+        // Ensure these fields are explicitly included
+        content: data.content,
+        sender_id: data.sender_id,
+        receiver_id: data.receiver_id,
+        is_read: data.is_read,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        deleted_at: data.deleted_at,
+        translated_content: data.translated_content,
+        language_code: data.language_code,
+        reply_to: data.reply_to,
+        message_id: data.message_id,
+        user_id: data.user_id,
+        file_url: data.file_url,
+        media_type: data.media_type,
+        emoji: data.emoji,
+        blocker_id: data.blocker_id,
+        blocked_id: data.blocked_id,
+        role: data.role,
+        settings: data.settings,
+        upload_count: data.upload_count
+      });
     } else {
       onNext(null);
     }
@@ -193,10 +243,34 @@ export const subscribeToQuery = (
   const q = query(collectionRef, ...queryConstraints);
   
   return onSnapshot(q, (querySnapshot) => {
-    const documents = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const documents = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        // Ensure these fields are explicitly included
+        content: data.content,
+        sender_id: data.sender_id,
+        receiver_id: data.receiver_id,
+        is_read: data.is_read,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        deleted_at: data.deleted_at,
+        translated_content: data.translated_content,
+        language_code: data.language_code,
+        reply_to: data.reply_to,
+        message_id: data.message_id,
+        user_id: data.user_id,
+        file_url: data.file_url,
+        media_type: data.media_type,
+        emoji: data.emoji,
+        blocker_id: data.blocker_id,
+        blocked_id: data.blocked_id,
+        role: data.role,
+        settings: data.settings,
+        upload_count: data.upload_count
+      };
+    });
     onNext(documents);
   });
 };

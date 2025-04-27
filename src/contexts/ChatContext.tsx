@@ -1,9 +1,10 @@
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { toast } from 'sonner';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createDocument, deleteDocument, queryDocuments } from '@/lib/firebase';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
-type ChatContextType = {
+interface ChatContextProps {
   selectedUserId: string | null;
   selectedUserNickname: string;
   showRules: boolean;
@@ -19,54 +20,70 @@ type ChatContextType = {
   showReportPopup: boolean;
   setShowReportPopup: (show: boolean) => void;
   handleBlockUser: () => void;
-};
+}
 
-export const ChatContext = createContext<ChatContextType | undefined>(undefined);
+const ChatContext = createContext<ChatContextProps | undefined>(undefined);
 
-export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
-  const [showRules, setShowRules] = useState(false);
-  const [acceptedRules, setAcceptedRules] = useState(false);
+  const [showRules, setShowRules] = useState<boolean>(false);
+  const [acceptedRules, setAcceptedRules] = useState<boolean>(false);
   const [activeSidebar, setActiveSidebar] = useState<'none' | 'inbox' | 'history' | 'blocked'>('none');
-  const [showReportPopup, setShowReportPopup] = useState(false);
+  const [showReportPopup, setShowReportPopup] = useState<boolean>(false);
   
-  const { blockedUsers, blockUser } = useBlockedUsers();
-
-  const handleCloseChat = useCallback(() => {
-    setSelectedUserId(null);
-  }, []);
-
-  const handleUserSelect = useCallback(async (userId: string, nickname: string) => {
-    setSelectedUserId(userId);
-    setSelectedUserNickname(nickname);
-  }, []);
-
-  const handleAcceptRules = useCallback(() => {
-    setAcceptedRules(true);
-    localStorage.setItem('rulesAccepted', 'true');
-    setShowRules(false);
-  }, []);
-
-  const checkRulesAccepted = useCallback(() => {
-    const rulesAccepted = localStorage.getItem('rulesAccepted');
-    if (rulesAccepted === 'true') {
-      setShowRules(false);
-      setAcceptedRules(true);
-    } else {
-      setShowRules(true);
-      setAcceptedRules(false);
-    }
-  }, []);
-
+  const navigate = useNavigate();
+  const { blockedUsers, blockUser, fetchBlockedUsers } = useBlockedUsers();
   const isBlocked = selectedUserId ? blockedUsers.includes(selectedUserId) : false;
 
-  const handleBlockUser = useCallback(() => {
-    if (selectedUserId && !isBlocked) {
-      blockUser(selectedUserId);
-      toast.success("User blocked successfully");
+  const handleCloseChat = () => {
+    setSelectedUserId(null);
+    setSelectedUserNickname('');
+  };
+
+  const handleUserSelect = (userId: string, nickname: string) => {
+    setSelectedUserId(userId);
+    setSelectedUserNickname(nickname || 'User');
+    navigate('/chat');
+  };
+
+  const handleAcceptRules = useCallback(async () => {
+    // Implementation depends on how rules acceptance is stored
+    // For now, just set the local state
+    setAcceptedRules(true);
+    setShowRules(false);
+    
+    // In a real implementation, you would store this in a database
+    // Example:
+    // await createDocument('user_preferences', currentUserId, { acceptedRules: true });
+  }, []);
+
+  const checkRulesAccepted = useCallback(async () => {
+    // Implementation depends on how rules acceptance is stored
+    // For now, just check the local state
+    if (!acceptedRules) {
+      setShowRules(true);
     }
-  }, [selectedUserId, isBlocked, blockUser]);
+    
+    // In a real implementation, you would check from the database
+    // Example:
+    // const userPrefs = await getDocument('user_preferences', currentUserId);
+    // if (!userPrefs?.acceptedRules) {
+    //   setShowRules(true);
+    // }
+  }, [acceptedRules]);
+
+  const handleBlockUser = useCallback(async () => {
+    if (selectedUserId) {
+      await blockUser(selectedUserId, localStorage.getItem('userId'));
+      handleCloseChat();
+    }
+  }, [selectedUserId, blockUser]);
+  
+  // Fetch blocked users on mount
+  React.useEffect(() => {
+    fetchBlockedUsers(localStorage.getItem('userId'));
+  }, [fetchBlockedUsers]);
 
   const value = {
     selectedUserId,
@@ -83,7 +100,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isBlocked,
     showReportPopup,
     setShowReportPopup,
-    handleBlockUser
+    handleBlockUser,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

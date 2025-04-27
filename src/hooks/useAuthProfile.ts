@@ -79,12 +79,12 @@ export const useAuthProfile = () => {
       }
     };
 
-    const unsubscribe = checkAuthAndLoadProfile();
+    const unsubFunc = checkAuthAndLoadProfile();
     
     return () => { 
       cancelled = true; 
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
+      if (typeof unsubFunc === 'function') {
+        unsubFunc();
       }
     };
   }, [navigate]);

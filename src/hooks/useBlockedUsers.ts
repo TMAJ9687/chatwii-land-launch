@@ -24,7 +24,11 @@ export const useBlockedUsers = () => {
         { field: 'blocker_id', operator: '==', value: currentUserId }
       ]);
       
-      const blocked = blockedRecords.map(record => record.blocked_id);
+      // Make sure blocked_id exists in each record
+      const blocked = blockedRecords
+        .filter(record => record.blocked_id)
+        .map(record => record.blocked_id);
+        
       setBlockedUsers(blocked);
       
     } catch (error) {
@@ -72,6 +76,37 @@ export const useBlockedUsers = () => {
     }
   }, [blockedUsers]);
   
+  // Unblock a user
+  const unblockUser = useCallback(async (userId: string, currentUserId: string | null = null) => {
+    if (!currentUserId) {
+      toast.error('You need to be logged in to unblock users');
+      return;
+    }
+    
+    try {
+      // Find the block record
+      const blockRecords = await queryDocuments('blocked_users', [
+        { field: 'blocker_id', operator: '==', value: currentUserId },
+        { field: 'blocked_id', operator: '==', value: userId }
+      ]);
+      
+      // Delete the block record if it exists
+      if (blockRecords.length > 0) {
+        // Import deleteDocument dynamically to avoid circular dependencies
+        const { deleteDocument } = await import('@/lib/firebase');
+        await deleteDocument('blocked_users', blockRecords[0].id);
+      }
+      
+      // Update local state
+      setBlockedUsers(prev => prev.filter(id => id !== userId));
+      toast.success('User unblocked successfully');
+      
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      toast.error('Failed to unblock user');
+    }
+  }, []);
+  
   // Check if user can interact with another user
   const canInteractWithUser = useCallback((userId: string) => {
     return !blockedUsers.includes(userId);
@@ -82,6 +117,7 @@ export const useBlockedUsers = () => {
     isLoading,
     fetchBlockedUsers,
     blockUser,
+    unblockUser,
     canInteractWithUser
   };
 };

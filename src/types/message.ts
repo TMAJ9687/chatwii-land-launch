@@ -32,4 +32,6 @@ export interface MessageWithMedia {
   reply_to?: string | null;
   media: MessageMedia | null;
   reactions: MessageReaction[];
+  // Add for Firebase compatibility
+  participants?: string[];
 }

@@ -1,169 +1,197 @@
 
-import { useState, useEffect, useRef } from 'react';
-import { uploadFile, queryDocuments, createDocument, updateDocument } from '@/lib/firebase';
+import { useState, useRef } from 'react';
 import { toast } from 'sonner';
+import { 
+  uploadFile, 
+  getFileDownloadURL, 
+  getDocument, 
+  createDocument, 
+  updateDocument 
+} from '@/lib/firebase';
+import { v4 as uuidv4 } from 'uuid';
 
 export const useImageUpload = (currentUserId: string | null) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const hasLimitChecked = useRef<boolean>(false);
 
-  // Clear file selection
-  const clearFileSelection = () => {
-    setSelectedFile(null);
-    setPreviewUrl(null);
+  // Get allowed mime types and size limits from site settings
+  const getSiteSettings = async () => {
+    try {
+      const settingsDoc = await getDocument('site_settings', '1');
+      
+      if (settingsDoc && settingsDoc.settings) {
+        const fileSettings = settingsDoc.settings.files || {};
+        
+        return {
+          maxSizeMb: fileSettings.max_size_mb || 5,
+          allowedMimeTypes: fileSettings.allowed_mime_types || ['image/jpeg', 'image/png', 'image/gif'],
+          maxImageDimension: fileSettings.max_image_dimension || 2000,
+          dailyUploadLimit: fileSettings.daily_upload_limit || 10
+        };
+      }
+      
+      return {
+        maxSizeMb: 5,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif'],
+        maxImageDimension: 2000,
+        dailyUploadLimit: 10
+      };
+    } catch (error) {
+      console.error('Error getting site settings:', error);
+      return {
+        maxSizeMb: 5,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif'],
+        maxImageDimension: 2000,
+        dailyUploadLimit: 10
+      };
+    }
   };
 
-  // Check daily upload limit
-  const checkDailyUploadLimit = async () => {
+  // Check if the user is a VIP
+  const isVipUser = async () => {
     if (!currentUserId) return false;
-
-    // Create new abort controller for this request
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-
+    
     try {
-      // Get site settings
-      const siteSettings = await queryDocuments('site_settings', [
-        { field: 'id', operator: '==', value: 'general' }
-      ]);
-      
-      // Use settings from the database with proper type safety
-      let dailyLimit = 10; // Default value
-      
-      if (siteSettings.length > 0) {
-        const settings = siteSettings[0];
-        if (settings && typeof settings === 'object' && settings.settings) {
-          dailyLimit = Number(settings.settings.standard_photo_limit) || 10;
-        }
-      }
-
-      // Get user profile
-      const profiles = await queryDocuments('profiles', [
-        { field: 'id', operator: '==', value: currentUserId }
-      ]);
-      
-      const profile = profiles[0];
-
-      // VIP users have unlimited uploads
-      if (profile && profile.role === 'vip') return true;
-
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Get today's upload count
-      const uploadRecords = await queryDocuments('daily_photo_uploads', [
-        { field: 'user_id', operator: '==', value: currentUserId },
-        { field: 'last_upload_date', operator: '==', value: today }
-      ]);
-
-      const uploadRecord = uploadRecords.length > 0 ? uploadRecords[0] : null;
-
-      // No record or different date - reset count
-      if (!uploadRecord) {
-        return true;
-      }
-
-      // Check if within daily limit
-      if (uploadRecord.upload_count !== undefined) {
-        return uploadRecord.upload_count < dailyLimit;
-      }
-      return true;
+      const userProfile = await getDocument('profiles', currentUserId);
+      return userProfile && (userProfile.role === 'vip' || userProfile.vip_status === true);
     } catch (error) {
-      if (abortControllerRef.current?.signal.aborted) {
-        console.log('Upload limit check aborted');
-        return false;
-      }
-      console.error('Error checking daily upload limit:', error);
+      console.error('Error checking VIP status:', error);
       return false;
     }
   };
 
-  // Update daily upload count
+  // Check if the user has reached the daily upload limit
+  const checkDailyUploadLimit = async () => {
+    if (!currentUserId) return false;
+    
+    // VIP users don't have a daily limit
+    if (await isVipUser()) {
+      return true;
+    }
+
+    try {
+      const { dailyUploadLimit } = await getSiteSettings();
+      
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
+      
+      if (dailyUploadDoc) {
+        const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
+        const uploadCount = dailyUploadDoc.upload_count || 0;
+        
+        // Reset counter if it's a new day
+        if (lastUploadDate !== today) {
+          return true;
+        }
+        
+        // Check if limit reached
+        return uploadCount < dailyUploadLimit;
+      }
+      
+      // No record yet, first upload of the day
+      return true;
+    } catch (error) {
+      console.error('Error checking daily upload limit:', error);
+      return true; // Allow upload on error
+    }
+  };
+
+  // Update the daily upload count
   const updateDailyUploadCount = async () => {
     if (!currentUserId) return;
-
-    abortControllerRef.current = new AbortController();
     
     try {
-      const today = new Date().toISOString().split('T')[0];
-
-      // Get existing record
-      const uploadRecords = await queryDocuments('daily_photo_uploads', [
-        { field: 'user_id', operator: '==', value: currentUserId },
-        { field: 'last_upload_date', operator: '==', value: today }
-      ]);
-
-      const existingRecord = uploadRecords.length > 0 ? uploadRecords[0] : null;
-
-      if (existingRecord && existingRecord.id) {
-        // Update existing record
-        const currentCount = existingRecord.upload_count !== undefined ? existingRecord.upload_count : 0;
-        await updateDocument('daily_photo_uploads', existingRecord.id, {
-          upload_count: currentCount + 1
-        });
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
+      
+      if (dailyUploadDoc) {
+        const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
+        
+        if (lastUploadDate === today) {
+          // Update existing record for today
+          await updateDocument('daily_photo_uploads', currentUserId, {
+            upload_count: (dailyUploadDoc.upload_count || 0) + 1,
+            last_upload_date: today
+          });
+        } else {
+          // Reset for a new day
+          await updateDocument('daily_photo_uploads', currentUserId, {
+            upload_count: 1,
+            last_upload_date: today
+          });
+        }
       } else {
         // Create new record
         await createDocument('daily_photo_uploads', {
           user_id: currentUserId,
-          last_upload_date: today,
-          upload_count: 1
+          upload_count: 1,
+          last_upload_date: today
         });
       }
     } catch (error) {
-      if (abortControllerRef.current?.signal.aborted) return;
       console.error('Error updating daily upload count:', error);
     }
   };
 
-  // Handle file selection
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      toast.error('Please select a valid image file');
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
     }
+    
+    const file = e.target.files[0];
+    setSelectedFile(file);
+    
+    // Create a preview URL
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      setPreviewUrl(fileReader.result as string);
+    };
+    fileReader.readAsDataURL(file);
   };
 
-  // Upload image to storage
-  const uploadImage = async () => {
+  const uploadImage = async (): Promise<string | null> => {
     if (!selectedFile || !currentUserId) return null;
-
+    
     try {
       setIsUploading(true);
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${currentUserId}/${fileName}`;
-
-      const { url } = await uploadFile(
-        'chat_images',
-        filePath,
-        selectedFile,
-        selectedFile.type
-      );
-
-      return url;
-    } catch (error) {
-      toast.error('Image upload failed');
-      console.error('Upload error:', error);
+      
+      // Validate file
+      const settings = await getSiteSettings();
+      
+      if (selectedFile.size > settings.maxSizeMb * 1024 * 1024) {
+        throw new Error(`File size exceeds the ${settings.maxSizeMb}MB limit`);
+      }
+      
+      if (!settings.allowedMimeTypes.includes(selectedFile.type)) {
+        throw new Error('File type not allowed');
+      }
+      
+      // Upload the file
+      const filePath = `uploads/${currentUserId}/${uuidv4()}-${selectedFile.name}`;
+      await uploadFile(filePath, selectedFile);
+      
+      // Get the download URL
+      const downloadUrl = await getFileDownloadURL(filePath);
+      
+      return downloadUrl;
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error(error.message || 'Failed to upload image');
       return null;
     } finally {
       setIsUploading(false);
     }
   };
-
-  // Cleanup preview URL and abort controller on unmount
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      abortControllerRef.current?.abort();
-    };
-  }, [previewUrl]);
-
+  
+  const clearFileSelection = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+  };
+  
   return {
     selectedFile,
     previewUrl,

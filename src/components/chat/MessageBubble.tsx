@@ -74,7 +74,7 @@ export const MessageBubble = ({
               message_id: mediaRecords[0].message_id,
               user_id: mediaRecords[0].user_id,
               file_url: mediaRecords[0].file_url,
-              media_type: mediaRecords[0].media_type as any,
+              media_type: mediaRecords[0].media_type,
               created_at: mediaRecords[0].created_at
             } : null,
             reactions: []
