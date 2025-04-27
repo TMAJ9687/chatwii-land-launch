@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Smile } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -18,6 +19,8 @@ import { ActionButtons } from './chat/input/ActionButtons';
 import { toast } from 'sonner';
 import { isMockUser } from '@/utils/mockUsers';
 import { debounce } from 'lodash';
+import { MessageWithMedia } from '@/types/message';
+import { supabase } from '@/lib/supabase';
 import {
   Tooltip,
   TooltipContent,
@@ -315,7 +318,7 @@ export const MessageInput = ({
           onEmojiClick={() => {}}
           onAttachmentClick={triggerFileInput}
           onVoiceClick={handleRecordToggle}
-          onSendClick={handleSend}
+          onSendClick={handleSendMessage}
           isRecording={isRecording}
           disabled={!canSendToUser || isReplying}
           sendDisabled={

@@ -1,3 +1,4 @@
+
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
@@ -51,13 +52,19 @@ const ChatInterfaceContent = () => {
   const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
 
+  // Create an async wrapper function for messages hook to match expected Promise<void> return type
+  const markMessagesAsReadAsync = async (userId: string) => {
+    fetchUnreadCount();
+    return Promise.resolve();
+  };
+
   const { 
     messages, 
     setMessages,
     fetchMessages,
     isLoading,
     resetState
-  } = useMessages(currentUserId, selectedUserId, currentUserRole, () => {});
+  } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
 
   const {
     handleSendMessage,
@@ -82,8 +89,9 @@ const ChatInterfaceContent = () => {
     setIsTyping(isTyping);
   };
 
-  const handleUserSelect = (userId: string, nickname: string) => {
-    contextHandleUserSelect(userId, nickname);
+  // Update handleUserSelect to match the expected signature in UserList component
+  const handleUserSelect = (userId: string) => {
+    contextHandleUserSelect(userId, '');
   };
 
   if (profileLoading) {
