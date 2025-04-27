@@ -40,7 +40,18 @@ export const ChatArea = ({
   useEffect(() => {
     const savedRevealedImages = localStorage.getItem('revealedImages');
     if (savedRevealedImages) {
-      setRevealedImages(new Set(JSON.parse(savedRevealedImages)));
+      try {
+        const parsedImages = JSON.parse(savedRevealedImages);
+        // Ensure we're working with an array of numbers
+        const numericIds = parsedImages.map((id: any) => {
+          const numId = parseInt(id, 10);
+          return isNaN(numId) ? null : numId;
+        }).filter(Boolean);
+        setRevealedImages(new Set(numericIds));
+      } catch (e) {
+        console.error('Error parsing revealed images from storage:', e);
+        setRevealedImages(new Set());
+      }
     }
   }, []);
 
@@ -93,14 +104,18 @@ export const ChatArea = ({
     setRevealedImages(prev => {
       const messageIdNum = parseInt(messageId, 10);
       const newSet = new Set(prev);
+      
       if (!isNaN(messageIdNum)) {
         if (newSet.has(messageIdNum)) {
           newSet.delete(messageIdNum);
         } else {
           newSet.add(messageIdNum);
         }
+        
+        // Save numeric IDs to localStorage
         localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
       }
+      
       return newSet;
     });
   };

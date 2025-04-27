@@ -93,6 +93,9 @@ export const useGlobalMessages = (currentUserId: string | null) => {
             // Explicitly check if the property exists and is a string
             if ('nickname' in senderProfile && typeof senderProfile.nickname === 'string') {
               senderName = senderProfile.nickname;
+            } else if ('nickname' in senderProfile) {
+              // Convert to string if it's not already a string
+              senderName = String(senderProfile.nickname);
             }
           }
           

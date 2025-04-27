@@ -95,18 +95,18 @@ export const MessageBubble = ({
     toggleImageReveal(message.id);
   };
   
-  // Check if the image is revealed - convert Set<number> to handle string IDs
+  // Check if the image is revealed - convert numbers to strings for comparison
   const isImageRevealed = (messageId: string): boolean => {
-    // Try to get a numeric ID from the string
+    // Get numeric message ID for string ID
     const messageIdNum = parseInt(messageId, 10);
     
-    // Check if conversion was successful and ID exists in the Set
-    if (!isNaN(messageIdNum)) {
-      // Convert Set to Array for easier checking
-      return Array.from(revealedImages).includes(messageIdNum);
+    // If we can't parse it as a number, just do a string check against the set
+    if (isNaN(messageIdNum)) {
+      return false;
     }
     
-    return false;
+    // Compare the numeric ID with what's in the Set
+    return Array.from(revealedImages).some(id => id === messageIdNum);
   };
 
   // Handle timestamp conversion for display

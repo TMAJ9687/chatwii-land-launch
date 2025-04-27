@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -27,6 +28,25 @@ export const usePresence = (currentUserId: string | null) => {
 
     const fetchUserData = async () => {
       try {
+        // Check if the ID looks like a Firebase ID (not a UUID)
+        const isFirebaseId = currentUserId.length > 20 && !currentUserId.includes('-');
+        
+        // If it's a Firebase ID, we should not query Supabase for the profile
+        // since it will fail with a UUID format error
+        if (isFirebaseId) {
+          console.log('Using Firebase ID, skipping Supabase profile fetch');
+          return {
+            nickname: 'User',
+            role: 'standard',
+            avatar_url: null,
+            country: null,
+            gender: null,
+            age: null,
+            vip_status: false,
+            interests: []
+          };
+        }
+        
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
