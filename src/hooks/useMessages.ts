@@ -55,7 +55,21 @@ export const useMessages = (
       const mockMessages = getMockVipMessages(currentUserId);
       
       // Ensure mock messages have the correct format for TypeScript
-      const completeMessages: MessageWithMedia[] = mockMessages.map(msg => ({
+      // First, create a proper type that matches exactly what getMockVipMessages returns
+      // so we can properly map it to MessageWithMedia
+      interface MockMessage {
+        id: number;
+        content: string;
+        sender_id: string;
+        receiver_id: string;
+        is_read: boolean;
+        created_at: string;
+        media: any; 
+        reactions?: any[];
+      }
+      
+      // Map the mock messages to the correct type with string IDs
+      const completeMessages: MessageWithMedia[] = (mockMessages as MockMessage[]).map(msg => ({
         ...msg,
         id: String(msg.id || ''),  // Ensure ID is a string
         reactions: msg.reactions || []  // Ensure reactions array exists
@@ -121,7 +135,7 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          // Initialize reactions as an empty array if it doesn't exist
+          // Initialize reactions as an empty array
           reactions: [],
           participants: message.participants
         };

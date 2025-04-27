@@ -87,11 +87,11 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           
           const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
           
-          // Safely get the nickname - handle if profile schema doesn't match expectations
+          // Safely get the nickname with proper type checking
           let senderName = 'Someone';
           if (senderProfile && typeof senderProfile === 'object') {
-            // Check if nickname exists on the profile object
-            if ('nickname' in senderProfile && senderProfile.nickname) {
+            // Explicitly check if the property exists and is a string
+            if ('nickname' in senderProfile && typeof senderProfile.nickname === 'string') {
               senderName = senderProfile.nickname;
             }
           }
