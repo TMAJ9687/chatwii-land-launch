@@ -1,9 +1,12 @@
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { doc, collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 import { toast } from "sonner";
 import { useVipUsers } from "./useVipUsers";
 import { useStandardUsers } from "./useStandardUsers";
+import { ref, onValue, set, push, onDisconnect, get } from 'firebase/database';
+import { realtimeDb } from '@/integrations/firebase/client';
 
 export type BanDuration = '1day' | '1week' | '1month' | 'permanent';
 export type VipDuration = '1month' | '3months' | 'permanent'; 
@@ -23,32 +26,19 @@ export const useAdminActions = () => {
   const kickUser = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // Call RPC function with security definer for proper auth check
-      const { data, error } = await supabase.rpc('admin_kick_user', {
-        target_user_id: userId
-      });
-
-      if (error) throw error;
-
-      // Send real-time notification to the user
-      const channel = supabase.channel(`admin-actions-${userId}`);
-      await channel.subscribe();
-      await channel.send({
-        type: 'broadcast',
-        event: 'kick',
-        payload: {}
+      // Get the user profile
+      const userRef = doc(db, 'profiles', userId);
+      
+      // Update user visibility status to offline
+      await updateDoc(userRef, { visibility: 'offline' });
+      
+      // Send real-time notification via Firebase Realtime Database
+      const notificationRef = push(ref(realtimeDb, `notifications/${userId}`));
+      await set(notificationRef, {
+        type: 'kick',
+        timestamp: serverTimestamp()
       });
       
-      // Update user visibility status
-      const { error: visibilityError } = await supabase
-        .from('profiles')
-        .update({ visibility: 'offline' })
-        .eq('id', userId);
-
-      if (visibilityError) {
-        console.warn('Error updating visibility, but user was kicked:', visibilityError);
-      }
-
       toast.success("User kicked successfully");
       refetchStandardUsers();
       refetchVipUsers();
@@ -70,22 +60,25 @@ export const useAdminActions = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration] || 0);
       
-      // Call RPC function with security definer for proper auth check
-      const { data, error } = await supabase.rpc('admin_ban_user', {
-        target_user_id: userId,
-        ban_reason: reason,
-        ban_expires_at: expiresAt?.toISOString() || null
+      // Create ban record
+      await addDoc(collection(db, 'bans'), {
+        user_id: userId,
+        admin_id: auth.currentUser?.uid,
+        reason: reason,
+        expires_at: expiresAt ? expiresAt.toISOString() : null,
+        created_at: new Date().toISOString()
       });
-
-      if (error) throw error;
-
-      // Send real-time notification to the user
-      const channel = supabase.channel(`admin-actions-${userId}`);
-      await channel.subscribe();
-      await channel.send({
-        type: 'broadcast',
-        event: 'ban',
-        payload: { reason }
+      
+      // Update user profile status
+      const userRef = doc(db, 'profiles', userId);
+      await updateDoc(userRef, { visibility: 'offline' });
+      
+      // Send real-time notification
+      const notificationRef = push(ref(realtimeDb, `notifications/${userId}`));
+      await set(notificationRef, {
+        type: 'ban',
+        reason: reason,
+        timestamp: serverTimestamp()
       });
 
       toast.success("User banned successfully");
@@ -102,12 +95,19 @@ export const useAdminActions = () => {
   const unbanUser = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // Call RPC function with security definer
-      const { data, error } = await supabase.rpc('admin_unban_user', {
-        target_user_id: userId
+      // Find and delete all ban records for this user
+      const bansQuery = query(
+        collection(db, 'bans'),
+        where('user_id', '==', userId)
+      );
+      
+      const banDocs = await getDocs(bansQuery);
+      
+      const deletePromises = banDocs.docs.map(doc => {
+        return updateDoc(doc.ref, { expires_at: new Date().toISOString() });
       });
-
-      if (error) throw error;
+      
+      await Promise.all(deletePromises);
       
       toast.success("User unbanned successfully");
       refetchStandardUsers();
@@ -128,21 +128,31 @@ export const useAdminActions = () => {
           '3months': 90 * 24 * 60 * 60 * 1000,
         }[duration] || 0);
 
-      // Call RPC function to upgrade user with security definer
-      const { data, error } = await supabase.rpc('admin_upgrade_user_to_vip', {
-        target_user_id: userId,
-        subscription_end_date: endDate?.toISOString() || null
+      // Update user profile
+      const userRef = doc(db, 'profiles', userId);
+      await updateDoc(userRef, {
+        role: 'vip',
+        vip_status: true
       });
-
-      if (error) throw error;
-
-      // Send real-time notification to the user
-      const channel = supabase.channel(`admin-actions-${userId}`);
-      await channel.subscribe();
-      await channel.send({
-        type: 'broadcast',
-        event: 'vip-status-change',
-        payload: { status: true }
+      
+      // Create subscription record
+      await addDoc(collection(db, 'vip_subscriptions'), {
+        user_id: userId,
+        start_date: new Date().toISOString(),
+        end_date: endDate ? endDate.toISOString() : null,
+        is_active: true,
+        payment_provider: 'admin_granted',
+        subscription_plan: duration === 'permanent' ? 'permanent' : 'admin_grant',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      
+      // Send real-time notification
+      const notificationRef = push(ref(realtimeDb, `notifications/${userId}`));
+      await set(notificationRef, {
+        type: 'vip-status-change',
+        status: true,
+        timestamp: serverTimestamp()
       });
 
       toast.success("User upgraded to VIP successfully");
@@ -159,20 +169,37 @@ export const useAdminActions = () => {
   const downgradeFromVip = async (userId: string) => {
     setIsProcessing(true);
     try {
-      // Call RPC function to downgrade user with security definer
-      const { data, error } = await supabase.rpc('admin_downgrade_vip_user', {
-        target_user_id: userId
+      // Update user profile
+      const userRef = doc(db, 'profiles', userId);
+      await updateDoc(userRef, {
+        role: 'standard',
+        vip_status: false
       });
-
-      if (error) throw error;
-
-      // Send real-time notification to the user
-      const channel = supabase.channel(`admin-actions-${userId}`);
-      await channel.subscribe();
-      await channel.send({
-        type: 'broadcast',
-        event: 'vip-status-change',
-        payload: { status: false }
+      
+      // Update subscription records
+      const subscriptionsQuery = query(
+        collection(db, 'vip_subscriptions'),
+        where('user_id', '==', userId),
+        where('is_active', '==', true)
+      );
+      
+      const subscriptionDocs = await getDocs(subscriptionsQuery);
+      
+      const updatePromises = subscriptionDocs.docs.map(doc => {
+        return updateDoc(doc.ref, { 
+          is_active: false,
+          updated_at: new Date().toISOString()
+        });
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Send real-time notification
+      const notificationRef = push(ref(realtimeDb, `notifications/${userId}`));
+      await set(notificationRef, {
+        type: 'vip-status-change',
+        status: false,
+        timestamp: serverTimestamp()
       });
 
       toast.success("User downgraded from VIP successfully");

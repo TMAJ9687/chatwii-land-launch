@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -93,7 +94,7 @@ export const MessageBubble = ({
     }
   };
   
-  const isImageRevealed = (messageId: string): boolean => {
+  const isImageRevealed = (messageId: string | undefined): boolean => {
     if (!messageId) {
       return false;
     }

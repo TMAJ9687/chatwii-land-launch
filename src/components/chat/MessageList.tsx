@@ -8,7 +8,7 @@ interface MessageListProps {
   messages: MessageWithMedia[];
   currentUserId: string;
   onImageClick: (url: string) => void;
-  revealedImages: Set<string>; // Changed from Set<number> to Set<string>
+  revealedImages: Set<string>; 
   toggleImageReveal: (messageId: string) => void;
   isTyping?: boolean;
   isVipUser?: boolean;

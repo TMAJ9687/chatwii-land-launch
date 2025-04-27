@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -70,7 +71,7 @@ export const InboxSidebar = ({ onUserSelect }: InboxSidebarProps) => {
   const { refetch } = useQuery({
     queryKey: ['inbox-users'],
     queryFn: fetchInboxUsers,
-    onSettled: (data) => {
+    onSuccess: (data) => {
       if (data) setConversations(data);
     },
     refetchInterval: 10000

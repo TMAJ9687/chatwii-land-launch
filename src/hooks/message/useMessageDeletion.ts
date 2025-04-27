@@ -1,22 +1,22 @@
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useMessageDeletion = (currentUserId: string, isVipUser: boolean) => {
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
-  const handleUnsendMessage = async (messageId: number) => {
+  const handleUnsendMessage = async (messageId: string) => {
     if (!isVipUser) return;
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', messageId)
-        .eq('sender_id', currentUserId);
-
-      if (error) throw error;
+      const messageRef = doc(db, 'messages', messageId);
+      
+      await updateDoc(messageRef, { 
+        deleted_at: new Date().toISOString() 
+      });
+      
       toast.success('Message unsent');
     } catch (error) {
       console.error('Error unsending message:', error);
@@ -31,21 +31,40 @@ export const useMessageDeletion = (currentUserId: string, isVipUser: boolean) =>
       setIsDeletingConversation(true);
       toast.loading('Deleting conversation...');
       
-      const { error: error1 } = await supabase
-        .from('messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('sender_id', currentUserId)
-        .eq('receiver_id', partnerId);
-        
-      if (error1) throw error1;
+      // Get messages sent by current user to partner
+      const sentMessagesQuery = query(
+        collection(db, 'messages'),
+        where('sender_id', '==', currentUserId),
+        where('receiver_id', '==', partnerId)
+      );
       
-      const { error: error2 } = await supabase
-        .from('messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('sender_id', partnerId)
-        .eq('receiver_id', currentUserId);
+      const sentMessagesDocs = await getDocs(sentMessagesQuery);
       
-      if (error2) throw error2;
+      // Get messages received by current user from partner
+      const receivedMessagesQuery = query(
+        collection(db, 'messages'),
+        where('sender_id', '==', partnerId),
+        where('receiver_id', '==', currentUserId)
+      );
+      
+      const receivedMessagesDocs = await getDocs(receivedMessagesQuery);
+      
+      // Update all messages to mark as deleted
+      const updatePromises = [];
+      
+      for (const doc of sentMessagesDocs.docs) {
+        updatePromises.push(
+          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
+        );
+      }
+      
+      for (const doc of receivedMessagesDocs.docs) {
+        updatePromises.push(
+          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
+        );
+      }
+      
+      await Promise.all(updatePromises);
       
       toast.dismiss();
       toast.success('Conversation deleted');

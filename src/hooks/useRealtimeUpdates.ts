@@ -1,125 +1,95 @@
 
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { ref, onValue, off } from "firebase/database";
+import { realtimeDb } from "@/integrations/firebase/client";
 import { toast } from "sonner";
 
 interface RealtimeUpdatesProps {
-  tableName: string;
+  path: string;
   onInsert?: (payload: any) => void;
   onUpdate?: (payload: any) => void;
   onDelete?: (payload: any) => void;
-  schema?: string;
-  filter?: string;
   enabled?: boolean;
 }
 
 export function useRealtimeUpdates({
-  tableName,
+  path,
   onInsert,
   onUpdate,
   onDelete,
-  schema = "public",
-  filter,
   enabled = true,
 }: RealtimeUpdatesProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const channelRef = useRef<any>(null);
+  const dbRefRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxRetries = 5;
   const [retryCount, setRetryCount] = useState(0);
 
-  const setupChannel = () => {
-    if (!enabled) return;
+  const setupRealtimeListener = () => {
+    if (!enabled || !path) return;
     
     try {
-      // Clean up any existing channel
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      // Clean up any existing reference
+      if (dbRefRef.current) {
+        off(dbRefRef.current);
+        dbRefRef.current = null;
       }
       
-      // Create a unique channel name
-      const channelName = `${tableName}_changes_${Date.now()}`;
-      console.log(`Setting up new channel: ${channelName}`);
+      console.log(`Setting up new realtime listener for path: ${path}`);
       
-      // Create a channel for database changes
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema,
-            table: tableName,
-            filter: filter ? filter : undefined,
-          },
-          (payload) => {
-            console.log(`New ${tableName} inserted:`, payload);
-            onInsert?.(payload);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema,
-            table: tableName,
-            filter: filter ? filter : undefined,
-          },
-          (payload) => {
-            console.log(`${tableName} updated:`, payload);
-            onUpdate?.(payload);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'DELETE',
-            schema,
-            table: tableName,
-            filter: filter ? filter : undefined,
-          },
-          (payload) => {
-            console.log(`${tableName} deleted:`, payload);
-            onDelete?.(payload);
-          }
-        )
-        .subscribe((status) => {
-          console.log(`Realtime subscription status for ${tableName}:`, status);
-          if (status === "SUBSCRIBED") {
-            setIsConnected(true);
-            setError(null);
-            setRetryCount(0);
-            
-            // Clear any pending reconnection timeouts
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-              reconnectTimeoutRef.current = null;
-            }
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            setIsConnected(false);
-            setError(`Connection error: ${status}`);
-            
-            // Attempt to reconnect with exponential backoff
-            if (retryCount < maxRetries) {
-              const delay = Math.min(1000 * (2 ** retryCount), 30000);
-              console.log(`Will attempt to reconnect in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
-              
-              reconnectTimeoutRef.current = setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-                setupChannel();
-              }, delay);
-            } else {
-              setError("Failed to connect after multiple attempts");
-              toast.error(`Realtime connection failed for ${tableName}`);
-            }
-          }
-        });
+      // Create a reference to the database path
+      const dbRef = ref(realtimeDb, path);
+      dbRefRef.current = dbRef;
+      
+      // Listen for changes
+      onValue(dbRef, (snapshot) => {
+        const data = snapshot.val();
+        console.log(`Received update for ${path}:`, data);
         
-      channelRef.current = channel;
+        if (!data) {
+          // Handle empty data case
+          return;
+        }
+        
+        // Process the data
+        // Note: Since we're using a basic listener, we'd need additional logic
+        // to determine if this is an insert, update or delete
+        // This is simplified from the Supabase implementation
+        
+        if (onUpdate) {
+          onUpdate(data);
+        }
+        
+        setIsConnected(true);
+        setError(null);
+        setRetryCount(0);
+        
+        // Clear any pending reconnection timeouts
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+      }, (error) => {
+        setIsConnected(false);
+        setError(`Connection error: ${error.message}`);
+        
+        // Attempt to reconnect with exponential backoff
+        if (retryCount < maxRetries) {
+          const delay = Math.min(1000 * (2 ** retryCount), 30000);
+          console.log(`Will attempt to reconnect in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+            setupRealtimeListener();
+          }, delay);
+        } else {
+          setError("Failed to connect after multiple attempts");
+          toast.error(`Realtime connection failed for ${path}`);
+        }
+      });
     } catch (err: any) {
-      console.error(`Error setting up realtime updates for ${tableName}:`, err);
+      console.error(`Error setting up realtime updates for ${path}:`, err);
       setError(err.message || "Failed to setup realtime updates");
       setIsConnected(false);
       toast.error(`Realtime connection error: ${err.message}`);
@@ -127,14 +97,14 @@ export function useRealtimeUpdates({
   };
 
   useEffect(() => {
-    setupChannel();
+    setupRealtimeListener();
     
     // Cleanup function
     return () => {
-      if (channelRef.current) {
-        console.log(`Cleaning up realtime updates for ${tableName}`);
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      if (dbRefRef.current) {
+        console.log(`Cleaning up realtime updates for ${path}`);
+        off(dbRefRef.current);
+        dbRefRef.current = null;
       }
       
       if (reconnectTimeoutRef.current) {
@@ -142,7 +112,7 @@ export function useRealtimeUpdates({
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [tableName, schema, filter, enabled]); // Re-subscribe when these props change
+  }, [path, enabled]); // Re-subscribe when these props change
 
-  return { isConnected, error, reconnect: setupChannel };
+  return { isConnected, error, reconnect: setupRealtimeListener };
 }

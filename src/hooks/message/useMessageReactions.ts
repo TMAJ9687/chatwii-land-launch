@@ -1,36 +1,34 @@
 
-import { supabase } from '@/lib/supabase';
+import { doc, collection, query, where, getDocs, addDoc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useMessageReactions = (currentUserId: string, isVipUser: boolean) => {
-  const handleReactToMessage = async (messageId: number, emoji: string) => {
+  const handleReactToMessage = async (messageId: string, emoji: string) => {
     if (!isVipUser) return;
 
     try {
-      const { data: existingReaction } = await supabase
-        .from('message_reactions')
-        .select('id')
-        .eq('message_id', messageId)
-        .eq('user_id', currentUserId)
-        .maybeSingle();
-        
-      if (existingReaction) {
-        const { error } = await supabase
-          .from('message_reactions')
-          .update({ emoji })
-          .eq('id', existingReaction.id);
-          
-        if (error) throw error;
+      // Check for existing reaction
+      const reactionsQuery = query(
+        collection(db, 'message_reactions'),
+        where('message_id', '==', messageId),
+        where('user_id', '==', currentUserId)
+      );
+      
+      const existingReactions = await getDocs(reactionsQuery);
+      
+      if (!existingReactions.empty) {
+        // Update existing reaction
+        const existingReaction = existingReactions.docs[0];
+        await updateDoc(existingReaction.ref, { emoji });
       } else {
-        const { error } = await supabase
-          .from('message_reactions')
-          .insert({
-            message_id: messageId,
-            user_id: currentUserId,
-            emoji
-          });
-          
-        if (error) throw error;
+        // Create new reaction
+        await addDoc(collection(db, 'message_reactions'), {
+          message_id: messageId,
+          user_id: currentUserId,
+          emoji,
+          created_at: new Date().toISOString()
+        });
       }
       
       toast.success('Reaction added');
