@@ -1,12 +1,14 @@
 
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { MessageActions } from './MessageActions';
 import { MessageContent } from './MessageContent';
 import { MessageMedia } from './MessageMedia';
 import { MessageReactions } from './MessageReactions';
+import { MessageTimestamp } from './MessageTimestamp';
+import { MessageStatus } from './MessageStatus';
+import { ReplyPreview } from './ReplyPreview';
 import { supabase } from '@/lib/supabase';
 
 interface MessageBubbleProps {
@@ -74,17 +76,8 @@ export const MessageBubble = ({
         }`}
       >
         {/* Reply preview if this is a reply */}
-        {message.reply_to && replyMessage && (
-          <div className={`text-sm opacity-80 mb-2 pb-1 border-b ${
-            isCurrentUser
-              ? 'border-primary-foreground/20'
-              : 'border-muted-foreground/20'
-          }`}>
-            <div className="font-medium mb-0.5">↪️ Reply to</div>
-            <div className="truncate">
-              {replyMessage.content || (replyMessage.media ? '[Media message]' : '[Message]')}
-            </div>
-          </div>
+        {message.reply_to && (
+          <ReplyPreview replyMessage={replyMessage} isCurrentUser={isCurrentUser} />
         )}
 
         {/* Message content */}
@@ -116,18 +109,10 @@ export const MessageBubble = ({
 
         {/* Timestamp and Status */}
         <div className="flex items-center justify-between mt-1">
-          <span className={`text-xs ${
-            isCurrentUser
-              ? 'text-primary-foreground/70'
-              : 'text-muted-foreground'
-          }`}>
-            {format(new Date(message.created_at), 'HH:mm')}
-          </span>
+          <MessageTimestamp timestamp={message.created_at} isCurrentUser={isCurrentUser} />
           
           {isCurrentUser && isVipUser && (
-            <span className="text-xs text-muted-foreground ml-2">
-              {message.is_read ? 'Read' : 'Sent'}
-            </span>
+            <MessageStatus isRead={message.is_read} />
           )}
         </div>
       </div>

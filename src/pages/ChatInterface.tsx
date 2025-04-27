@@ -1,12 +1,10 @@
+
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
 import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
 import { HistorySidebar } from '@/components/sidebar/HistorySidebar';
 import { BlockedUsersSidebar } from '@/components/sidebar/BlockedUsersSidebar';
-import { VipButton } from '@/components/VipButton';
 import { RulesPopup } from '@/components/RulesPopup';
-import { UserList } from '@/components/UserList';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { usePresence } from '@/hooks/usePresence';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
@@ -19,9 +17,9 @@ import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
+import { UserListSidebar } from '@/components/chat/UserListSidebar';
 
 const ChatInterfaceContent = () => {
-  const navigate = useNavigate();
   const { 
     selectedUserId, 
     selectedUserNickname,
@@ -52,7 +50,7 @@ const ChatInterfaceContent = () => {
   const { onlineUsers } = usePresence(currentUserId);
 
   // Create an async wrapper function for messages hook to match expected Promise<void> return type
-  const markMessagesAsReadAsync = async (userId: string) => {
+  const markMessagesAsReadAsync = async () => {
     fetchUnreadCount();
     return Promise.resolve();
   };
@@ -109,13 +107,11 @@ const ChatInterfaceContent = () => {
   return (
     <ChatLayout unreadCount={unreadCount} isVipUser={isVipUser}>
       <div className="flex h-[calc(100vh-60px)]">
-        <aside className="w-full max-w-xs border-r border-border">
-          <UserList
-            users={onlineUsers}
-            onUserSelect={handleUserSelect}
-            selectedUserId={selectedUserId ?? undefined}
-          />
-        </aside>
+        <UserListSidebar
+          onlineUsers={onlineUsers}
+          onUserSelect={handleUserSelect}
+          selectedUserId={selectedUserId}
+        />
 
         <main className="flex-1 flex flex-col">
           {selectedUserId && (

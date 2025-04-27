@@ -6,8 +6,7 @@ import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
 import { supabase } from '@/lib/supabase';
 import { MessageList } from './chat/MessageList';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info } from 'lucide-react';
+import { WarningBanner } from './chat/WarningBanner';
 import { isMockUser } from '@/utils/mockUsers';
 
 interface ChatAreaProps {
@@ -19,8 +18,8 @@ interface ChatAreaProps {
   };
   onClose?: () => void;
   onMessagesRead?: () => void;
-  isTyping?: boolean; // Added isTyping property
-  isVipUser?: boolean; // Added isVipUser property
+  isTyping?: boolean;
+  isVipUser?: boolean;
 }
 
 export const ChatArea = ({ 
@@ -29,8 +28,8 @@ export const ChatArea = ({
   selectedUser,
   onClose,
   onMessagesRead,
-  isTyping = false, // Default to false
-  isVipUser = false // Default to false
+  isTyping = false,
+  isVipUser = false
 }: ChatAreaProps) => {
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
@@ -109,12 +108,7 @@ export const ChatArea = ({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {isMockVipUser && (
-        <Alert className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 m-4">
-          <Info className="h-4 w-4 text-amber-500" />
-          <AlertDescription className="text-amber-800 dark:text-amber-300">
-            This is a demo VIP user. You can see messages but cannot interact with this account.
-          </AlertDescription>
-        </Alert>
+        <WarningBanner message="This is a demo VIP user. You can see messages but cannot interact with this account." />
       )}
       
       <MessageList

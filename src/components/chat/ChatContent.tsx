@@ -1,8 +1,9 @@
 
+import React from 'react';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
+import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
-import { useState, useEffect } from 'react';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -17,7 +18,7 @@ interface ChatContentProps {
   onTypingStatusChange?: (isTyping: boolean) => void;
 }
 
-export const ChatContent = ({
+export const ChatContent: React.FC<ChatContentProps> = ({
   selectedUserId,
   selectedUserNickname,
   currentUserId,
@@ -28,17 +29,9 @@ export const ChatContent = ({
   isVipUser = false,
   isTyping = false,
   onTypingStatusChange,
-}: ChatContentProps) => {
+}) => {
   if (!selectedUserId) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-        <div className="mb-6 text-5xl">👋</div>
-        <h2 className="text-2xl font-bold mb-2">Welcome to Chatwii</h2>
-        <p className="text-muted-foreground max-w-md">
-          Select a user from the list to start chatting
-        </p>
-      </div>
-    );
+    return <EmptyStateView />;
   }
 
   return (
