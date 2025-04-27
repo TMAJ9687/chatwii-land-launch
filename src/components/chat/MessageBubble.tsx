@@ -90,17 +90,36 @@ export const MessageBubble = ({
     fetchReplyMessage();
   }, [message.reply_to]);
 
-  // Convert message ID for existing toggleImageReveal function
+  // Handle image reveal toggle
   const handleToggleImageReveal = () => {
     toggleImageReveal(message.id);
   };
   
   // Check if the image is revealed - adapt to string IDs
   const isImageRevealed = (messageIdStr: string): boolean => {
-    // For backward compatibility with existing Set<number>
-    // Try to convert string ID to number for existing revealedImages set
+    // Since revealedImages is still a Set<number> but we're working with string IDs,
+    // we need to manually convert and check
     const messageIdNum = parseInt(messageIdStr, 10);
-    return !isNaN(messageIdNum) && revealedImages.has(messageIdNum);
+    
+    // Only try to use the numeric version if it's actually a valid number
+    if (!isNaN(messageIdNum)) {
+      return revealedImages.has(messageIdNum);
+    }
+    
+    // Default to false if ID can't be converted to a number
+    return false;
+  };
+
+  // Handle timestamp conversion for display
+  const formatTimestamp = (timestamp: string | Date | any): string => {
+    if (typeof timestamp === 'string') {
+      return timestamp;
+    } else if (timestamp && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate().toISOString();
+    } else if (timestamp instanceof Date) {
+      return timestamp.toISOString();
+    }
+    return new Date().toISOString();
   };
 
   return (
@@ -146,7 +165,7 @@ export const MessageBubble = ({
 
         {/* Timestamp and Status */}
         <div className="flex items-center justify-between mt-1">
-          <MessageTimestamp timestamp={message.created_at} isCurrentUser={isCurrentUser} />
+          <MessageTimestamp timestamp={formatTimestamp(message.created_at)} isCurrentUser={isCurrentUser} />
           
           {isCurrentUser && isVipUser && (
             <MessageStatus isRead={message.is_read} />

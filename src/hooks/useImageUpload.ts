@@ -21,7 +21,8 @@ export const useImageUpload = (currentUserId: string | null) => {
     try {
       const settingsDoc = await getDocument('site_settings', '1');
       
-      if (settingsDoc) {
+      if (settingsDoc && typeof settingsDoc === 'object') {
+        // Safely access nested properties
         const fileSettings = settingsDoc.settings?.files || {};
         
         return {
@@ -55,7 +56,11 @@ export const useImageUpload = (currentUserId: string | null) => {
     
     try {
       const userProfile = await getDocument('profiles', currentUserId);
-      return userProfile && (userProfile.role === 'vip' || userProfile.vip_status === true);
+      // Safely check properties, ensuring they exist on the profile object
+      if (userProfile && typeof userProfile === 'object') {
+        return (userProfile.role === 'vip' || userProfile.vip_status === true);
+      }
+      return false;
     } catch (error) {
       console.error('Error checking VIP status:', error);
       return false;
@@ -78,10 +83,10 @@ export const useImageUpload = (currentUserId: string | null) => {
       
       const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
       
-      if (dailyUploadDoc) {
-        // Ensure the properties exist by using optional chaining
-        const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
-        const uploadCount = dailyUploadDoc.upload_count || 0;
+      if (dailyUploadDoc && typeof dailyUploadDoc === 'object') {
+        // Ensure the document has the expected structure before accessing properties
+        const lastUploadDate = dailyUploadDoc.last_upload_date?.toString().split('T')[0];
+        const uploadCount = typeof dailyUploadDoc.upload_count === 'number' ? dailyUploadDoc.upload_count : 0;
         
         // Reset counter if it's a new day
         if (lastUploadDate !== today) {
@@ -109,14 +114,15 @@ export const useImageUpload = (currentUserId: string | null) => {
       
       const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
       
-      if (dailyUploadDoc) {
-        // Use optional chaining to avoid errors if property doesn't exist
-        const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
+      if (dailyUploadDoc && typeof dailyUploadDoc === 'object') {
+        // Use safe property access to avoid errors
+        const lastUploadDate = dailyUploadDoc.last_upload_date?.toString().split('T')[0];
+        const currentCount = typeof dailyUploadDoc.upload_count === 'number' ? dailyUploadDoc.upload_count : 0;
         
         if (lastUploadDate === today) {
           // Update existing record for today
           await updateDocument('daily_photo_uploads', currentUserId, {
-            upload_count: (dailyUploadDoc.upload_count || 0) + 1,
+            upload_count: currentCount + 1,
             last_upload_date: today
           });
         } else {
@@ -127,12 +133,12 @@ export const useImageUpload = (currentUserId: string | null) => {
           });
         }
       } else {
-        // Create new record
+        // Create new record - fixed the createDocument call to use proper arguments
         await createDocument('daily_photo_uploads', {
           user_id: currentUserId,
           upload_count: 1,
           last_upload_date: today
-        }, currentUserId); // Pass ID as the third parameter
+        }, currentUserId); 
       }
     } catch (error) {
       console.error('Error updating daily upload count:', error);

@@ -73,7 +73,9 @@ export const useMessages = (
       
       // Filter messages between current user and selected user
       const filteredMessages = messagesData.filter(msg => {
+        if (typeof msg !== 'object' || !msg) return false;
         if (!msg.sender_id || !msg.receiver_id) return false;
+        
         return (msg.sender_id === currentUserId && msg.receiver_id === selectedUserId) || 
                (msg.sender_id === selectedUserId && msg.receiver_id === currentUserId);
       });
@@ -82,11 +84,13 @@ export const useMessages = (
       const formattedMessages: MessageWithMedia[] = [];
       
       for (const message of filteredMessages) {
+        if (typeof message !== 'object' || !message) continue;
+        
         // Convert Firebase timestamp to ISO string if it exists
         let createdAt = message.created_at;
         if (createdAt && typeof createdAt !== 'string') {
-          if (createdAt instanceof Timestamp || createdAt.seconds) {
-            createdAt = new Date(createdAt.seconds * 1000).toISOString();
+          if (createdAt instanceof Timestamp || (createdAt as any).seconds) {
+            createdAt = new Date((createdAt as any).seconds * 1000).toISOString();
           }
         }
         
@@ -117,14 +121,15 @@ export const useMessages = (
             { field: 'message_id', operator: '==', value: message.id }
           ]);
           
-          if (mediaRecords.length > 0) {
+          if (mediaRecords.length > 0 && typeof mediaRecords[0] === 'object' && mediaRecords[0]) {
+            const mediaRecord = mediaRecords[0];
             message.media = {
-              id: mediaRecords[0].id || '',
-              message_id: mediaRecords[0].message_id || '',
-              user_id: mediaRecords[0].user_id || '',
-              file_url: mediaRecords[0].file_url || '',
-              media_type: mediaRecords[0].media_type as 'image' | 'voice' | 'video' || 'image',
-              created_at: mediaRecords[0].created_at || new Date().toISOString()
+              id: mediaRecord.id || '',
+              message_id: mediaRecord.message_id || '',
+              user_id: mediaRecord.user_id || '',
+              file_url: mediaRecord.file_url || '',
+              media_type: mediaRecord.media_type as 'image' | 'voice' | 'video' || 'image',
+              created_at: mediaRecord.created_at || new Date().toISOString()
             };
           }
           
@@ -133,13 +138,15 @@ export const useMessages = (
             { field: 'message_id', operator: '==', value: message.id }
           ]);
           
-          message.reactions = reactionRecords.map(reaction => ({
-            id: reaction.id || '',
-            message_id: reaction.message_id || '',
-            user_id: reaction.user_id || '',
-            emoji: reaction.emoji || '',
-            created_at: reaction.created_at || new Date().toISOString()
-          }));
+          message.reactions = reactionRecords
+            .filter(reaction => typeof reaction === 'object' && reaction)
+            .map(reaction => ({
+              id: reaction.id || '',
+              message_id: reaction.message_id || '',
+              user_id: reaction.user_id || '',
+              emoji: reaction.emoji || '',
+              created_at: reaction.created_at || new Date().toISOString()
+            }));
           
           return message;
         })

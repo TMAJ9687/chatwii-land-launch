@@ -79,13 +79,17 @@ export const useAuthProfile = () => {
       }
     };
 
-    const unsubFunc = checkAuthAndLoadProfile();
+    const unsubFuncPromise = checkAuthAndLoadProfile();
     
     return () => { 
       cancelled = true; 
-      if (typeof unsubFunc === 'function') {
-        unsubFunc();
-      }
+      unsubFuncPromise.then(unsubFunc => {
+        if (typeof unsubFunc === 'function') {
+          unsubFunc();
+        }
+      }).catch(err => {
+        console.error('Error cleaning up auth subscription:', err);
+      });
     };
   }, [navigate]);
 
