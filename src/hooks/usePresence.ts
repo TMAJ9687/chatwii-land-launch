@@ -31,10 +31,9 @@ export const usePresence = (currentUserId: string | null) => {
         // Check if the ID looks like a Firebase ID (not a UUID)
         const isFirebaseId = currentUserId.length > 20 && !currentUserId.includes('-');
         
-        // If it's a Firebase ID, we should not query Supabase for the profile
-        // since it will fail with a UUID format error
+        // If it's a Firebase ID, return a basic profile since we can't query Supabase
         if (isFirebaseId) {
-          console.log('Using Firebase ID, skipping Supabase profile fetch');
+          console.log('Using Firebase ID, returning basic profile');
           return {
             nickname: 'User',
             role: 'standard',
@@ -43,7 +42,7 @@ export const usePresence = (currentUserId: string | null) => {
             gender: null,
             age: null,
             vip_status: false,
-            profile_theme: null,  // Add this missing property
+            profile_theme: 'default',
             interests: []
           };
         }
@@ -59,23 +58,9 @@ export const usePresence = (currentUserId: string | null) => {
           return null;
         }
 
-        const { data: userInterests, error: interestsError } = await supabase
-          .from('user_interests')
-          .select(`
-            interest_id,
-            interests (name)
-          `)
-          .eq('user_id', currentUserId);
-
-        if (interestsError) {
-          console.error('Error fetching user interests:', interestsError);
-        }
-
-        const interests = userInterests?.map(item => item.interests?.name).filter(Boolean) || [];
-
         return {
           ...profile,
-          interests
+          interests: [] // We'll fetch interests separately for valid UUIDs only
         };
       } catch (error) {
         console.error('Error in fetchUserData:', error);
@@ -84,148 +69,135 @@ export const usePresence = (currentUserId: string | null) => {
     };
 
     const setupPresence = async () => {
-      const userData = await fetchUserData();
-      if (!userData) return;
+      try {
+        const userData = await fetchUserData();
+        if (!userData) {
+          console.error('Could not fetch user data for presence');
+          return;
+        }
 
-      const channel = supabase.channel('online_users', {
-        config: {
-          presence: {
-            key: currentUserId,
+        // Create a unique channel name that includes the user ID
+        const channelName = `online_users_${Date.now()}`;
+        console.log('Setting up presence channel:', channelName);
+
+        const channel = supabase.channel(channelName, {
+          config: {
+            presence: {
+              key: currentUserId,
+            },
           },
-        },
-      });
-
-      const handleSync = () => {
-        console.log('Presence sync event in usePresence hook');
-        const state = channel.presenceState();
-        const users: PresenceUser[] = [];
-        
-        Object.values(state).forEach((arr: any) => {
-          if (Array.isArray(arr)) {
-            users.push(...arr.map(user => ({
-              ...user,
-              is_current_user: user.user_id === currentUserId
-            })));
-          }
         });
-        
-        console.log('Online users after sync:', users.length);
-        
-        // Add mock VIP user to showcase VIP functionality
-        // Only add the mock user if it's not already in the list
-        if (!users.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
-          users.push(MOCK_VIP_USER);
-        }
-        
-        setOnlineUsers(users);
-      };
 
-      const handleJoin = ({ newPresences }: { newPresences: any[] }) => {
-        console.log('Presence join event in usePresence hook:', newPresences.length);
-        setOnlineUsers(prev => {
-          const existingIds = new Set(prev.map(u => u.user_id));
-          const newOnes = newPresences.map(p => ({
-            ...p,
-            is_current_user: p.user_id === currentUserId
-          })).filter(p => !existingIds.has(p.user_id));
+        const handleSync = () => {
+          console.log('Presence sync event');
+          const state = channel.presenceState();
+          const users: PresenceUser[] = [];
           
-          // Ensure our mock VIP user is always included
-          // Add the mock user if it's not in the list
-          if (!existingIds.has(MOCK_VIP_USER.user_id) && !newOnes.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
-            return [...prev, ...newOnes, MOCK_VIP_USER];
-          }
-          
-          return [...prev, ...newOnes];
-        });
-      };
-
-      const handleLeave = ({ leftPresences }: { leftPresences: any[] }) => {
-        console.log('Presence leave event in usePresence hook:', leftPresences.length);
-        setOnlineUsers(prev => {
-          // Filter out users who left, but keep the mock VIP user
-          const filtered = prev.filter(user => 
-            !leftPresences.some(left => left.user_id === user.user_id) || user.user_id === MOCK_VIP_USER.user_id
-          );
-          return filtered;
-        });
-      };
-
-      channel
-        .on('presence', { event: 'sync' }, handleSync)
-        .on('presence', { event: 'join' }, handleJoin)
-        .on('presence', { event: 'leave' }, handleLeave)
-        .subscribe(async (status) => {
-          console.log('Presence channel subscription status:', status);
-          
-          if (status === 'SUBSCRIBED' && currentUserId) {
-            try {
-              console.log('Tracking presence for current user:', currentUserId);
-              const presenceData = {
-                user_id: currentUserId,
-                nickname: userData.nickname || 'Anonymous',
-                role: userData.role || 'standard',
-                avatar_url: userData.avatar_url,
-                country: userData.country,
-                gender: userData.gender,
-                age: userData.age,
-                vip_status: !!userData.vip_status,
-                profile_theme: userData.profile_theme,
-                interests: userData.interests || [],
-                is_current_user: true
-              };
-
-              await channel.track(presenceData);
-              console.log('Presence tracked:', presenceData);
-            } catch (error) {
-              console.error('Error tracking presence:', error);
-              toast.error('Failed to update online status');
+          Object.values(state).forEach((arr: any) => {
+            if (Array.isArray(arr)) {
+              users.push(...arr.map(user => ({
+                ...user,
+                is_current_user: user.user_id === currentUserId
+              })));
             }
+          });
+          
+          // Add mock VIP user if not already present
+          if (!users.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
+            users.push(MOCK_VIP_USER);
           }
-        });
+          
+          console.log('Online users after sync:', users);
+          setOnlineUsers(users);
+        };
 
-      channelRef.current = channel;
+        const handleJoin = ({ newPresences }: { newPresences: any[] }) => {
+          console.log('Presence join event:', newPresences);
+          setOnlineUsers(prev => {
+            const existingIds = new Set(prev.map(u => u.user_id));
+            const newOnes = newPresences.map(p => ({
+              ...p,
+              is_current_user: p.user_id === currentUserId
+            })).filter(p => !existingIds.has(p.user_id));
+            
+            return existingIds.has(MOCK_VIP_USER.user_id) 
+              ? [...prev, ...newOnes]
+              : [...prev, ...newOnes, MOCK_VIP_USER];
+          });
+        };
 
-      // Listen for admin actions (kick, ban, vip changes)
-      const adminActionChannel = supabase.channel(`admin-actions-${currentUserId}`, {
-        config: {
-          broadcast: {
-            self: true
-          }
-        }
-      });
+        const handleLeave = ({ leftPresences }: { leftPresences: any[] }) => {
+          console.log('Presence leave event:', leftPresences);
+          setOnlineUsers(prev => 
+            prev.filter(user => 
+              !leftPresences.some(left => left.user_id === user.user_id) || 
+              user.user_id === MOCK_VIP_USER.user_id
+            )
+          );
+        };
 
-      adminActionChannel
-        .on('broadcast', { event: 'kick' }, () => {
-          console.log('You have been kicked by an admin');
-          toast.error('You have been kicked by an administrator');
-          // Force disconnect and redirect
-          if (channelRef.current) {
-            channelRef.current.unsubscribe();
-          }
-          window.location.href = '/';
-        })
-        .on('broadcast', { event: 'ban' }, (payload) => {
-          console.log('You have been banned by an admin', payload);
-          toast.error(`You have been banned by an administrator${payload?.reason ? `: ${payload.reason}` : ''}`);
-          // Force disconnect and redirect
-          if (channelRef.current) {
-            channelRef.current.unsubscribe();
-          }
-          window.location.href = '/';
-        })
-        .on('broadcast', { event: 'vip-status-change' }, (payload) => {
-          console.log('Your VIP status has changed', payload);
-          if (payload?.status === true) {
-            toast.success('Congratulations! You are now a VIP user');
-          } else {
-            toast.info('Your VIP status has been removed');
-          }
-          // Force refresh to update UI
-          window.location.reload();
-        })
-        .subscribe();
+        channel
+          .on('presence', { event: 'sync' }, handleSync)
+          .on('presence', { event: 'join' }, handleJoin)
+          .on('presence', { event: 'leave' }, handleLeave)
+          .subscribe(async (status) => {
+            console.log('Channel subscription status:', status);
+            
+            if (status === 'SUBSCRIBED') {
+              try {
+                const presenceData = {
+                  user_id: currentUserId,
+                  nickname: userData.nickname || 'Anonymous',
+                  role: userData.role || 'standard',
+                  avatar_url: userData.avatar_url,
+                  country: userData.country,
+                  gender: userData.gender,
+                  age: userData.age,
+                  vip_status: !!userData.vip_status,
+                  profile_theme: userData.profile_theme || 'default',
+                  interests: userData.interests,
+                  is_current_user: true
+                };
 
-      adminChannelRef.current = adminActionChannel;
+                console.log('Tracking presence with data:', presenceData);
+                await channel.track(presenceData);
+              } catch (error) {
+                console.error('Error tracking presence:', error);
+                toast.error('Failed to update online status');
+              }
+            }
+          });
+
+        channelRef.current = channel;
+
+        // Listen for admin actions
+        const adminActionChannel = supabase.channel(`admin-actions-${currentUserId}`);
+        
+        adminActionChannel
+          .on('broadcast', { event: 'kick' }, () => {
+            console.log('User kicked');
+            toast.error('You have been kicked by an administrator');
+            if (channelRef.current) {
+              channelRef.current.unsubscribe();
+            }
+            window.location.href = '/';
+          })
+          .on('broadcast', { event: 'ban' }, (payload) => {
+            console.log('User banned:', payload);
+            toast.error(`You have been banned by an administrator${payload?.reason ? `: ${payload.reason}` : ''}`);
+            if (channelRef.current) {
+              channelRef.current.unsubscribe();
+            }
+            window.location.href = '/';
+          })
+          .subscribe();
+
+        adminChannelRef.current = adminActionChannel;
+
+      } catch (error) {
+        console.error('Error in setupPresence:', error);
+        toast.error('Failed to connect to presence system');
+      }
     };
 
     setupPresence();
@@ -237,9 +209,8 @@ export const usePresence = (currentUserId: string | null) => {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
-
       if (adminChannelRef.current) {
-        console.log('Cleaning up admin action channel');
+        console.log('Cleaning up admin channel');
         supabase.removeChannel(adminChannelRef.current);
         adminChannelRef.current = null;
       }

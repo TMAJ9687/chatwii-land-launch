@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -20,13 +19,13 @@ interface MessageBubbleProps {
   toggleImageReveal: (messageId: string) => void;
 }
 
-export const MessageBubble = ({ 
-  message, 
-  currentUserId, 
+export const MessageBubble = ({
+  message,
+  currentUserId,
   isVipUser = false,
-  onImageClick, 
+  onImageClick,
   revealedImages,
-  toggleImageReveal 
+  toggleImageReveal
 }: MessageBubbleProps) => {
   const [replyMessage, setReplyMessage] = useState<MessageWithMedia | null>(null);
   const isCurrentUser = message.sender_id === currentUserId;
@@ -39,7 +38,6 @@ export const MessageBubble = ({
     translatingMessageId
   } = useMessageActions(currentUserId, isVipUser || false);
 
-  // Fetch the message this is replying to, if any
   useEffect(() => {
     if (!message.reply_to) return;
     
@@ -52,7 +50,6 @@ export const MessageBubble = ({
         if (replyMessages.length > 0) {
           const replyMsg = replyMessages[0];
           
-          // Fetch media for the reply message
           const mediaRecords = await queryDocuments('message_media', [
             { field: 'message_id', operator: '==', value: replyMsg.id }
           ]);
@@ -90,26 +87,22 @@ export const MessageBubble = ({
     fetchReplyMessage();
   }, [message.reply_to]);
 
-  // Handle image reveal toggle
   const handleToggleImageReveal = () => {
-    toggleImageReveal(message.id);
+    if (message.id) {
+      toggleImageReveal(message.id);
+    }
   };
   
-  // Check if the image is revealed
   const isImageRevealed = (messageId: string): boolean => {
-    // Get numeric message ID for string ID
-    const messageIdNum = parseInt(messageId, 10);
+    const messageIdNum = Number(messageId);
     
-    // If we can't parse it as a number, just do a string check against the set
     if (isNaN(messageIdNum)) {
       return false;
     }
     
-    // Compare the numeric ID with what's in the Set
-    return Array.from(revealedImages).includes(messageIdNum);
+    return revealedImages.has(messageIdNum);
   };
 
-  // Handle timestamp conversion for display
   const formatTimestamp = (timestamp: string | Date | any): string => {
     if (typeof timestamp === 'string') {
       return timestamp;
@@ -130,15 +123,12 @@ export const MessageBubble = ({
             : 'bg-muted'
         }`}
       >
-        {/* Reply preview if this is a reply */}
         {message.reply_to && (
           <ReplyPreview replyMessage={replyMessage} isCurrentUser={isCurrentUser} />
         )}
 
-        {/* Message content */}
         <MessageContent message={message} isCurrentUser={isCurrentUser} />
 
-        {/* Message media */}
         <MessageMedia 
           media={message.media} 
           messageId={message.id}
@@ -148,10 +138,8 @@ export const MessageBubble = ({
           toggleImageReveal={handleToggleImageReveal}
         />
         
-        {/* Display reactions if there are any */}
         <MessageReactions reactions={message.reactions} />
         
-        {/* Message Actions */}
         <MessageActions
           message={message}
           isCurrentUser={isCurrentUser}
@@ -162,7 +150,6 @@ export const MessageBubble = ({
           onTranslate={() => translateMessage(message)}
         />
 
-        {/* Timestamp and Status */}
         <div className="flex items-center justify-between mt-1">
           <MessageTimestamp timestamp={formatTimestamp(message.created_at)} isCurrentUser={isCurrentUser} />
           
