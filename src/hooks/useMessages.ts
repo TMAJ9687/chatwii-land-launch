@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { db, queryDocuments } from '@/lib/firebase';
+import { queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
@@ -52,7 +52,15 @@ export const useMessages = (
     
     // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
-      setMessages(getMockVipMessages(currentUserId));
+      const mockMessages = getMockVipMessages(currentUserId);
+      
+      // Ensure mock messages have the reactions array for TypeScript
+      const completeMessages: MessageWithMedia[] = mockMessages.map(msg => ({
+        ...msg,
+        reactions: msg.reactions || []  // Ensure reactions array exists
+      }));
+
+      setMessages(completeMessages);
       setIsLoading(false);
       setError(null);
       return;
@@ -74,10 +82,15 @@ export const useMessages = (
       // Filter messages between current user and selected user
       const filteredMessages = messagesData.filter(msg => {
         if (typeof msg !== 'object' || !msg) return false;
-        if (!msg.sender_id || !msg.receiver_id) return false;
         
-        return (msg.sender_id === currentUserId && msg.receiver_id === selectedUserId) || 
-               (msg.sender_id === selectedUserId && msg.receiver_id === currentUserId);
+        // Safely access properties
+        const senderId = msg?.sender_id;
+        const receiverId = msg?.receiver_id;
+        
+        if (!senderId || !receiverId) return false;
+        
+        return (senderId === currentUserId && receiverId === selectedUserId) || 
+               (senderId === selectedUserId && receiverId === currentUserId);
       });
       
       // Format messages to match MessageWithMedia type
@@ -107,7 +120,7 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          reactions: []
+          reactions: [] // Initialize with empty array to satisfy TypeScript
         };
         
         formattedMessages.push(messageWithMedia);

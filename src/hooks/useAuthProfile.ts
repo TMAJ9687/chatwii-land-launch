@@ -79,11 +79,12 @@ export const useAuthProfile = () => {
       }
     };
 
-    const unsubFuncPromise = checkAuthAndLoadProfile();
+    const unsubPromise = checkAuthAndLoadProfile();
     
     return () => { 
       cancelled = true; 
-      unsubFuncPromise.then(unsubFunc => {
+      // Handle the promise correctly
+      unsubPromise.then(unsubFunc => {
         if (typeof unsubFunc === 'function') {
           unsubFunc();
         }
