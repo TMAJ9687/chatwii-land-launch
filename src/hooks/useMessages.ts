@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase';
@@ -68,7 +67,7 @@ export const useMessages = (
     
     isFetchingRef.current = true;
     setIsLoading(true);
-    lastFetchTimeRef.current = now;
+    lastFetchTimeRef.current = Date.now();
     
     const cutoffTime = getCutoffTimestamp(currentUserRole);
     

@@ -1,8 +1,8 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { isMockUser } from '@/utils/mockUsers';
+import { queryDocuments, updateDocument, subscribeToQuery } from '@/lib/firebase';
 
 export const useGlobalMessages = (currentUserId: string | null) => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -13,14 +13,13 @@ export const useGlobalMessages = (currentUserId: string | null) => {
   const fetchUnreadCount = async () => {
     if (!currentUserId) return;
     try {
-      const { count, error } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', currentUserId)
-        .eq('is_read', false);
-
-      if (error) throw error;
-
+      const unreadMessages = await queryDocuments('messages', [
+        { field: 'receiver_id', operator: '==', value: currentUserId },
+        { field: 'is_read', operator: '==', value: false }
+      ]);
+      
+      // Count valid messages
+      const count = unreadMessages.filter(msg => msg && typeof msg === 'object').length;
       setUnreadCount(count || 0);
     } catch (error) {
       console.error('Error fetching unread count:', error);
@@ -38,14 +37,20 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     }
     
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('sender_id', senderId)
-        .eq('receiver_id', currentUserId)
-        .eq('is_read', false);
-
-      if (error) throw error;
+      // Get unread messages from this sender
+      const unreadMessages = await queryDocuments('messages', [
+        { field: 'sender_id', operator: '==', value: senderId },
+        { field: 'receiver_id', operator: '==', value: currentUserId },
+        { field: 'is_read', operator: '==', value: false }
+      ]);
+      
+      // Update each message to mark as read
+      const updatePromises = unreadMessages.map(msg => {
+        if (!msg || !msg.id) return Promise.resolve();
+        return updateDocument('messages', msg.id, { is_read: true });
+      });
+      
+      await Promise.all(updatePromises);
 
       // Update the unread count after marking messages as read
       fetchUnreadCount();
@@ -54,50 +59,52 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     }
   };
 
-  // Set up global subscription for new messages
+  // Set up global subscription for new messages using Firebase
   useEffect(() => {
     if (!currentUserId) return;
 
     // Subscribe to any messages where the current user is the receiver
-    const channel = supabase
-      .channel('global-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${currentUserId}`,
-        },
-        async (payload) => {
-          // Skip handling for mock user
-          if (isMockUser(payload.new.sender_id)) return;
+    const unsubscribe = subscribeToQuery(
+      'messages',
+      [
+        { field: 'receiver_id', operator: '==', value: currentUserId },
+        { field: 'is_read', operator: '==', value: false }
+      ],
+      async (newMessages) => {
+        // Skip notifications for mock users
+        const realMessages = newMessages.filter(msg => !isMockUser(msg.sender_id));
+        if (realMessages.length === 0) return;
+        
+        // Process new messages
+        for (const message of realMessages) {
+          // Skip if we're already chatting with this sender
+          if (currentSelectedUserId === message.sender_id) continue;
           
-          // Extract the sender's information
-          const { data: senderProfile } = await supabase
-            .from('profiles')
-            .select('nickname')
-            .eq('id', payload.new.sender_id)
-            .single();
-
+          // Get sender information
+          const senderProfiles = await queryDocuments('profiles', [
+            { field: 'id', operator: '==', value: message.sender_id }
+          ]);
+          
+          const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
           const senderName = senderProfile?.nickname || 'Someone';
-
-          // Show toast notification for new message only if not chatting with this sender
-          if (!currentSelectedUserId || currentSelectedUserId !== payload.new.sender_id) {
-            toast(`New message from ${senderName}`);
-            setNewMessageReceived(true);
-            // Update the unread count
-            fetchUnreadCount();
-          }
+          
+          // Show toast notification
+          toast(`New message from ${senderName}`);
         }
-      )
-      .subscribe();
+        
+        setNewMessageReceived(true);
+        // Update the unread count
+        fetchUnreadCount();
+      }
+    );
 
     // Initial fetch of unread count
     fetchUnreadCount();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [currentUserId, currentSelectedUserId]);
 

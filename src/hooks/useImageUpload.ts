@@ -10,6 +10,34 @@ import {
 } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 
+// Define interfaces to fix type errors
+interface SiteSettings {
+  id: string;
+  settings?: {
+    files?: {
+      max_size_mb?: number;
+      allowed_mime_types?: string[];
+      max_image_dimension?: number;
+      daily_upload_limit?: number;
+    }
+  };
+}
+
+interface UserProfile {
+  id: string;
+  role?: string;
+  vip_status?: boolean;
+  [key: string]: any;
+}
+
+interface DailyUploadRecord {
+  id: string;
+  user_id?: string;
+  upload_count?: number;
+  last_upload_date?: string;
+  [key: string]: any;
+}
+
 export const useImageUpload = (currentUserId: string | null) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -19,7 +47,7 @@ export const useImageUpload = (currentUserId: string | null) => {
   // Get allowed mime types and size limits from site settings
   const getSiteSettings = async () => {
     try {
-      const settingsDoc = await getDocument('site_settings', '1');
+      const settingsDoc = await getDocument('site_settings', '1') as SiteSettings;
       
       if (settingsDoc && typeof settingsDoc === 'object') {
         // Safely access nested properties with optional chaining
@@ -55,7 +83,7 @@ export const useImageUpload = (currentUserId: string | null) => {
     if (!currentUserId) return false;
     
     try {
-      const userProfile = await getDocument('profiles', currentUserId);
+      const userProfile = await getDocument('profiles', currentUserId) as UserProfile;
       // Safely check properties, ensuring they exist on the profile object
       if (userProfile && typeof userProfile === 'object') {
         return (userProfile?.role === 'vip' || userProfile?.vip_status === true);
@@ -81,7 +109,7 @@ export const useImageUpload = (currentUserId: string | null) => {
       
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
-      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
+      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId) as DailyUploadRecord;
       
       if (dailyUploadDoc && typeof dailyUploadDoc === 'object') {
         // Ensure the document has the expected structure before accessing properties
@@ -112,7 +140,7 @@ export const useImageUpload = (currentUserId: string | null) => {
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
-      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
+      const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId) as DailyUploadRecord;
       
       if (dailyUploadDoc && typeof dailyUploadDoc === 'object') {
         // Use safe property access to avoid errors

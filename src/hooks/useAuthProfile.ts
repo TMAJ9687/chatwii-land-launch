@@ -35,7 +35,7 @@ export const useAuthProfile = () => {
 
     const checkAuthAndLoadProfile = async () => {
       try {
-        // Subscribe to auth changes
+        // Subscribe to auth changes - now using Firebase's auth listener
         const unsubscribe = subscribeToAuthChanges(async (user) => {
           if (cancelled) return;
 
