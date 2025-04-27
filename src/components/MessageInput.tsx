@@ -52,8 +52,18 @@ export const MessageInput: React.FC<MessageInputProps> = (props) => {
             { field: 'message_id', operator: '==', value: replyMsg.id }
           ]);
           
-          setReplyToMessage({
-            ...replyMsg,
+          const fullReplyMessage: MessageWithMedia = {
+            id: replyMsg.id,
+            content: replyMsg.content || '',
+            sender_id: replyMsg.sender_id,
+            receiver_id: replyMsg.receiver_id,
+            is_read: replyMsg.is_read || false,
+            created_at: replyMsg.created_at,
+            updated_at: replyMsg.updated_at,
+            deleted_at: replyMsg.deleted_at,
+            translated_content: replyMsg.translated_content,
+            language_code: replyMsg.language_code,
+            reply_to: replyMsg.reply_to,
             media: mediaRecords.length > 0 ? {
               id: mediaRecords[0].id,
               message_id: mediaRecords[0].message_id,
@@ -63,7 +73,9 @@ export const MessageInput: React.FC<MessageInputProps> = (props) => {
               created_at: mediaRecords[0].created_at
             } : null,
             reactions: []
-          });
+          };
+          
+          setReplyToMessage(fullReplyMessage);
         }
       } catch (error) {
         console.error('Error fetching reply message:', error);

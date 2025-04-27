@@ -1,139 +1,87 @@
 
-import { useState, useEffect } from 'react';
-import { createDocument, queryDocuments, deleteDocument } from '@/lib/firebase';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { createDocument, queryDocuments } from '@/lib/firebase';
+
+interface BlockedUser {
+  id: string;
+  blocker_id: string;
+  blocked_id: string;
+  created_at: any;
+}
 
 export const useBlockedUsers = () => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
-  const [blockedByUsers, setBlockedByUsers] = useState<string[]>([]);
-  const [isLoadingBlocks, setIsLoadingBlocks] = useState(true);
-  const [isLoadingBlockedBy, setIsLoadingBlockedBy] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load blocked users
-  const loadBlockedUsers = async () => {
-    const userId = localStorage.getItem('firebase_user_id');
-    if (!userId) {
-      setBlockedUsers([]);
-      setIsLoadingBlocks(false);
-      return;
-    }
-
+  // Fetch blocked users on mount
+  const fetchBlockedUsers = useCallback(async (currentUserId: string | null) => {
+    if (!currentUserId) return;
+    setIsLoading(true);
+    
     try {
-      const blockedData = await queryDocuments('blocked_users', [
-        { field: 'blocker_id', operator: '==', value: userId }
+      const blockedRecords = await queryDocuments('blocked_users', [
+        { field: 'blocker_id', operator: '==', value: currentUserId }
       ]);
-
-      setBlockedUsers(blockedData.map(b => b.blocked_id || ''));
+      
+      const blocked = blockedRecords.map(record => record.blocked_id);
+      setBlockedUsers(blocked);
+      
     } catch (error) {
-      console.error('Error loading blocked users:', error);
-      toast.error("Failed to load blocked users");
+      console.error('Error fetching blocked users:', error);
+      toast.error('Failed to load blocked users');
     } finally {
-      setIsLoadingBlocks(false);
+      setIsLoading(false);
     }
-  };
-
-  // Load users who have blocked the current user
-  const loadBlockedByUsers = async () => {
-    const userId = localStorage.getItem('firebase_user_id');
-    if (!userId) {
-      setBlockedByUsers([]);
-      setIsLoadingBlockedBy(false);
+  }, []);
+  
+  // Block a user
+  const blockUser = useCallback(async (userId: string, currentUserId: string | null) => {
+    if (!currentUserId) {
+      toast.error('You need to be logged in to block users');
       return;
     }
-
+    
+    if (blockedUsers.includes(userId)) {
+      toast.info('User is already blocked');
+      return;
+    }
+    
     try {
-      const blockedByData = await queryDocuments('blocked_users', [
+      // Check if block already exists
+      const existingBlocks = await queryDocuments('blocked_users', [
+        { field: 'blocker_id', operator: '==', value: currentUserId },
         { field: 'blocked_id', operator: '==', value: userId }
       ]);
-
-      setBlockedByUsers(blockedByData.map(b => b.blocker_id || ''));
-    } catch (error) {
-      console.error('Error loading blocked by users:', error);
-    } finally {
-      setIsLoadingBlockedBy(false);
-    }
-  };
-
-  // Load data when component mounts
-  useEffect(() => {
-    loadBlockedUsers();
-    loadBlockedByUsers();
-  }, []);
-
-  // Block a user
-  const blockUser = async (blockedId: string) => {
-    const userId = localStorage.getItem('firebase_user_id');
-    if (!userId) {
-      toast.error('You must be logged in to block users');
-      return;
-    }
-
-    try {
-      await createDocument('blocked_users', {
-        blocker_id: userId,
-        blocked_id: blockedId
-      });
-
+      
+      if (existingBlocks.length === 0) {
+        // Create new block record
+        await createDocument('blocked_users', {
+          blocker_id: currentUserId,
+          blocked_id: userId
+        });
+      }
+      
+      // Update local state
+      setBlockedUsers(prev => [...prev, userId]);
       toast.success('User blocked successfully');
-      loadBlockedUsers();
+      
     } catch (error) {
       console.error('Error blocking user:', error);
       toast.error('Failed to block user');
     }
-  };
-
-  // Unblock a user
-  const unblockUser = async (blockedId: string) => {
-    const userId = localStorage.getItem('firebase_user_id');
-    if (!userId) {
-      toast.error('You must be logged in to unblock users');
-      return;
-    }
-
-    try {
-      const blockedEntries = await queryDocuments('blocked_users', [
-        { field: 'blocker_id', operator: '==', value: userId },
-        { field: 'blocked_id', operator: '==', value: blockedId }
-      ]);
-
-      for (const entry of blockedEntries) {
-        await deleteDocument('blocked_users', entry.id);
-      }
-
-      toast.success('User unblocked successfully');
-      loadBlockedUsers();
-    } catch (error) {
-      console.error('Error unblocking user:', error);
-      toast.error('Failed to unblock user');
-    }
-  };
-
-  // Check if a user is blocked by the current user
-  const isUserBlocked = (userId: string) => {
-    return blockedUsers.includes(userId);
-  };
-
-  // Check if a user has blocked the current user
-  const isBlockedByUser = (userId: string) => {
-    return blockedByUsers.includes(userId);
-  };
-
-  // Check if the current user can interact with another user
-  const canInteractWithUser = (userId: string) => {
-    return !isUserBlocked(userId) && !isBlockedByUser(userId);
-  };
+  }, [blockedUsers]);
+  
+  // Check if user can interact with another user
+  const canInteractWithUser = useCallback((userId: string) => {
+    return !blockedUsers.includes(userId);
+  }, [blockedUsers]);
 
   return {
     blockedUsers,
-    blockedByUsers,
+    isLoading,
+    fetchBlockedUsers,
     blockUser,
-    unblockUser,
-    isUserBlocked,
-    isBlockedByUser,
-    canInteractWithUser,
-    isLoadingBlocks,
-    isLoadingBlockedBy,
-    loadBlockedUsers,
-    loadBlockedByUsers
+    canInteractWithUser
   };
 };

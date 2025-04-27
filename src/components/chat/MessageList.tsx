@@ -9,7 +9,7 @@ interface MessageListProps {
   currentUserId: string;
   onImageClick: (url: string) => void;
   revealedImages: Set<number>;
-  toggleImageReveal: (messageId: number) => void;
+  toggleImageReveal: (messageId: string) => void;
   isTyping?: boolean;
   isVipUser?: boolean;
 }

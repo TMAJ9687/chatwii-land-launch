@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { db, queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';

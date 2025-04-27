@@ -15,8 +15,7 @@ import {
   serverTimestamp, 
   Timestamp,
   onSnapshot,
-  CollectionReference,
-  Query,
+  QueryConstraint,
   DocumentData
 } from "firebase/firestore";
 import { db } from "./client";
@@ -111,26 +110,28 @@ export const queryDocuments = async (
   const collectionRef = collection(db, collectionName);
   
   // Build query with conditions
-  let q: Query<DocumentData> = collectionRef;
+  const queryConstraints: QueryConstraint[] = [];
   
   // Add conditions
   if (conditions.length > 0) {
     conditions.forEach(({ field, operator, value }) => {
-      q = query(q, where(field, operator, value));
+      queryConstraints.push(where(field, operator, value));
     });
   }
   
   // Add ordering if specified
   if (orderByField) {
-    q = query(q, orderBy(orderByField, orderDirection || "asc"));
+    queryConstraints.push(orderBy(orderByField, orderDirection || "asc"));
   }
   
   // Add limit if specified
   if (limitCount) {
-    q = query(q, limit(limitCount));
+    queryConstraints.push(limit(limitCount));
   }
   
+  const q = query(collectionRef, ...queryConstraints);
   const querySnapshot = await getDocs(q);
+  
   return querySnapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data()
@@ -170,24 +171,26 @@ export const subscribeToQuery = (
   const collectionRef = collection(db, collectionName);
   
   // Build query with conditions
-  let q: Query<DocumentData> = collectionRef;
+  const queryConstraints: QueryConstraint[] = [];
   
   // Add conditions
   if (conditions.length > 0) {
     conditions.forEach(({ field, operator, value }) => {
-      q = query(q, where(field, operator, value));
+      queryConstraints.push(where(field, operator, value));
     });
   }
   
   // Add ordering if specified
   if (orderByField) {
-    q = query(q, orderBy(orderByField, orderDirection || "asc"));
+    queryConstraints.push(orderBy(orderByField, orderDirection || "asc"));
   }
   
   // Add limit if specified
   if (limitCount) {
-    q = query(q, limit(limitCount));
+    queryConstraints.push(limit(limitCount));
   }
+  
+  const q = query(collectionRef, ...queryConstraints);
   
   return onSnapshot(q, (querySnapshot) => {
     const documents = querySnapshot.docs.map(doc => ({

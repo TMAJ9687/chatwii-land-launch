@@ -4,7 +4,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { ImageModal } from './ImageModal';
 import { MessageWithMedia } from '@/types/message';
-import { supabase } from '@/lib/supabase';
+import { updateDocument, queryDocuments } from '@/lib/firebase';
 import { MessageList } from './chat/MessageList';
 import { WarningBanner } from './chat/WarningBanner';
 import { isMockUser } from '@/utils/mockUsers';
@@ -57,25 +57,28 @@ export const ChatArea = ({
       
       if (currentUserId && selectedUser.id) {
         try {
-          const { error } = await supabase
-            .from('messages')
-            .update({ is_read: true })
-            .eq('sender_id', selectedUser.id)
-            .eq('receiver_id', currentUserId)
-            .eq('is_read', false);
+          // Query unread messages from this sender
+          const unreadMessages = await queryDocuments('messages', [
+            { field: 'sender_id', operator: '==', value: selectedUser.id },
+            { field: 'receiver_id', operator: '==', value: currentUserId },
+            { field: 'is_read', operator: '==', value: false }
+          ]);
           
-          if (error) {
-            if (retryCount < maxRetries) {
-              retryCount++;
-              console.log(`Retrying markMessagesAsRead (attempt ${retryCount})`);
-              setTimeout(markMessagesAsRead, 1000 * retryCount);
-              return;
-            }
-            throw error;
-          }
+          // Update each message
+          const updatePromises = unreadMessages.map(msg => 
+            updateDocument('messages', msg.id, { is_read: true })
+          );
+          
+          await Promise.all(updatePromises);
           
           if (onMessagesRead) onMessagesRead();
         } catch (error) {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`Retrying markMessagesAsRead (attempt ${retryCount})`);
+            setTimeout(markMessagesAsRead, 1000 * retryCount);
+            return;
+          }
           console.error('Error marking messages as read:', error);
         }
       }
@@ -86,22 +89,25 @@ export const ChatArea = ({
 
   const isBlocked = blockedUsers.includes(selectedUser.id);
 
-  const toggleImageReveal = (messageId: number) => {
+  const toggleImageReveal = (messageId: string) => {
     setRevealedImages(prev => {
+      const messageIdNum = parseInt(messageId, 10);
       const newSet = new Set(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
+      if (!isNaN(messageIdNum)) {
+        if (newSet.has(messageIdNum)) {
+          newSet.delete(messageIdNum);
+        } else {
+          newSet.add(messageIdNum);
+        }
+        localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
       }
-      localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
       return newSet;
     });
   };
 
   const handleBlockUser = () => {
     if (!isBlocked) {
-      blockUser(selectedUser.id);
+      blockUser(selectedUser.id, currentUserId);
     }
   };
 

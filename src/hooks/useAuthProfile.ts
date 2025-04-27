@@ -3,9 +3,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   subscribeToAuthChanges, 
-  getUserProfile,
-  type UserProfile 
+  getUserProfile
 } from '@/lib/firebase';
+
+// Define the UserProfile type inline
+interface UserProfile {
+  id: string;
+  displayName?: string;
+  nickname?: string;
+  email?: string;
+  photoURL?: string;
+  role: 'standard' | 'vip' | 'admin' | 'bot';
+  vip_status?: boolean;
+  created_at?: any;
+  updated_at?: any;
+  banned?: boolean;
+  ban_reason?: string;
+  banned_until?: any;
+}
 
 export const useAuthProfile = () => {
   const navigate = useNavigate();
@@ -42,7 +57,7 @@ export const useAuthProfile = () => {
           if (userProfile) {
             setIsVipUser(userProfile.vip_status || userProfile.role === 'vip');
             setCurrentUserRole(userProfile.role || 'standard');
-            setProfile(userProfile);
+            setProfile(userProfile as UserProfile);
           } else {
             setCurrentUserId(null);
             setProfile(null);

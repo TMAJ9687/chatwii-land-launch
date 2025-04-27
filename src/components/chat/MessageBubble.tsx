@@ -57,8 +57,18 @@ export const MessageBubble = ({
             { field: 'message_id', operator: '==', value: replyMsg.id }
           ]);
           
-          setReplyMessage({
-            ...replyMsg,
+          const fullReplyMessage: MessageWithMedia = {
+            id: replyMsg.id,
+            content: replyMsg.content || '',
+            sender_id: replyMsg.sender_id,
+            receiver_id: replyMsg.receiver_id,
+            is_read: replyMsg.is_read || false,
+            created_at: replyMsg.created_at,
+            updated_at: replyMsg.updated_at,
+            deleted_at: replyMsg.deleted_at,
+            translated_content: replyMsg.translated_content,
+            language_code: replyMsg.language_code,
+            reply_to: replyMsg.reply_to,
             media: mediaRecords.length > 0 ? {
               id: mediaRecords[0].id,
               message_id: mediaRecords[0].message_id,
@@ -68,7 +78,9 @@ export const MessageBubble = ({
               created_at: mediaRecords[0].created_at
             } : null,
             reactions: []
-          });
+          };
+          
+          setReplyMessage(fullReplyMessage);
         }
       } catch (error) {
         console.error('Error fetching reply message:', error);
@@ -83,9 +95,10 @@ export const MessageBubble = ({
     toggleImageReveal(message.id);
   };
   
-  // Check if the image is revealed
+  // Check if the image is revealed - adapt to string IDs
   const isImageRevealed = (messageIdStr: string): boolean => {
-    // Convert string ID to number for compatibility with existing Set
+    // For backward compatibility with existing Set<number>
+    // Try to convert string ID to number for existing revealedImages set
     const messageIdNum = parseInt(messageIdStr, 10);
     return !isNaN(messageIdNum) && revealedImages.has(messageIdNum);
   };

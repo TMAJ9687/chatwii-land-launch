@@ -5,7 +5,7 @@ import { useMessageActions } from '@/hooks/useMessageActions';
 import { useMessages } from '@/hooks/useMessages';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useBot } from '@/hooks/useBot';
-import { createDocument } from '@/lib/firebase';
+import { createDocument, queryDocuments } from '@/lib/firebase';
 import { isMockUser } from '@/utils/mockUsers';
 import { MessageWithMedia } from '@/types/message';
 

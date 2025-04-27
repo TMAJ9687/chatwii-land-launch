@@ -32,12 +32,10 @@ export const useImageUpload = (currentUserId: string | null) => {
       // Use settings from the database with proper type safety
       let dailyLimit = 10; // Default value
       
-      if (siteSettings.length > 0 && 
-          typeof siteSettings[0] === 'object' && 
-          siteSettings[0] !== null) {
-        const settingsObj = siteSettings[0];
-        if (settingsObj.settings && typeof settingsObj.settings === 'object') {
-          dailyLimit = Number(settingsObj.settings.standard_photo_limit) || 10;
+      if (siteSettings.length > 0) {
+        const settings = siteSettings[0];
+        if (settings && typeof settings === 'object' && settings.settings) {
+          dailyLimit = Number(settings.settings.standard_photo_limit) || 10;
         }
       }
 
@@ -46,10 +44,10 @@ export const useImageUpload = (currentUserId: string | null) => {
         { field: 'id', operator: '==', value: currentUserId }
       ]);
       
-      const profile = profiles.length > 0 ? profiles[0] : null;
+      const profile = profiles[0];
 
       // VIP users have unlimited uploads
-      if (profile && (profile.role === 'vip')) return true;
+      if (profile && profile.role === 'vip') return true;
 
       const today = new Date().toISOString().split('T')[0];
       
@@ -67,7 +65,10 @@ export const useImageUpload = (currentUserId: string | null) => {
       }
 
       // Check if within daily limit
-      return uploadRecord.upload_count < dailyLimit;
+      if (uploadRecord.upload_count !== undefined) {
+        return uploadRecord.upload_count < dailyLimit;
+      }
+      return true;
     } catch (error) {
       if (abortControllerRef.current?.signal.aborted) {
         console.log('Upload limit check aborted');
@@ -97,8 +98,9 @@ export const useImageUpload = (currentUserId: string | null) => {
 
       if (existingRecord && existingRecord.id) {
         // Update existing record
+        const currentCount = existingRecord.upload_count !== undefined ? existingRecord.upload_count : 0;
         await updateDocument('daily_photo_uploads', existingRecord.id, {
-          upload_count: (existingRecord.upload_count || 0) + 1
+          upload_count: currentCount + 1
         });
       } else {
         // Create new record
