@@ -1,11 +1,12 @@
 
 // Firebase configuration
 export const firebaseConfig = {
-  apiKey: "AIzaSyAIQ_wKNrEapjSVb-XUJaXIo9Du1ShpFRA",
-  authDomain: "chatwii-app.firebaseapp.com",
-  projectId: "chatwii-app",
-  storageBucket: "chatwii-app.appspot.com",
-  messagingSenderId: "383424370840",
-  appId: "1:383424370840:web:35cf2985c1c04d0fa9ac1d",
-  measurementId: "G-NB7YL4REWQ"
+  apiKey: "AIzaSyCkMejgIKMAnmFV70Gr_A7U4FIlfxkK4tg",
+  authDomain: "chatwiilovable-7ae1d.firebaseapp.com",
+  projectId: "chatwiilovable-7ae1d",
+  storageBucket: "chatwiilovable-7ae1d.firebasestorage.app",
+  messagingSenderId: "58580734475",
+  appId: "1:58580734475:web:31de6a30c7fb6661536d0e",
+  measurementId: "G-C1ERTKEMKQ"
+
 };
