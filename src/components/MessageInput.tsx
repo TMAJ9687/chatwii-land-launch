@@ -5,7 +5,7 @@ import { MessageInputPlaceholder } from './chat/input/MessageInputPlaceholder';
 import { ReplyComposer } from './chat/ReplyComposer';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
-import { supabase } from '@/lib/supabase';
+import { queryDocuments } from '@/lib/firebase';
 import { isMockUser } from '@/utils/mockUsers';
 import { useEffect, useState } from 'react';
 
@@ -40,19 +40,31 @@ export const MessageInput: React.FC<MessageInputProps> = (props) => {
     
     const fetchReplyMessage = async () => {
       try {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*, message_media(*)')
-          .eq('id', replyToMessageId)
-          .single();
-          
-        if (error) throw error;
+        const replyMessages = await queryDocuments('messages', [
+          { field: 'id', operator: '==', value: replyToMessageId }
+        ]);
         
-        setReplyToMessage({
-          ...data,
-          media: data.message_media?.[0] || null,
-          reactions: []
-        });
+        if (replyMessages.length > 0) {
+          const replyMsg = replyMessages[0];
+          
+          // Fetch media for the reply message
+          const mediaRecords = await queryDocuments('message_media', [
+            { field: 'message_id', operator: '==', value: replyMsg.id }
+          ]);
+          
+          setReplyToMessage({
+            ...replyMsg,
+            media: mediaRecords.length > 0 ? {
+              id: mediaRecords[0].id,
+              message_id: mediaRecords[0].message_id,
+              user_id: mediaRecords[0].user_id,
+              file_url: mediaRecords[0].file_url,
+              media_type: mediaRecords[0].media_type as any,
+              created_at: mediaRecords[0].created_at
+            } : null,
+            reactions: []
+          });
+        }
       } catch (error) {
         console.error('Error fetching reply message:', error);
       }

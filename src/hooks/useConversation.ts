@@ -5,8 +5,9 @@ import { useMessageActions } from '@/hooks/useMessageActions';
 import { useMessages } from '@/hooks/useMessages';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useBot } from '@/hooks/useBot';
-import { supabase } from '@/lib/supabase';
+import { createDocument } from '@/lib/firebase';
 import { isMockUser } from '@/utils/mockUsers';
+import { MessageWithMedia } from '@/types/message';
 
 export const useConversation = (
   currentUserId: string | null,
@@ -82,22 +83,19 @@ export const useConversation = (
     }
 
     try {
-      const { data: recipientProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', selectedUserId)
-        .single();
-
-      const optimisticMessage = {
-        id: Date.now(),
+      // Generate a temporary ID for optimistic UI update
+      const tempId = `temp-${Date.now()}`;
+      
+      const optimisticMessage: MessageWithMedia = {
+        id: tempId,
         content: content || (imageUrl ? '[Image]' : ''),
         sender_id: currentUserId,
         receiver_id: selectedUserId,
         created_at: new Date().toISOString(),
         is_read: false,
         media: imageUrl ? {
-          id: Date.now(),
-          message_id: Date.now(),
+          id: `temp-media-${Date.now()}`,
+          message_id: tempId,
           user_id: currentUserId,
           file_url: imageUrl,
           media_type: imageUrl.includes('voice') ? 'voice' : 'image',
@@ -106,54 +104,49 @@ export const useConversation = (
         reactions: []
       };
 
+      // Update UI optimistically
       setMessages(current => [...current, optimisticMessage]);
 
-      const { data: messageData, error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          content: content || (imageUrl ? '[Image]' : ''),
-          sender_id: currentUserId,
-          receiver_id: selectedUserId,
-          is_read: false
-        })
-        .select()
-        .single();
+      // Get recipient profile
+      const recipientProfiles = await queryDocuments('profiles', [
+        { field: 'id', operator: '==', value: selectedUserId }
+      ]);
+      const recipientProfile = recipientProfiles.length > 0 ? recipientProfiles[0] : null;
 
-      if (messageError) {
-        setMessages(current =>
-          current.filter(msg => msg.id !== optimisticMessage.id)
-        );
-        toast.error("Failed to send message");
-        console.error('Error sending message:', messageError);
-        return;
-      }
+      // Create the message in Firestore
+      const messageId = await createDocument('messages', {
+        content: content || (imageUrl ? '[Image]' : ''),
+        sender_id: currentUserId,
+        receiver_id: selectedUserId,
+        is_read: false,
+        participants: [currentUserId, selectedUserId]
+      });
 
+      // If it's a bot user, trigger a response
       if (recipientProfile?.role === 'bot' && content) {
         handleBotResponse(selectedUserId, currentUserId, content);
       }
 
-      if (imageUrl && messageData) {
-        const { error: mediaError } = await supabase
-          .from('message_media')
-          .insert({
-            message_id: messageData.id,
-            user_id: currentUserId,
-            file_url: imageUrl,
-            media_type: imageUrl.includes('voice') ? 'voice' : 'image'
-          });
-
-        if (mediaError) {
-          toast.error("Failed to attach media to message");
-          console.error('Error creating media record:', mediaError);
-        }
+      // Create media record if image URL is provided
+      if (imageUrl && messageId) {
+        await createDocument('message_media', {
+          message_id: messageId,
+          user_id: currentUserId,
+          file_url: imageUrl,
+          media_type: imageUrl.includes('voice') ? 'voice' : 'image'
+        });
       }
 
+      // Update the global unread count
       fetchUnreadCount();
+
+      // Remove the optimistic message and fetch updated messages
+      fetchMessages();
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       toast.error("An error occurred while sending your message");
     }
-  }, [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount]);
+  }, [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount, fetchMessages]);
 
   return {
     messages,

@@ -7,7 +7,7 @@ export interface MessageMedia {
   user_id: string;
   file_url: string;
   media_type: 'image' | 'voice' | 'video';
-  created_at: Date | Timestamp;
+  created_at: Date | Timestamp | string;
 }
 
 export interface MessageReaction {
@@ -15,7 +15,7 @@ export interface MessageReaction {
   message_id: string;
   user_id: string;
   emoji: string;
-  created_at: Date | Timestamp;
+  created_at: Date | Timestamp | string;
 }
 
 export interface MessageWithMedia {

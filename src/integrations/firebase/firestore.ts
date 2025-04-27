@@ -14,7 +14,10 @@ import {
   limit, 
   serverTimestamp, 
   Timestamp,
-  onSnapshot
+  onSnapshot,
+  CollectionReference,
+  Query,
+  DocumentData
 } from "firebase/firestore";
 import { db } from "./client";
 
@@ -105,14 +108,16 @@ export const queryDocuments = async (
   orderDirection?: "asc" | "desc",
   limitCount?: number
 ) => {
-  let q = collection(db, collectionName);
+  const collectionRef = collection(db, collectionName);
   
   // Build query with conditions
+  let q: Query<DocumentData> = collectionRef;
+  
+  // Add conditions
   if (conditions.length > 0) {
-    q = query(
-      q,
-      ...conditions.map(({ field, operator, value }) => where(field, operator, value))
-    );
+    conditions.forEach(({ field, operator, value }) => {
+      q = query(q, where(field, operator, value));
+    });
   }
   
   // Add ordering if specified
@@ -157,19 +162,21 @@ export const subscribeToQuery = (
     operator: "==" | "!=" | "<" | "<=" | ">" | ">=" | "array-contains" | "in" | "array-contains-any" | "not-in";
     value: any;
   }>,
+  onNext: (data: Array<Record<string, any>>) => void,
   orderByField?: string,
   orderDirection?: "asc" | "desc",
-  limitCount?: number,
-  onNext: (data: Array<Record<string, any>>) => void
+  limitCount?: number
 ) => {
-  let q = collection(db, collectionName);
+  const collectionRef = collection(db, collectionName);
   
   // Build query with conditions
+  let q: Query<DocumentData> = collectionRef;
+  
+  // Add conditions
   if (conditions.length > 0) {
-    q = query(
-      q,
-      ...conditions.map(({ field, operator, value }) => where(field, operator, value))
-    );
+    conditions.forEach(({ field, operator, value }) => {
+      q = query(q, where(field, operator, value));
+    });
   }
   
   // Add ordering if specified

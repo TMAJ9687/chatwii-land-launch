@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
@@ -66,78 +66,83 @@ export const useMessages = (
     
     try {
       // Query for messages between the two users
-      const messagesQuery = query(
-        collection(db, 'messages'),
-        where('deleted_at', '==', null),
-        where('participants', 'array-contains', currentUserId),
-        orderBy('created_at', 'asc')
+      const messagesData = await queryDocuments('messages', [
+        { field: 'deleted_at', operator: '==', value: null },
+        { field: 'participants', operator: 'array-contains', value: currentUserId }
+      ], 'created_at', 'asc');
+      
+      // Filter messages between current user and selected user
+      const filteredMessages = messagesData.filter(msg => 
+        (msg.sender_id === currentUserId && msg.receiver_id === selectedUserId) || 
+        (msg.sender_id === selectedUserId && msg.receiver_id === currentUserId)
       );
       
-      const messagesSnapshot = await getDocs(messagesQuery);
-      const messagesData: MessageWithMedia[] = [];
+      // Format messages to match MessageWithMedia type
+      const formattedMessages: MessageWithMedia[] = [];
       
-      for (const doc of messagesSnapshot.docs) {
-        const messageData = doc.data();
-        
-        // Check if this message is between the two users
-        if ((messageData.sender_id === currentUserId && messageData.receiver_id === selectedUserId) || 
-            (messageData.sender_id === selectedUserId && messageData.receiver_id === currentUserId)) {
-              
-          // Check if the message was created after the cutoff time
-          if (messageData.created_at >= cutoffTime) {
-            const message: MessageWithMedia = {
-              id: doc.id,
-              content: messageData.content || '',
-              sender_id: messageData.sender_id,
-              receiver_id: messageData.receiver_id,
-              is_read: messageData.is_read || false,
-              created_at: messageData.created_at,
-              updated_at: messageData.updated_at,
-              deleted_at: messageData.deleted_at,
-              translated_content: messageData.translated_content,
-              language_code: messageData.language_code,
-              reply_to: messageData.reply_to,
-              media: null,
-              reactions: []
-            };
-            
-            messagesData.push(message);
+      for (const message of filteredMessages) {
+        // Convert Firebase timestamp to ISO string if it exists
+        let createdAt = message.created_at;
+        if (createdAt && typeof createdAt !== 'string') {
+          if (createdAt instanceof Timestamp || createdAt.seconds) {
+            createdAt = new Date(createdAt.seconds * 1000).toISOString();
           }
         }
+        
+        const messageWithMedia: MessageWithMedia = {
+          id: message.id,
+          content: message.content || '',
+          sender_id: message.sender_id,
+          receiver_id: message.receiver_id,
+          is_read: message.is_read || false,
+          created_at: createdAt,
+          updated_at: message.updated_at,
+          deleted_at: message.deleted_at,
+          translated_content: message.translated_content,
+          language_code: message.language_code,
+          reply_to: message.reply_to,
+          media: null,
+          reactions: []
+        };
+        
+        formattedMessages.push(messageWithMedia);
       }
       
       // Get media for each message
-      const mediaPromises = messagesData.map(async message => {
-        const mediaQuery = query(
-          collection(db, 'message_media'),
-          where('message_id', '==', message.id)
-        );
-        
-        const mediaSnapshot = await getDocs(mediaQuery);
-        if (!mediaSnapshot.empty) {
-          const mediaDoc = mediaSnapshot.docs[0];
-          message.media = {
-            id: mediaDoc.id,
-            ...mediaDoc.data()
-          } as MessageWithMedia['media'];
-        }
-        
-        // Get reactions for the message
-        const reactionsQuery = query(
-          collection(db, 'message_reactions'),
-          where('message_id', '==', message.id)
-        );
-        
-        const reactionsSnapshot = await getDocs(reactionsQuery);
-        message.reactions = reactionsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as MessageWithMedia['reactions'];
-        
-        return message;
-      });
-      
-      const messagesWithMedia = await Promise.all(mediaPromises);
+      const messagesWithMedia = await Promise.all(
+        formattedMessages.map(async (message) => {
+          // Fetch media for this message
+          const mediaRecords = await queryDocuments('message_media', [
+            { field: 'message_id', operator: '==', value: message.id }
+          ]);
+          
+          if (mediaRecords.length > 0) {
+            message.media = {
+              id: mediaRecords[0].id,
+              message_id: mediaRecords[0].message_id,
+              user_id: mediaRecords[0].user_id,
+              file_url: mediaRecords[0].file_url,
+              media_type: mediaRecords[0].media_type,
+              created_at: mediaRecords[0].created_at
+            };
+          }
+          
+          // Fetch reactions for this message
+          const reactionRecords = await queryDocuments('message_reactions', [
+            { field: 'message_id', operator: '==', value: message.id }
+          ]);
+          
+          message.reactions = reactionRecords.map(reaction => ({
+            id: reaction.id,
+            message_id: reaction.message_id,
+            user_id: reaction.user_id,
+            emoji: reaction.emoji,
+            created_at: reaction.created_at
+          }));
+          
+          return message;
+        })
+      );
       
       setMessages(messagesWithMedia);
       setError(null);

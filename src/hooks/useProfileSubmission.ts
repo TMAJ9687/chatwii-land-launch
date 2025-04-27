@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createUserProfile, queryDocuments } from "@/lib/firebase";
+import { createUserProfile, queryDocuments, createDocument, deleteDocument } from "@/lib/firebase";
 import { toast } from "sonner";
 
 interface ProfileData {

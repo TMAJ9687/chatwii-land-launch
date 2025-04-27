@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { uploadFile, queryDocuments } from '@/lib/firebase';
+import { uploadFile, queryDocuments, createDocument, updateDocument } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useImageUpload = (currentUserId: string | null) => {
@@ -32,11 +32,13 @@ export const useImageUpload = (currentUserId: string | null) => {
       // Use settings from the database with proper type safety
       let dailyLimit = 10; // Default value
       
-      if (siteSettings.length > 0 && siteSettings[0].settings && 
-          typeof siteSettings[0].settings === 'object' && 
-          siteSettings[0].settings !== null &&
-          'standard_photo_limit' in siteSettings[0].settings) {
-        dailyLimit = Number(siteSettings[0].settings.standard_photo_limit) || 10;
+      if (siteSettings.length > 0 && 
+          typeof siteSettings[0] === 'object' && 
+          siteSettings[0] !== null) {
+        const settingsObj = siteSettings[0];
+        if (settingsObj.settings && typeof settingsObj.settings === 'object') {
+          dailyLimit = Number(settingsObj.settings.standard_photo_limit) || 10;
+        }
       }
 
       // Get user profile
@@ -47,7 +49,7 @@ export const useImageUpload = (currentUserId: string | null) => {
       const profile = profiles.length > 0 ? profiles[0] : null;
 
       // VIP users have unlimited uploads
-      if (profile?.role === 'vip') return true;
+      if (profile && (profile.role === 'vip')) return true;
 
       const today = new Date().toISOString().split('T')[0];
       
@@ -93,10 +95,10 @@ export const useImageUpload = (currentUserId: string | null) => {
 
       const existingRecord = uploadRecords.length > 0 ? uploadRecords[0] : null;
 
-      if (existingRecord) {
+      if (existingRecord && existingRecord.id) {
         // Update existing record
         await updateDocument('daily_photo_uploads', existingRecord.id, {
-          upload_count: existingRecord.upload_count + 1
+          upload_count: (existingRecord.upload_count || 0) + 1
         });
       } else {
         // Create new record

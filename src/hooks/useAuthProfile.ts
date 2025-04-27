@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   subscribeToAuthChanges, 
-  getUserProfile, 
-  UserProfile 
+  getUserProfile,
+  type UserProfile 
 } from '@/lib/firebase';
 
 export const useAuthProfile = () => {

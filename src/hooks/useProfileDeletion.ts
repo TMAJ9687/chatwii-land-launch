@@ -13,8 +13,7 @@ import {
   where, 
   getDocs, 
   writeBatch, 
-  doc, 
-  startsWith 
+  doc
 } from 'firebase/firestore';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { toast } from 'sonner';

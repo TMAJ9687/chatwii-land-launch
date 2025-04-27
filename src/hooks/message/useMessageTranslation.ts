@@ -1,12 +1,12 @@
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { updateDocument } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { MessageWithMedia } from '@/types/message';
 import { debounce } from 'lodash';
 
 export const useMessageTranslation = (currentUserId: string, isVipUser: boolean) => {
-  const [translatingMessageId, setTranslatingMessageId] = useState<number | null>(null);
+  const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
 
   const translateMessage = debounce(async (message: MessageWithMedia) => {
     if (!isVipUser || !message.content) return;
@@ -31,15 +31,11 @@ export const useMessageTranslation = (currentUserId: string, isVipUser: boolean)
       const translatedText = data.responseData.translatedText;
       const detectedLanguage = data.responseData.detectedLanguage || 'auto';
       
-      const { error } = await supabase
-        .from('messages')
-        .update({
-          translated_content: translatedText,
-          language_code: detectedLanguage
-        })
-        .eq('id', message.id);
+      await updateDocument('messages', message.id, {
+        translated_content: translatedText,
+        language_code: detectedLanguage
+      });
 
-      if (error) throw error;
       toast.success('Message translated');
     } catch (error) {
       console.error('Error translating message:', error);

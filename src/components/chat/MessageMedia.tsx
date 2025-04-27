@@ -6,11 +6,11 @@ import { MessageMedia as MessageMediaType } from '@/types/message';
 
 interface MessageMediaProps {
   media: MessageMediaType | null;
-  messageId: number;
+  messageId: string;
   isCurrentUser: boolean;
   onImageClick: (url: string) => void;
-  revealedImages: Set<number>;
-  toggleImageReveal: (messageId: number) => void;
+  isRevealed: boolean;
+  toggleImageReveal: () => void;
 }
 
 export const MessageMedia: React.FC<MessageMediaProps> = ({ 
@@ -18,7 +18,7 @@ export const MessageMedia: React.FC<MessageMediaProps> = ({
   messageId,
   isCurrentUser,
   onImageClick,
-  revealedImages,
+  isRevealed,
   toggleImageReveal
 }) => {
   const [loadingImage, setLoadingImage] = useState(true);
@@ -36,12 +36,12 @@ export const MessageMedia: React.FC<MessageMediaProps> = ({
           src={media.file_url} 
           alt="Chat image" 
           className={`max-w-[300px] max-h-[300px] object-cover rounded-lg transition-all duration-300 ${
-            !revealedImages.has(messageId) ? 'filter blur-lg' : ''
+            !isRevealed ? 'filter blur-lg' : ''
           }`}
           onLoad={handleImageLoad}
           style={{ display: loadingImage ? 'none' : 'block' }}
           onClick={() => {
-            if (revealedImages.has(messageId)) {
+            if (isRevealed) {
               onImageClick(media.file_url);
             }
           }}
@@ -49,14 +49,14 @@ export const MessageMedia: React.FC<MessageMediaProps> = ({
         <Button
           onClick={(e) => {
             e.stopPropagation();
-            toggleImageReveal(messageId);
+            toggleImageReveal();
           }}
           className={`absolute bottom-2 ${
             isCurrentUser ? 'right-2' : 'left-2'
           } opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background/90 backdrop-blur-sm text-sm z-10`}
           size="sm"
         >
-          {revealedImages.has(messageId) ? 'Hide Image' : 'Reveal Image'}
+          {isRevealed ? 'Hide Image' : 'Reveal Image'}
         </Button>
       </div>
     );

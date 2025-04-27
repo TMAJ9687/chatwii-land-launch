@@ -23,7 +23,7 @@ export const useBlockedUsers = () => {
         { field: 'blocker_id', operator: '==', value: userId }
       ]);
 
-      setBlockedUsers(blockedData.map(b => b.blocked_id));
+      setBlockedUsers(blockedData.map(b => b.blocked_id || ''));
     } catch (error) {
       console.error('Error loading blocked users:', error);
       toast.error("Failed to load blocked users");
@@ -46,7 +46,7 @@ export const useBlockedUsers = () => {
         { field: 'blocked_id', operator: '==', value: userId }
       ]);
 
-      setBlockedByUsers(blockedByData.map(b => b.blocker_id));
+      setBlockedByUsers(blockedByData.map(b => b.blocker_id || ''));
     } catch (error) {
       console.error('Error loading blocked by users:', error);
     } finally {

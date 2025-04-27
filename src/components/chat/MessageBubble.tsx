@@ -9,7 +9,7 @@ import { MessageReactions } from './MessageReactions';
 import { MessageTimestamp } from './MessageTimestamp';
 import { MessageStatus } from './MessageStatus';
 import { ReplyPreview } from './ReplyPreview';
-import { supabase } from '@/lib/supabase';
+import { queryDocuments } from '@/lib/firebase';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -17,7 +17,7 @@ interface MessageBubbleProps {
   isVipUser?: boolean;
   onImageClick: (url: string) => void;
   revealedImages: Set<number>;
-  toggleImageReveal: (messageId: number) => void;
+  toggleImageReveal: (messageId: string) => void;
 }
 
 export const MessageBubble = ({ 
@@ -45,19 +45,31 @@ export const MessageBubble = ({
     
     const fetchReplyMessage = async () => {
       try {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*, message_media(*)')
-          .eq('id', message.reply_to)
-          .single();
-          
-        if (error) throw error;
+        const replyMessages = await queryDocuments('messages', [
+          { field: 'id', operator: '==', value: message.reply_to }
+        ]);
         
-        setReplyMessage({
-          ...data,
-          media: data.message_media?.[0] || null,
-          reactions: []
-        });
+        if (replyMessages.length > 0) {
+          const replyMsg = replyMessages[0];
+          
+          // Fetch media for the reply message
+          const mediaRecords = await queryDocuments('message_media', [
+            { field: 'message_id', operator: '==', value: replyMsg.id }
+          ]);
+          
+          setReplyMessage({
+            ...replyMsg,
+            media: mediaRecords.length > 0 ? {
+              id: mediaRecords[0].id,
+              message_id: mediaRecords[0].message_id,
+              user_id: mediaRecords[0].user_id,
+              file_url: mediaRecords[0].file_url,
+              media_type: mediaRecords[0].media_type as any,
+              created_at: mediaRecords[0].created_at
+            } : null,
+            reactions: []
+          });
+        }
       } catch (error) {
         console.error('Error fetching reply message:', error);
       }
@@ -65,6 +77,18 @@ export const MessageBubble = ({
     
     fetchReplyMessage();
   }, [message.reply_to]);
+
+  // Convert message ID for existing toggleImageReveal function
+  const handleToggleImageReveal = () => {
+    toggleImageReveal(message.id);
+  };
+  
+  // Check if the image is revealed
+  const isImageRevealed = (messageIdStr: string): boolean => {
+    // Convert string ID to number for compatibility with existing Set
+    const messageIdNum = parseInt(messageIdStr, 10);
+    return !isNaN(messageIdNum) && revealedImages.has(messageIdNum);
+  };
 
   return (
     <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} relative group`}>
@@ -89,8 +113,8 @@ export const MessageBubble = ({
           messageId={message.id}
           isCurrentUser={isCurrentUser}
           onImageClick={onImageClick}
-          revealedImages={revealedImages}
-          toggleImageReveal={toggleImageReveal}
+          isRevealed={isImageRevealed(message.id)}
+          toggleImageReveal={handleToggleImageReveal}
         />
         
         {/* Display reactions if there are any */}
