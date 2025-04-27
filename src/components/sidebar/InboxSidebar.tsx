@@ -68,14 +68,18 @@ export const InboxSidebar = ({ onUserSelect }: InboxSidebarProps) => {
     return Array.from(userMessageCounts.values());
   };
 
-  const { refetch } = useQuery({
+  const { data: conversationsData, refetch } = useQuery({
     queryKey: ['inbox-users'],
     queryFn: fetchInboxUsers,
-    onSuccess: (data) => {
-      if (data) setConversations(data);
-    },
     refetchInterval: 10000
   });
+
+  // Update conversations state when query data changes
+  useEffect(() => {
+    if (conversationsData) {
+      setConversations(conversationsData);
+    }
+  }, [conversationsData]);
 
   useEffect(() => {
     const user = auth.currentUser;
