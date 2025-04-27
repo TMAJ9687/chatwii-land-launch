@@ -72,10 +72,11 @@ export const useMessages = (
       ], 'created_at', 'asc');
       
       // Filter messages between current user and selected user
-      const filteredMessages = messagesData.filter(msg => 
-        (msg.sender_id === currentUserId && msg.receiver_id === selectedUserId) || 
-        (msg.sender_id === selectedUserId && msg.receiver_id === currentUserId)
-      );
+      const filteredMessages = messagesData.filter(msg => {
+        if (!msg.sender_id || !msg.receiver_id) return false;
+        return (msg.sender_id === currentUserId && msg.receiver_id === selectedUserId) || 
+               (msg.sender_id === selectedUserId && msg.receiver_id === currentUserId);
+      });
       
       // Format messages to match MessageWithMedia type
       const formattedMessages: MessageWithMedia[] = [];
@@ -90,12 +91,12 @@ export const useMessages = (
         }
         
         const messageWithMedia: MessageWithMedia = {
-          id: message.id,
+          id: message.id || '',
           content: message.content || '',
-          sender_id: message.sender_id,
-          receiver_id: message.receiver_id,
+          sender_id: message.sender_id || '',
+          receiver_id: message.receiver_id || '',
           is_read: message.is_read || false,
-          created_at: createdAt,
+          created_at: createdAt || new Date().toISOString(),
           updated_at: message.updated_at,
           deleted_at: message.deleted_at,
           translated_content: message.translated_content,
@@ -118,12 +119,12 @@ export const useMessages = (
           
           if (mediaRecords.length > 0) {
             message.media = {
-              id: mediaRecords[0].id,
-              message_id: mediaRecords[0].message_id,
-              user_id: mediaRecords[0].user_id,
-              file_url: mediaRecords[0].file_url,
-              media_type: mediaRecords[0].media_type,
-              created_at: mediaRecords[0].created_at
+              id: mediaRecords[0].id || '',
+              message_id: mediaRecords[0].message_id || '',
+              user_id: mediaRecords[0].user_id || '',
+              file_url: mediaRecords[0].file_url || '',
+              media_type: mediaRecords[0].media_type as 'image' | 'voice' | 'video' || 'image',
+              created_at: mediaRecords[0].created_at || new Date().toISOString()
             };
           }
           
@@ -133,11 +134,11 @@ export const useMessages = (
           ]);
           
           message.reactions = reactionRecords.map(reaction => ({
-            id: reaction.id,
-            message_id: reaction.message_id,
-            user_id: reaction.user_id,
-            emoji: reaction.emoji,
-            created_at: reaction.created_at
+            id: reaction.id || '',
+            message_id: reaction.message_id || '',
+            user_id: reaction.user_id || '',
+            emoji: reaction.emoji || '',
+            created_at: reaction.created_at || new Date().toISOString()
           }));
           
           return message;

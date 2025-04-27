@@ -21,8 +21,8 @@ export const useImageUpload = (currentUserId: string | null) => {
     try {
       const settingsDoc = await getDocument('site_settings', '1');
       
-      if (settingsDoc && settingsDoc.settings) {
-        const fileSettings = settingsDoc.settings.files || {};
+      if (settingsDoc) {
+        const fileSettings = settingsDoc.settings?.files || {};
         
         return {
           maxSizeMb: fileSettings.max_size_mb || 5,
@@ -79,6 +79,7 @@ export const useImageUpload = (currentUserId: string | null) => {
       const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
       
       if (dailyUploadDoc) {
+        // Ensure the properties exist by using optional chaining
         const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
         const uploadCount = dailyUploadDoc.upload_count || 0;
         
@@ -109,6 +110,7 @@ export const useImageUpload = (currentUserId: string | null) => {
       const dailyUploadDoc = await getDocument('daily_photo_uploads', currentUserId);
       
       if (dailyUploadDoc) {
+        // Use optional chaining to avoid errors if property doesn't exist
         const lastUploadDate = dailyUploadDoc.last_upload_date?.split('T')[0];
         
         if (lastUploadDate === today) {
@@ -130,7 +132,7 @@ export const useImageUpload = (currentUserId: string | null) => {
           user_id: currentUserId,
           upload_count: 1,
           last_upload_date: today
-        });
+        }, currentUserId); // Pass ID as the third parameter
       }
     } catch (error) {
       console.error('Error updating daily upload count:', error);
@@ -172,7 +174,7 @@ export const useImageUpload = (currentUserId: string | null) => {
       
       // Upload the file
       const filePath = `uploads/${currentUserId}/${uuidv4()}-${selectedFile.name}`;
-      await uploadFile(filePath, selectedFile);
+      await uploadFile('uploads', filePath, selectedFile);
       
       // Get the download URL
       const downloadUrl = await getFileDownloadURL(filePath);

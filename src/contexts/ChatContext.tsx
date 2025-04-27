@@ -75,14 +75,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleBlockUser = useCallback(async () => {
     if (selectedUserId) {
-      await blockUser(selectedUserId, localStorage.getItem('userId'));
+      const currentUserId = localStorage.getItem('userId');
+      await blockUser(selectedUserId, currentUserId);
       handleCloseChat();
     }
   }, [selectedUserId, blockUser]);
   
   // Fetch blocked users on mount
   React.useEffect(() => {
-    fetchBlockedUsers(localStorage.getItem('userId'));
+    const currentUserId = localStorage.getItem('userId');
+    fetchBlockedUsers(currentUserId);
   }, [fetchBlockedUsers]);
 
   const value = {
