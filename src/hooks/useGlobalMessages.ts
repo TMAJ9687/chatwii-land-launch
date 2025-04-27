@@ -86,9 +86,15 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           ]);
           
           const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
-          // Use safe property access with default fallback
-          const senderName = senderProfile && typeof senderProfile === 'object' ? 
-                             senderProfile.nickname || 'Someone' : 'Someone';
+          
+          // Safely get the nickname - handle if profile schema doesn't match expectations
+          let senderName = 'Someone';
+          if (senderProfile && typeof senderProfile === 'object') {
+            // Check if nickname exists on the profile object
+            if ('nickname' in senderProfile && senderProfile.nickname) {
+              senderName = senderProfile.nickname;
+            }
+          }
           
           // Show toast notification
           toast(`New message from ${senderName}`);

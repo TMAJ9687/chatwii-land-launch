@@ -54,9 +54,10 @@ export const useMessages = (
     if (isMockUser(selectedUserId)) {
       const mockMessages = getMockVipMessages(currentUserId);
       
-      // Ensure mock messages have the reactions array for TypeScript
+      // Ensure mock messages have the correct format for TypeScript
       const completeMessages: MessageWithMedia[] = mockMessages.map(msg => ({
         ...msg,
+        id: String(msg.id || ''),  // Ensure ID is a string
         reactions: msg.reactions || []  // Ensure reactions array exists
       }));
 
@@ -120,7 +121,8 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          reactions: Array.isArray(message?.reactions) ? message.reactions : [], // Ensure reactions is an array
+          // Initialize reactions as an empty array if it doesn't exist
+          reactions: [],
           participants: message.participants
         };
         
