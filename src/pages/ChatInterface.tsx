@@ -90,8 +90,17 @@ const ChatInterface = () => {
 
   const handleDeleteConversation = useCallback(() => {
     if (selectedUserId && !isDeletingConversation) {
-      void deleteConversation(selectedUserId);
-      fetchMessages();
+      // Use async/await inside a separate function to properly handle the Promise
+      const performDelete = async () => {
+        await deleteConversation(selectedUserId);
+        fetchMessages();
+      };
+      
+      // Call the async function but don't return its Promise
+      performDelete().catch(error => {
+        console.error("Error deleting conversation:", error);
+        toast.error("Failed to delete conversation");
+      });
     }
   }, [selectedUserId, isDeletingConversation, deleteConversation, fetchMessages]);
 
