@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -84,9 +83,12 @@ const ChatInterface = () => {
     isVipUser
   );
 
-  // Set up message and reaction channels
-  const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
-  const { setupReactionsChannel } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
+  const handleDeleteConversation = useCallback(() => {
+    if (selectedUserId && !isDeletingConversation) {
+      void deleteConversation(selectedUserId);
+      fetchMessages();
+    }
+  }, [selectedUserId, isDeletingConversation, deleteConversation, fetchMessages]);
 
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
@@ -145,10 +147,8 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (selectedUserId && currentUserId && !isLoading) {
-      // Set a flag to indicate we've just selected a new user
       setHasSelectedNewUser(true);
       
-      // Reset state and fetch fresh messages
       resetState();
       fetchMessages();
     }
@@ -250,14 +250,6 @@ const ChatInterface = () => {
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       toast.error("An error occurred while sending your message");
-    }
-  };
-
-  const handleDeleteConversation = () => {
-    if (selectedUserId && !isDeletingConversation) {
-      // Call deleteConversation and ignore its Promise return value
-      void deleteConversation(selectedUserId);
-      fetchMessages();
     }
   };
 
