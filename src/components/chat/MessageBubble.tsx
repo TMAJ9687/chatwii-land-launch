@@ -97,7 +97,7 @@ export const MessageBubble = ({
   
   // Check if the image is revealed - update to handle string IDs
   const isImageRevealed = (messageId: string): boolean => {
-    // Convert the string message ID to a number if possible
+    // Convert the string message ID to a number for the Set lookup
     const messageIdNum = parseInt(messageId, 10);
     
     // If the conversion is successful and the ID exists in the set

@@ -108,7 +108,7 @@ export const useMessages = (
         }
         
         const messageWithMedia: MessageWithMedia = {
-          id: String(message.id || ''),  // Convert ID to string
+          id: String(message.id || ''),  // Ensure ID is a string
           content: message.content || '',
           sender_id: message.sender_id || '',
           receiver_id: message.receiver_id || '',
@@ -120,7 +120,7 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          reactions: Array.isArray(message.reactions) ? message.reactions : [], // Ensure reactions is an array
+          reactions: Array.isArray(message?.reactions) ? message.reactions : [], // Ensure reactions is an array
           participants: message.participants
         };
         
