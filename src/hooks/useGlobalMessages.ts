@@ -86,7 +86,8 @@ export const useGlobalMessages = (currentUserId: string | null) => {
           ]);
           
           const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
-          const senderName = senderProfile?.nickname || 'Someone';
+          // Use safe property access with default fallback
+          const senderName = senderProfile && senderProfile.nickname ? senderProfile.nickname : 'Someone';
           
           // Show toast notification
           toast(`New message from ${senderName}`);

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase';
@@ -107,7 +108,7 @@ export const useMessages = (
         }
         
         const messageWithMedia: MessageWithMedia = {
-          id: message.id || '',
+          id: message.id || '',  // Ensure id is a string
           content: message.content || '',
           sender_id: message.sender_id || '',
           receiver_id: message.receiver_id || '',
