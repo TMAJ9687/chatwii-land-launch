@@ -147,8 +147,11 @@ const ChatInterface = () => {
   }, [navigate, checkRulesAccepted]);
 
   useEffect(() => {
-    const messageChannel = setupMessageChannel();
-    const reactionsChannel = setupReactionsChannel();
+    let messageChannel: ReturnType<typeof setupMessageChannel> | null = null;
+    let reactionsChannel: ReturnType<typeof setupReactionsChannel> | null = null;
+
+    messageChannel = setupMessageChannel();
+    reactionsChannel = setupReactionsChannel();
     
     return () => {
       cleanupChannels();
