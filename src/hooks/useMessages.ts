@@ -120,7 +120,8 @@ export const useMessages = (
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          reactions: Array.isArray(message.reactions) ? message.reactions : [] // Ensure reactions is an array
+          reactions: Array.isArray(message.reactions) ? message.reactions : [], // Ensure reactions is an array
+          participants: message.participants
         };
         
         formattedMessages.push(messageWithMedia);
@@ -151,15 +152,18 @@ export const useMessages = (
             { field: 'message_id', operator: '==', value: message.id }
           ]);
           
-          message.reactions = reactionRecords
-            .filter(reaction => typeof reaction === 'object' && reaction)
-            .map(reaction => ({
-              id: reaction.id || '',
-              message_id: reaction.message_id || '',
-              user_id: reaction.user_id || '',
-              emoji: reaction.emoji || '',
-              created_at: reaction.created_at || new Date().toISOString()
-            }));
+          // Ensure reaction records are valid before mapping
+          if (Array.isArray(reactionRecords)) {
+            message.reactions = reactionRecords
+              .filter(reaction => typeof reaction === 'object' && reaction)
+              .map(reaction => ({
+                id: reaction.id || '',
+                message_id: reaction.message_id || '',
+                user_id: reaction.user_id || '',
+                emoji: reaction.emoji || '',
+                created_at: reaction.created_at || new Date().toISOString()
+              }));
+          }
           
           return message;
         })

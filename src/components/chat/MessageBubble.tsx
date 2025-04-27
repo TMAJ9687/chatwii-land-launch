@@ -97,16 +97,15 @@ export const MessageBubble = ({
   
   // Check if the image is revealed - update to handle string IDs
   const isImageRevealed = (messageId: string): boolean => {
-    // For string message IDs, we need to convert them to numbers for compatibility
-    // with the existing Set<number> implementation
+    // Convert the string message ID to a number if possible
     const messageIdNum = parseInt(messageId, 10);
     
-    // If the conversion is successful and the number exists in the set, return true
+    // If the conversion is successful and the ID exists in the set
     if (!isNaN(messageIdNum) && revealedImages.has(messageIdNum)) {
       return true;
     }
     
-    // For string IDs that can't be converted to numbers, return false
+    // For IDs that can't be converted to valid numbers, return false
     return false;
   };
 
