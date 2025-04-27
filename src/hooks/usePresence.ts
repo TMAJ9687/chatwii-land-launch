@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { db } from '@/lib/firebase';
+import { db } from '@/integrations/firebase/client';
 import { toast } from 'sonner';
 import { onValue, ref, set, onDisconnect, push, remove, serverTimestamp } from 'firebase/database';
 import { MOCK_VIP_USER } from '@/utils/mockUsers';

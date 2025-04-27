@@ -1,96 +1,106 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getCurrentUser, queryDocuments, subscribeToQuery } from '@/lib/firebase';
 
 interface InboxSidebarProps {
   onUserSelect: (userId: string) => void;
 }
 
+interface ConversationUser {
+  id: string;
+  nickname: string;
+  avatar_url: string | null;
+  unread_count: number;
+}
+
 export const InboxSidebar = ({ onUserSelect }: InboxSidebarProps) => {
-  const { data: conversations, refetch } = useQuery({
+  const [conversations, setConversations] = useState<ConversationUser[]>([]);
+
+  const fetchInboxUsers = async () => {
+    const user = getCurrentUser();
+    if (!user || !user.uid) throw new Error('Not authenticated');
+
+    // Get all unread messages for this user
+    const messagesData = await queryDocuments('messages', [
+      { field: 'receiver_id', operator: '==', value: user.uid },
+      { field: 'is_read', operator: '==', value: false }
+    ]);
+
+    // Process the results to count unread messages by sender
+    const userMessageCounts = new Map<string, ConversationUser>();
+    
+    for (const message of messagesData) {
+      // Skip invalid messages
+      if (!message || !message.sender_id) continue;
+      
+      const senderId = message.sender_id;
+      
+      // Get sender profile info
+      let senderProfile = null;
+      if (!userMessageCounts.has(senderId)) {
+        const profiles = await queryDocuments('profiles', [
+          { field: 'id', operator: '==', value: senderId }
+        ]);
+        senderProfile = profiles.length > 0 ? profiles[0] : null;
+      }
+      
+      if (userMessageCounts.has(senderId)) {
+        // Increment count for existing sender
+        const existing = userMessageCounts.get(senderId)!;
+        userMessageCounts.set(senderId, {
+          ...existing,
+          unread_count: existing.unread_count + 1
+        });
+      } else {
+        // Add new sender to map
+        userMessageCounts.set(senderId, {
+          id: senderId,
+          nickname: senderProfile?.nickname || 'Unknown',
+          avatar_url: senderProfile?.avatar_url || null,
+          unread_count: 1
+        });
+      }
+    }
+    
+    // Convert Map to array
+    return Array.from(userMessageCounts.values());
+  };
+  
+  const { refetch } = useQuery({
     queryKey: ['inbox-users'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // First, get all unread messages for this user
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('messages')
-        .select(`
-          sender_id,
-          profiles!messages_sender_id_fkey (
-            nickname,
-            avatar_url
-          )
-        `)
-        .eq('receiver_id', user.id)
-        .eq('is_read', false);
-
-      if (messagesError) throw messagesError;
-      
-      // Process the results to count unread messages by sender
-      const userMessageCounts = new Map();
-      
-      messagesData.forEach(item => {
-        const senderId = item.sender_id;
-        const userProfile = item.profiles || { nickname: 'Unknown', avatar_url: null };
-        
-        if (userMessageCounts.has(senderId)) {
-          // Increment count for existing sender
-          const existing = userMessageCounts.get(senderId);
-          userMessageCounts.set(senderId, {
-            ...existing,
-            unread_count: existing.unread_count + 1
-          });
-        } else {
-          // Add new sender to map
-          userMessageCounts.set(senderId, {
-            id: senderId,
-            nickname: userProfile.nickname,
-            avatar_url: userProfile.avatar_url,
-            unread_count: 1
-          });
-        }
-      });
-      
-      // Convert Map to array for returning
-      return Array.from(userMessageCounts.values());
+    queryFn: fetchInboxUsers,
+    onSuccess: (data) => {
+      setConversations(data || []);
     },
     refetchInterval: 10000, // Refetch every 10 seconds
   });
 
   // Subscribe to message changes
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      const channel = supabase
-        .channel('inbox-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `receiver_id=eq.${user.id}`,
-          },
-          () => {
-            // Refetch conversations when new messages arrive
-            refetch();
-          }
-        )
-        .subscribe();
-        
-      return () => {
-        supabase.removeChannel(channel);
-      };
+    const user = getCurrentUser();
+    if (!user || !user.uid) return;
+    
+    // Listen for new messages where current user is the receiver
+    const unsubscribe = subscribeToQuery(
+      'messages',
+      [
+        { field: 'receiver_id', operator: '==', value: user.uid },
+        { field: 'is_read', operator: '==', value: false }
+      ],
+      () => {
+        // Refetch conversations when new messages arrive
+        refetch();
+      }
+    );
+    
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
-
-    checkAuth();
   }, [refetch]);
 
   return (
@@ -111,7 +121,7 @@ export const InboxSidebar = ({ onUserSelect }: InboxSidebarProps) => {
         </Button>
       ))}
       
-      {conversations?.length === 0 && (
+      {conversations.length === 0 && (
         <div className="text-center text-muted-foreground py-8">
           No unread messages
         </div>

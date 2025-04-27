@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { getCurrentUser, createDocument } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 interface ReportUserPopupProps {
@@ -42,16 +43,17 @@ export const ReportUserPopup = ({
 
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const user = getCurrentUser();
+      if (!user || !user.uid) throw new Error('Not authenticated');
+      
       const reportObject = {
-        reporter_id: user.id,
+        reporter_id: user.uid,
         reported_id: reportedUser.id,
         reason,
         status: 'pending'
       };
-      const { error } = await supabase.from('reports').insert(reportObject);
-      if (error) throw error;
+      
+      await createDocument('reports', reportObject);
     },
     onSuccess: () => {
       toast.success('Report submitted successfully');
