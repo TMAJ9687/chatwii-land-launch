@@ -95,7 +95,7 @@ export const MessageBubble = ({
     toggleImageReveal(message.id);
   };
   
-  // Check if the image is revealed - convert numbers to strings for comparison
+  // Check if the image is revealed
   const isImageRevealed = (messageId: string): boolean => {
     // Get numeric message ID for string ID
     const messageIdNum = parseInt(messageId, 10);
@@ -106,7 +106,7 @@ export const MessageBubble = ({
     }
     
     // Compare the numeric ID with what's in the Set
-    return Array.from(revealedImages).some(id => id === messageIdNum);
+    return Array.from(revealedImages).includes(messageIdNum);
   };
 
   // Handle timestamp conversion for display

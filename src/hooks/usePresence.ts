@@ -43,6 +43,7 @@ export const usePresence = (currentUserId: string | null) => {
             gender: null,
             age: null,
             vip_status: false,
+            profile_theme: null,  // Add this missing property
             interests: []
           };
         }
