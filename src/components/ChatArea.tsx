@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -33,7 +32,7 @@ export const ChatArea = ({
 }: ChatAreaProps) => {
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
-  const [revealedImages, setRevealedImages] = useState<Set<number>>(new Set());
+  const [revealedImages, setRevealedImages] = useState<Set<string>>(new Set());
   const { blockedUsers, blockUser } = useBlockedUsers();
   const isMockVipUser = isMockUser(selectedUser.id);
   
@@ -102,20 +101,15 @@ export const ChatArea = ({
 
   const toggleImageReveal = (messageId: string) => {
     setRevealedImages(prev => {
-      const messageIdNum = parseInt(messageId, 10);
       const newSet = new Set(prev);
       
-      if (!isNaN(messageIdNum)) {
-        if (newSet.has(messageIdNum)) {
-          newSet.delete(messageIdNum);
-        } else {
-          newSet.add(messageIdNum);
-        }
-        
-        // Save numeric IDs to localStorage
-        localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
       }
       
+      localStorage.setItem('revealedImages', JSON.stringify(Array.from(newSet)));
       return newSet;
     });
   };

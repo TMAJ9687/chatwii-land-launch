@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -16,7 +15,7 @@ interface MessageBubbleProps {
   currentUserId: string;
   isVipUser?: boolean;
   onImageClick: (url: string) => void;
-  revealedImages: Set<string>; // Changed from Set<number> to Set<string>
+  revealedImages: Set<string>;
   toggleImageReveal: (messageId: string) => void;
 }
 
@@ -94,7 +93,6 @@ export const MessageBubble = ({
     }
   };
   
-  // Updated to work with string IDs
   const isImageRevealed = (messageId: string): boolean => {
     if (!messageId) {
       return false;

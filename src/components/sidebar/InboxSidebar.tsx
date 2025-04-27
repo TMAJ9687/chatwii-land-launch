@@ -1,9 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getCurrentUser, queryDocuments, subscribeToQuery } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 
 interface InboxSidebarProps {
   onUserSelect: (userId: string) => void;
@@ -20,87 +20,78 @@ export const InboxSidebar = ({ onUserSelect }: InboxSidebarProps) => {
   const [conversations, setConversations] = useState<ConversationUser[]>([]);
 
   const fetchInboxUsers = async () => {
-    const user = getCurrentUser();
-    if (!user || !user.uid) throw new Error('Not authenticated');
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
 
-    // Get all unread messages for this user
-    const messagesData = await queryDocuments('messages', [
-      { field: 'receiver_id', operator: '==', value: user.uid },
-      { field: 'is_read', operator: '==', value: false }
-    ]);
+    const messagesRef = collection(db, 'messages');
+    const unreadQuery = query(
+      messagesRef,
+      where('receiver_id', '==', user.uid),
+      where('is_read', '==', false)
+    );
 
-    // Process the results to count unread messages by sender
+    const messagesData = await getDocs(unreadQuery);
     const userMessageCounts = new Map<string, ConversationUser>();
-    
-    for (const message of messagesData) {
-      // Skip invalid messages
+
+    for (const doc of messagesData.docs) {
+      const message = doc.data();
       if (!message || !message.sender_id) continue;
-      
+
       const senderId = message.sender_id;
-      
-      // Get sender profile info
-      let senderProfile = null;
+
       if (!userMessageCounts.has(senderId)) {
-        const profiles = await queryDocuments('profiles', [
-          { field: 'id', operator: '==', value: senderId }
-        ]);
-        senderProfile = profiles.length > 0 ? profiles[0] : null;
-      }
-      
-      if (userMessageCounts.has(senderId)) {
-        // Increment count for existing sender
+        const profileQuery = query(
+          collection(db, 'profiles'),
+          where('id', '==', senderId)
+        );
+        const profileDocs = await getDocs(profileQuery);
+        const senderProfile = profileDocs.docs[0]?.data();
+
+        if (!userMessageCounts.has(senderId)) {
+          userMessageCounts.set(senderId, {
+            id: senderId,
+            nickname: senderProfile?.nickname || 'Unknown',
+            avatar_url: senderProfile?.avatar_url || null,
+            unread_count: 1
+          });
+        }
+      } else {
         const existing = userMessageCounts.get(senderId)!;
         userMessageCounts.set(senderId, {
           ...existing,
           unread_count: existing.unread_count + 1
         });
-      } else {
-        // Add new sender to map
-        userMessageCounts.set(senderId, {
-          id: senderId,
-          nickname: senderProfile?.nickname || 'Unknown',
-          avatar_url: senderProfile?.avatar_url || null,
-          unread_count: 1
-        });
       }
     }
-    
-    // Convert Map to array
+
     return Array.from(userMessageCounts.values());
   };
-  
+
   const { refetch } = useQuery({
     queryKey: ['inbox-users'],
     queryFn: fetchInboxUsers,
-    onSuccess: (data) => {
-      setConversations(data || []);
+    onSettled: (data) => {
+      if (data) setConversations(data);
     },
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000
   });
 
-  // Subscribe to message changes
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user || !user.uid) return;
-    
-    // Listen for new messages where current user is the receiver
-    const unsubscribe = subscribeToQuery(
-      'messages',
-      [
-        { field: 'receiver_id', operator: '==', value: user.uid },
-        { field: 'is_read', operator: '==', value: false }
-      ],
-      () => {
-        // Refetch conversations when new messages arrive
-        refetch();
-      }
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const messagesRef = collection(db, 'messages');
+    const unreadQuery = query(
+      messagesRef,
+      where('receiver_id', '==', user.uid),
+      where('is_read', '==', false)
     );
-    
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
+
+    const unsubscribe = onSnapshot(unreadQuery, () => {
+      refetch();
+    });
+
+    return () => unsubscribe();
   }, [refetch]);
 
   return (
