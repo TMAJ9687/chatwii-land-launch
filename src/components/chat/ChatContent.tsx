@@ -2,9 +2,7 @@
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { MessageWithMedia } from '@/types/message';
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { debounce } from 'lodash';
+import { useState, useEffect } from 'react';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -31,64 +29,6 @@ export const ChatContent = ({
   isTyping = false,
   onTypingStatusChange,
 }: ChatContentProps) => {
-  const [typingChannelName] = useState(`typing:${currentUserId}-${selectedUserId}`);
-  
-  // Only for VIP users: track and share typing status
-  useEffect(() => {
-    if (!isVipUser || !selectedUserId || !currentUserId) return;
-    
-    const typingChannel = supabase.channel(typingChannelName);
-    
-    typingChannel
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
-        if (payload.userId === selectedUserId) {
-          if (onTypingStatusChange) {
-            onTypingStatusChange(payload.isTyping);
-          }
-        }
-      })
-      .subscribe((status) => {
-        console.log(`Typing channel status: ${status}`);
-      });
-      
-    return () => {
-      supabase.removeChannel(typingChannel);
-    };
-  }, [selectedUserId, currentUserId, isVipUser, onTypingStatusChange, typingChannelName]);
-
-  // Auto-reset typing indicator after inactivity
-  useEffect(() => {
-    if (!isTyping || !isVipUser) return;
-    
-    const timeout = setTimeout(() => {
-      if (onTypingStatusChange) {
-        onTypingStatusChange(false);
-      }
-    }, 5000);
-    
-    return () => clearTimeout(timeout);
-  }, [isTyping, onTypingStatusChange, isVipUser]);
-
-  const broadcastTypingStatus = useCallback(
-    debounce((isTyping: boolean) => {
-      if (!isVipUser || !selectedUserId || !currentUserId) return;
-      
-      supabase.channel(typingChannelName)
-        .send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: { userId: currentUserId, isTyping }
-        })
-        .then((status) => {
-          console.log('Broadcast typing status:', status);
-        })
-        .catch((error) => {
-          console.error('Error broadcasting typing status:', error);
-        });
-    }, 300),
-    [selectedUserId, currentUserId, isVipUser, typingChannelName]
-  );
-
   if (!selectedUserId) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -121,12 +61,7 @@ export const ChatContent = ({
         currentUserId={currentUserId}
         receiverId={selectedUserId}
         isVipUser={isVipUser}
-        onTypingStatusChange={isVipUser ? (isTyping) => {
-          broadcastTypingStatus(isTyping);
-          if (onTypingStatusChange) {
-            onTypingStatusChange(isTyping); // Update local state as well
-          }
-        } : undefined}
+        onTypingStatusChange={onTypingStatusChange}
       />
     </>
   );

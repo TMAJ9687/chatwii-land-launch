@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -23,11 +24,13 @@ import { useChatState } from '@/hooks/useChatState';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
-import { Message } from '@/types/message';
 import { toast } from 'sonner';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { isMockUser } from '@/utils/mockUsers';
-import { debounce } from 'lodash';
+import { useChannelManagement } from '@/hooks/chat/useChannelManagement';
+import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
+import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
+import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
 
 const ChatInterface = () => {
   const navigate = useNavigate();
@@ -35,13 +38,13 @@ const ChatInterface = () => {
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [isTyping, setIsTyping] = useState(false);
   const [hasSelectedNewUser, setHasSelectedNewUser] = useState(false);
   
   const { handleBotResponse } = useBot();
   const { canInteractWithUser, isLoadingBlocks } = useBlockedUsers();
   const { unreadCount, fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } = useGlobalMessages(currentUserId);
   const { onlineUsers } = usePresence(currentUserId);
+  const { cleanupChannels } = useChannelManagement();
   
   const { 
     selectedUserId,
@@ -71,179 +74,19 @@ const ChatInterface = () => {
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
 
   const {
-    handleUnsendMessage,
-    startReply,
-    cancelReply,
-    handleReplyToMessage,
-    handleReactToMessage,
-    translateMessage,
     deleteConversation,
-    translatingMessageId,
     isDeletingConversation
   } = useMessageActions(currentUserId || '', isVipUser);
 
-  const channelsRef = useRef<Record<string, any>>({});
-  
-  const cleanupChannels = useCallback(() => {
-    Object.entries(channelsRef.current).forEach(([name, channel]) => {
-      if (channel) {
-        console.log(`Cleaning up channel: ${name}`);
-        supabase.removeChannel(channel);
-        delete channelsRef.current[name];
-      }
-    });
-  }, []);
+  const { isTyping, setIsTyping, broadcastTypingStatus } = useTypingIndicator(
+    currentUserId,
+    selectedUserId,
+    isVipUser
+  );
 
-  const setupMessageChannel = useCallback(() => {
-    if (!currentUserId) return;
-
-    // Clean up any existing channel
-    if (channelsRef.current.messageChannel) {
-      supabase.removeChannel(channelsRef.current.messageChannel);
-      delete channelsRef.current.messageChannel;
-    }
-
-    const channel = supabase
-      .channel('all-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
-        },
-        async (payload) => {
-          const payloadNew = payload.new as Record<string, any>;
-          
-          // Skip if sender or receiver is a mock user
-          if (payloadNew && (
-              isMockUser(payloadNew.sender_id as string) || 
-              isMockUser(payloadNew.receiver_id as string))) {
-            return;
-          }
-          
-          if (selectedUserId && payloadNew && 
-             ((payloadNew.sender_id === currentUserId && payloadNew.receiver_id === selectedUserId) ||
-              (payloadNew.sender_id === selectedUserId && payloadNew.receiver_id === currentUserId))) {
-            
-            const newMessage = payloadNew as Message;
-            
-            setMessages(current => {
-              const exists = current.some(msg =>
-                (msg.id === newMessage.id) ||
-                (msg.content === newMessage.content &&
-                  msg.sender_id === newMessage.sender_id &&
-                  Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
-              );
-              
-              if (!exists) {
-                return [...current, { ...newMessage, media: null, reactions: [] }];
-              }
-              return current;
-            });
-            
-            try {
-              const { data: mediaData } = await supabase
-                .from('message_media')
-                .select('*')
-                .eq('message_id', newMessage.id);
-                
-              if (mediaData?.length) {
-                setMessages(current =>
-                  current.map(msg =>
-                    msg.id === newMessage.id
-                      ? { ...msg, media: mediaData[0] }
-                      : msg
-                  )
-                );
-              }
-
-              // Also fetch reactions
-              const { data: reactionsData } = await supabase
-                .from('message_reactions')
-                .select('*')
-                .eq('message_id', newMessage.id);
-                
-              if (reactionsData?.length) {
-                setMessages(current =>
-                  current.map(msg =>
-                    msg.id === newMessage.id
-                      ? { ...msg, reactions: reactionsData }
-                      : msg
-                  )
-                );
-              }
-            } catch (error) {
-              console.error('Error fetching media or reactions for message:', error);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
-        },
-        (payload) => {
-          if (selectedUserId) {
-            setMessages(current =>
-              current.map(msg =>
-                msg.id === payload.new.id
-                  ? { ...msg, ...payload.new }
-                  : msg
-              )
-            );
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Message channel status:', status);
-      });
-
-    channelsRef.current.messageChannel = channel;
-  }, [currentUserId, selectedUserId, setMessages]);
-
-  const setupReactionsChannel = useCallback(() => {
-    if (!currentUserId || !selectedUserId) return;
-
-    // Clean up any existing channel
-    if (channelsRef.current.reactionsChannel) {
-      supabase.removeChannel(channelsRef.current.reactionsChannel);
-      delete channelsRef.current.reactionsChannel;
-    }
-
-    const channel = supabase
-      .channel('message-reactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'message_reactions'
-        },
-        async (payload) => {
-          // Type safety: check if payload.new exists and has a user_id property
-          const payloadData = payload.new as Record<string, any> | undefined;
-          
-          // Skip mock user updates
-          if (payloadData && isMockUser(payloadData.user_id as string)) return;
-          
-          // Only refresh messages when reactions change
-          if (selectedUserId) {
-            fetchMessages();
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Reactions channel status:', status);
-      });
-
-    channelsRef.current.reactionsChannel = channel;
-  }, [currentUserId, selectedUserId, fetchMessages]);
+  // Set up message and reaction channels
+  const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
+  const { setupReactionsChannel } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
 
   useEffect(() => {
     updateSelectedUserId(selectedUserId);

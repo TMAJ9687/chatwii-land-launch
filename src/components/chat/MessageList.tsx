@@ -47,14 +47,21 @@ export const MessageList = ({
       ))}
       
       {isTyping && isVipUser && (
-        <div className="flex items-center space-x-1 opacity-70 ml-2">
-          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-          <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
-        </div>
+        <TypingIndicator />
       )}
       
       <div ref={messagesEndRef} />
+    </div>
+  );
+};
+
+// Extract typing indicator to its own component
+const TypingIndicator = () => {
+  return (
+    <div className="flex items-center space-x-1 opacity-70 ml-2">
+      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
     </div>
   );
 };
