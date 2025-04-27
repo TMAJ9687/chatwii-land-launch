@@ -14,7 +14,7 @@ export const SendButton: React.FC<SendButtonProps> = ({
 }) => {
   return (
     <Button
-      variant="primary"
+      variant="default"
       size="icon"
       onClick={onClick}
       className="rounded-full"

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +36,9 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
   const { canInteractWithUser } = useBlockedUsers();
   const canSendToUser = canInteractWithUser(receiverId);
   const isMockVipUser = isMockUser(receiverId);
+  
+  const [hasReachedImageLimit, setHasReachedImageLimit] = useState(false);
+  const dailyImageLimit = 10;
 
   const {
     message,
@@ -68,7 +70,13 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
     clearFileSelection,
     triggerFileInput,
     handleImageUpload
-  } = useImageMessage(currentUserId, canSendToUser && !isMockVipUser);
+  } = useImageMessage(
+    currentUserId, 
+    canSendToUser && !isMockVipUser,
+    hasReachedImageLimit,
+    isVipUser,
+    dailyImageLimit
+  );
 
   const debouncedTypingStatus = useCallback(
     debounce((isTyping: boolean) => {
