@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -46,7 +45,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     if (!isVipUser || !content) return;
     
     try {
-      // First, we need to get the original message to know the receiver_id
       const { data: originalMessage, error: fetchError } = await supabase
         .from('messages')
         .select('sender_id, receiver_id')
@@ -55,8 +53,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
 
       if (fetchError) throw fetchError;
 
-      // Determine the receiver_id - if the current user sent the original message,
-      // reply to the person who received it, otherwise reply to the sender
       const receiverId = originalMessage.sender_id === currentUserId 
         ? originalMessage.receiver_id 
         : originalMessage.sender_id;
@@ -74,7 +70,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       if (error) throw error;
       toast.success('Reply sent');
       
-      // Reset reply state
       cancelReply();
     } catch (error) {
       console.error('Error replying to message:', error);
@@ -86,7 +81,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     if (!isVipUser) return;
 
     try {
-      // First try to update any existing reaction by this user on this message
       const { data: existingReaction } = await supabase
         .from('message_reactions')
         .select('id')
@@ -95,7 +89,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
         .maybeSingle();
         
       if (existingReaction) {
-        // Update existing reaction
         const { error } = await supabase
           .from('message_reactions')
           .update({ emoji })
@@ -103,7 +96,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
           
         if (error) throw error;
       } else {
-        // Insert new reaction
         const { error } = await supabase
           .from('message_reactions')
           .insert({
@@ -128,12 +120,10 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
     try {
       setTranslatingMessageId(message.id);
       
-      // Using a more reliable translation service that doesn't require API keys
-      // Create the API URL with search parameters
       const apiUrl = new URL('https://api.mymemory.translated.net/get');
       apiUrl.searchParams.append('q', message.content);
       apiUrl.searchParams.append('langpair', 'auto|en');
-      apiUrl.searchParams.append('de', 'temp@chatwii.com'); // Add a dummy email to increase rate limit
+      apiUrl.searchParams.append('de', 'temp@chatwii.com');
       
       const translationResponse = await fetch(apiUrl.toString());
       if (!translationResponse.ok) throw new Error('Translation failed');
@@ -172,7 +162,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
       setIsDeletingConversation(true);
       toast.loading('Deleting conversation...');
       
-      // First, delete messages sent by current user to partner
       const { error: error1 } = await supabase
         .from('messages')
         .update({ deleted_at: new Date().toISOString() })
@@ -181,7 +170,6 @@ export const useMessageActions = (currentUserId: string, isVipUser: boolean) => 
         
       if (error1) throw error1;
       
-      // Then, delete messages received by current user from partner
       const { error: error2 } = await supabase
         .from('messages')
         .update({ deleted_at: new Date().toISOString() })

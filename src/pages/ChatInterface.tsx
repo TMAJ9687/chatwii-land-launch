@@ -226,8 +226,11 @@ const ChatInterface = () => {
           table: 'message_reactions'
         },
         async (payload) => {
+          // Type safety: check if payload.new exists and has a user_id property
+          const payloadData = payload.new as Record<string, any> | undefined;
+          
           // Skip mock user updates
-          if (payload.new && (isMockUser(payload.new.user_id))) return;
+          if (payloadData && isMockUser(payloadData.user_id as string)) return;
           
           // Only refresh messages when reactions change
           if (selectedUserId) {
@@ -409,7 +412,8 @@ const ChatInterface = () => {
 
   const handleDeleteConversation = () => {
     if (selectedUserId && !isDeletingConversation) {
-      deleteConversation(selectedUserId);
+      // Call deleteConversation and ignore its Promise return value
+      void deleteConversation(selectedUserId);
       fetchMessages();
     }
   };
