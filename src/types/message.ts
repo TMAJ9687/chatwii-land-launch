@@ -1,37 +1,35 @@
 
-export interface Message {
-  id: number;
-  content: string | null;
-  sender_id: string;
-  receiver_id: string;
-  created_at: string;
-  is_read?: boolean;
-  deleted_at?: string | null;
-  reply_to?: number | null;
-  translated_content?: string | null;
-  language_code?: string | null;
-  is_delivered?: boolean;
-  is_typing?: boolean;
-}
+import { Timestamp } from 'firebase/firestore';
 
 export interface MessageMedia {
-  id: number;
-  message_id: number;
+  id: string;
+  message_id: string;
   user_id: string;
   file_url: string;
-  media_type: string;
-  created_at: string;
+  media_type: 'image' | 'voice' | 'video';
+  created_at: Date | Timestamp;
 }
 
 export interface MessageReaction {
-  id: number;
-  message_id: number;
+  id: string;
+  message_id: string;
   user_id: string;
   emoji: string;
-  created_at: string;
+  created_at: Date | Timestamp;
 }
 
-export interface MessageWithMedia extends Message {
-  media?: MessageMedia | null;
-  reactions?: MessageReaction[] | null;
+export interface MessageWithMedia {
+  id: string;
+  content: string;
+  sender_id: string;
+  receiver_id: string;
+  is_read: boolean;
+  created_at: Date | string | Timestamp;
+  updated_at?: Date | string | Timestamp;
+  deleted_at?: Date | string | Timestamp | null;
+  translated_content?: string | null;
+  language_code?: string | null;
+  reply_to?: string | null;
+  media: MessageMedia | null;
+  reactions: MessageReaction[];
 }

@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
+import { signOutUser } from "@/lib/firebase";
 import { toast } from "sonner";
 import { useProfileDeletion } from "./useProfileDeletion";
 
@@ -15,46 +15,42 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
     
     setIsLoggingOut(true);
     try {
-      // Get current user and role before any deletion
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user ID before logout
+      const userId = localStorage.getItem('firebase_user_id');
       let redirectPath = '/';
       let shouldDeleteProfile = false;
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
+      if (userId) {
+        // Get role from localStorage
+        const role = localStorage.getItem('firebase_user_role') || 'standard';
+        
+        if (role !== 'vip' && role !== 'admin') {
+          redirectPath = defaultRedirect;
+          shouldDeleteProfile = role === 'standard' || 
+                              localStorage.getItem('firebase_user_provider') === 'anonymous';
+        }
 
-        if (profile) {
-          // Only redirect non-admin, non-vip users to feedback
-          if (profile.role !== 'vip' && profile.role !== 'admin') {
-            redirectPath = defaultRedirect;
-            shouldDeleteProfile = profile.role === 'standard' || 
-                                user.app_metadata?.provider === 'anonymous';
-          }
-
-          // Delete profile ONLY for standard and anonymous users, NEVER for VIP users
-          if (shouldDeleteProfile) {
-            const result = await deleteUserProfile(user.id);
-            if (!result.success) {
-              console.error('Profile deletion error:', result.error);
-              toast.error('Failed to clean up profile on logout.');
-            }
+        // Delete profile for standard and anonymous users only
+        if (shouldDeleteProfile) {
+          const result = await deleteUserProfile(userId);
+          if (!result.success) {
+            console.error('Profile deletion error:', result.error);
+            toast.error('Failed to clean up profile on logout.');
           }
         }
       }
 
-      // Remove all Supabase channels and sign out
-      await supabase.removeAllChannels();
-      await supabase.auth.signOut({ scope: 'local' });
+      // Sign out from Firebase
+      await signOutUser();
 
       // Clear local storage (VIP registration data still needs to be cleared)
       localStorage.removeItem('vip_registration_email');
       localStorage.removeItem('vip_registration_nickname');
+      localStorage.removeItem('firebase_user_id');
+      localStorage.removeItem('firebase_user_role');
+      localStorage.removeItem('firebase_user_provider');
       
-      // Only clear other items for non-VIP users
+      // Clear all for non-VIP users
       if (shouldDeleteProfile) {
         window.localStorage.clear();
       }

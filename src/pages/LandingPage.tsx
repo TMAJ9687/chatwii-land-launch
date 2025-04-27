@@ -7,9 +7,9 @@ import { CaptchaModal } from "@/components/CaptchaModal";
 import { AdPlaceholder } from "@/components/AdPlaceholder";
 import { VerticalAdLabel } from "@/components/VerticalAdLabel";
 import { ValidatedUsernameInput } from "@/components/ValidatedUsernameInput";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { signInAnonymousUser } from "@/lib/firebase";
 
 const LandingPage = () => {
   const [nickname, setNickname] = useState("");
@@ -35,8 +35,12 @@ const LandingPage = () => {
     setCaptchaError(null);
     setCaptchaOpen(false);
     try {
-      const { error } = await supabase.auth.signInAnonymously();
-      if (error) throw error;
+      const user = await signInAnonymousUser();
+      
+      // Store user ID and provider for later use
+      localStorage.setItem('firebase_user_id', user.uid);
+      localStorage.setItem('firebase_user_provider', 'anonymous');
+      
       navigate("/profile-setup", { state: { nickname } });
     } catch (error) {
       setCaptchaError("Failed to sign in. Please try again.");

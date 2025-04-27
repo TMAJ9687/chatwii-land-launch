@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
@@ -12,7 +13,7 @@ const getCutoffTimestamp = (role: string) => {
     hoursAgo = 10;
   }
   now.setHours(now.getHours() - hoursAgo);
-  return now.toISOString();
+  return Timestamp.fromDate(now);
 };
 
 export const useMessages = (
@@ -64,39 +65,79 @@ export const useMessages = (
     const cutoffTime = getCutoffTimestamp(currentUserRole);
     
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          message_media (*),
-          message_reactions (*)
-        `)
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedUserId}),and(sender_id.eq.${selectedUserId},receiver_id.eq.${currentUserId})`)
-        .is('deleted_at', null) // Only fetch messages that aren't deleted
-        .gte('created_at', cutoffTime)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        setError(`Failed to load messages: ${error.message}`);
-        console.error('Error fetching messages:', error);
+      // Query for messages between the two users
+      const messagesQuery = query(
+        collection(db, 'messages'),
+        where('deleted_at', '==', null),
+        where('participants', 'array-contains', currentUserId),
+        orderBy('created_at', 'asc')
+      );
+      
+      const messagesSnapshot = await getDocs(messagesQuery);
+      const messagesData: MessageWithMedia[] = [];
+      
+      for (const doc of messagesSnapshot.docs) {
+        const messageData = doc.data();
         
-        // Implement retry logic
-        if (retryCount < maxRetries) {
-          retryTimeoutRef.current = setTimeout(() => {
-            fetchMessages(retryCount + 1);
-          }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
-          return;
+        // Check if this message is between the two users
+        if ((messageData.sender_id === currentUserId && messageData.receiver_id === selectedUserId) || 
+            (messageData.sender_id === selectedUserId && messageData.receiver_id === currentUserId)) {
+              
+          // Check if the message was created after the cutoff time
+          if (messageData.created_at >= cutoffTime) {
+            const message: MessageWithMedia = {
+              id: doc.id,
+              content: messageData.content || '',
+              sender_id: messageData.sender_id,
+              receiver_id: messageData.receiver_id,
+              is_read: messageData.is_read || false,
+              created_at: messageData.created_at,
+              updated_at: messageData.updated_at,
+              deleted_at: messageData.deleted_at,
+              translated_content: messageData.translated_content,
+              language_code: messageData.language_code,
+              reply_to: messageData.reply_to,
+              media: null,
+              reactions: []
+            };
+            
+            messagesData.push(message);
+          }
+        }
+      }
+      
+      // Get media for each message
+      const mediaPromises = messagesData.map(async message => {
+        const mediaQuery = query(
+          collection(db, 'message_media'),
+          where('message_id', '==', message.id)
+        );
+        
+        const mediaSnapshot = await getDocs(mediaQuery);
+        if (!mediaSnapshot.empty) {
+          const mediaDoc = mediaSnapshot.docs[0];
+          message.media = {
+            id: mediaDoc.id,
+            ...mediaDoc.data()
+          } as MessageWithMedia['media'];
         }
         
-        toast.error("Failed to load messages");
-        return;
-      }
-
-      const messagesWithMedia = data.map(message => ({
-        ...message,
-        media: message.message_media?.[0] || null,
-        reactions: message.message_reactions || []
-      }));
+        // Get reactions for the message
+        const reactionsQuery = query(
+          collection(db, 'message_reactions'),
+          where('message_id', '==', message.id)
+        );
+        
+        const reactionsSnapshot = await getDocs(reactionsQuery);
+        message.reactions = reactionsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as MessageWithMedia['reactions'];
+        
+        return message;
+      });
+      
+      const messagesWithMedia = await Promise.all(mediaPromises);
       
       setMessages(messagesWithMedia);
       setError(null);
@@ -108,15 +149,18 @@ export const useMessages = (
         });
       }
     } catch (err: any) {
-      console.error('Unexpected error fetching messages:', err);
-      setError(`Unexpected error: ${err.message || 'Unknown error'}`);
+      console.error('Error fetching messages:', err);
+      setError(`Failed to load messages: ${err.message || 'Unknown error'}`);
       
-      // Implement retry logic for unexpected errors
+      // Implement retry logic
       if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
           fetchMessages(retryCount + 1);
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
+        return;
       }
+      
+      toast.error("Failed to load messages");
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;

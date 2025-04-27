@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { createUserProfile, queryDocuments } from "@/lib/firebase";
 import { toast } from "sonner";
 
 interface ProfileData {
@@ -20,11 +20,12 @@ export function useProfileSubmission() {
     const { nickname, gender, age, country, interests = [] } = profileData;
     
     // Server-side nickname availability check
-    const { data: nicknameCheck } = await supabase.rpc('is_nickname_available', { 
-      check_nickname: nickname 
-    });
+    const existingProfiles = await queryDocuments('profiles', [
+      { field: 'nickname', operator: '==', value: nickname },
+      { field: 'deleted_at', operator: '==', value: null }
+    ]);
 
-    if (!nicknameCheck) {
+    if (existingProfiles.length > 0) {
       toast.error("Nickname is already taken. Please choose a different nickname.");
       return false;
     }
@@ -41,47 +42,45 @@ export function useProfileSubmission() {
 
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user found");
+      const userId = localStorage.getItem('firebase_user_id');
+      if (!userId) throw new Error("No user found");
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          nickname,
-          gender,
-          age: age ? parseInt(age) : null,
-          country,
-          role: 'standard'
-        });
+      // Create or update user profile
+      await createUserProfile(userId, {
+        nickname,
+        gender,
+        age: age ? parseInt(age) : null,
+        country,
+        role: 'standard',
+        vip_status: false,
+        visibility: 'online'
+      });
 
-      if (profileError) {
-        toast.error("Failed to save profile. Please try again.");
-        return false;
-      }
+      // Store role in localStorage for easy access
+      localStorage.setItem('firebase_user_role', 'standard');
 
       if (interests.length > 0) {
-        const { data: interestsData } = await supabase
-          .from("interests")
-          .select("id, name")
-          .in("name", interests);
+        // Get existing interests
+        const interestsData = await queryDocuments('interests', [
+          { field: 'name', operator: 'in', value: interests }
+        ]);
 
-        if (interestsData && interestsData.length > 0) {
-          await supabase
-            .from("user_interests")
-            .delete()
-            .eq("user_id", user.id);
-            
-          const userInterests = interestsData.map(interest => ({
-            user_id: user.id,
+        // Delete existing user interests
+        const userInterests = await queryDocuments('user_interests', [
+          { field: 'user_id', operator: '==', value: userId }
+        ]);
+
+        // Delete existing interests
+        for (const interest of userInterests) {
+          await deleteDocument('user_interests', interest.id);
+        }
+
+        // Create new user interests
+        for (const interest of interestsData) {
+          await createDocument('user_interests', {
+            user_id: userId,
             interest_id: interest.id
-          }));
-
-          const { error: interestsError } = await supabase
-            .from("user_interests")
-            .insert(userInterests);
-
-          if (interestsError) throw interestsError;
+          });
         }
       }
 

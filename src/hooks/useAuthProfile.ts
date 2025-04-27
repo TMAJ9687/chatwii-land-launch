@@ -1,14 +1,18 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { 
+  subscribeToAuthChanges, 
+  getUserProfile, 
+  UserProfile 
+} from '@/lib/firebase';
 
 export const useAuthProfile = () => {
   const navigate = useNavigate();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>('standard');
   const [isVipUser, setIsVipUser] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,51 +20,58 @@ export const useAuthProfile = () => {
 
     const checkAuthAndLoadProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Subscribe to auth changes
+        const unsubscribe = subscribeToAuthChanges(async (user) => {
+          if (cancelled) return;
 
-        if (!session) {
-          setCurrentUserId(null);
-          setProfile(null);
-          navigate('/');
-          return;
-        }
+          if (!user) {
+            setCurrentUserId(null);
+            setProfile(null);
+            navigate('/');
+            setLoading(false);
+            return;
+          }
 
-        setCurrentUserId(session.user.id);
+          setCurrentUserId(user.uid);
 
-        const { data: dbProfile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle();
+          // Get user profile from Firestore
+          const userProfile = await getUserProfile(user.uid);
 
-        if (cancelled) return;
+          if (cancelled) return;
 
-        if (!error && dbProfile) {
-          setIsVipUser(dbProfile.vip_status || dbProfile.role === 'vip');
-          setCurrentUserRole(dbProfile.role || 'standard');
-          setProfile(dbProfile);
-        } else {
-          setCurrentUserId(null);
-          setProfile(null);
-          await supabase.auth.signOut();
-          navigate('/');
-          return;
-        }
+          if (userProfile) {
+            setIsVipUser(userProfile.vip_status || userProfile.role === 'vip');
+            setCurrentUserRole(userProfile.role || 'standard');
+            setProfile(userProfile);
+          } else {
+            setCurrentUserId(null);
+            setProfile(null);
+            navigate('/');
+          }
+          
+          setLoading(false);
+        });
+
+        return unsubscribe;
       } catch (error) {
         console.error('Error loading profile:', error);
         if (!cancelled) {
           setCurrentUserId(null);
           setProfile(null);
-        }
-      } finally {
-        if (!cancelled) {
           setLoading(false);
         }
+        return () => {};
       }
     };
 
-    checkAuthAndLoadProfile();
-    return () => { cancelled = true; };
+    const unsubscribe = checkAuthAndLoadProfile();
+    
+    return () => { 
+      cancelled = true; 
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [navigate]);
 
   return {

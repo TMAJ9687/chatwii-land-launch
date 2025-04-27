@@ -1,95 +1,124 @@
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
+import { createDocument, queryDocuments, deleteDocument } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useBlockedUsers = () => {
-  const queryClient = useQueryClient();
+  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  const [blockedByUsers, setBlockedByUsers] = useState<string[]>([]);
+  const [isLoadingBlocks, setIsLoadingBlocks] = useState(true);
+  const [isLoadingBlockedBy, setIsLoadingBlockedBy] = useState(true);
 
-  const { data: blockedUsers = [], isLoading: isLoadingBlocks } = useQuery({
-    queryKey: ['blocked-users'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data, error } = await supabase
-        .from('blocked_users')
-        .select('blocked_id')
-        .eq('blocker_id', user.id);
-
-      if (error) throw error;
-      return data.map(b => b.blocked_id);
+  // Load blocked users
+  const loadBlockedUsers = async () => {
+    const userId = localStorage.getItem('firebase_user_id');
+    if (!userId) {
+      setBlockedUsers([]);
+      setIsLoadingBlocks(false);
+      return;
     }
-  });
 
-  // Get users who have blocked the current user
-  const { data: blockedByUsers = [], isLoading: isLoadingBlockedBy } = useQuery({
-    queryKey: ['blocked-by-users'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+    try {
+      const blockedData = await queryDocuments('blocked_users', [
+        { field: 'blocker_id', operator: '==', value: userId }
+      ]);
 
-      const { data, error } = await supabase
-        .from('blocked_users')
-        .select('blocker_id')
-        .eq('blocked_id', user.id);
-
-      if (error) throw error;
-      return data.map(b => b.blocker_id);
+      setBlockedUsers(blockedData.map(b => b.blocked_id));
+    } catch (error) {
+      console.error('Error loading blocked users:', error);
+      toast.error("Failed to load blocked users");
+    } finally {
+      setIsLoadingBlocks(false);
     }
-  });
+  };
 
-  const blockUser = useMutation({
-    mutationFn: async (blockedId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+  // Load users who have blocked the current user
+  const loadBlockedByUsers = async () => {
+    const userId = localStorage.getItem('firebase_user_id');
+    if (!userId) {
+      setBlockedByUsers([]);
+      setIsLoadingBlockedBy(false);
+      return;
+    }
 
-      const { error } = await supabase
-        .from('blocked_users')
-        .insert({ blocker_id: user.id, blocked_id: blockedId });
+    try {
+      const blockedByData = await queryDocuments('blocked_users', [
+        { field: 'blocked_id', operator: '==', value: userId }
+      ]);
 
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['blocked-users'] });
+      setBlockedByUsers(blockedByData.map(b => b.blocker_id));
+    } catch (error) {
+      console.error('Error loading blocked by users:', error);
+    } finally {
+      setIsLoadingBlockedBy(false);
+    }
+  };
+
+  // Load data when component mounts
+  useEffect(() => {
+    loadBlockedUsers();
+    loadBlockedByUsers();
+  }, []);
+
+  // Block a user
+  const blockUser = async (blockedId: string) => {
+    const userId = localStorage.getItem('firebase_user_id');
+    if (!userId) {
+      toast.error('You must be logged in to block users');
+      return;
+    }
+
+    try {
+      await createDocument('blocked_users', {
+        blocker_id: userId,
+        blocked_id: blockedId
+      });
+
       toast.success('User blocked successfully');
-    },
-    onError: () => {
+      loadBlockedUsers();
+    } catch (error) {
+      console.error('Error blocking user:', error);
       toast.error('Failed to block user');
     }
-  });
+  };
 
-  const unblockUser = useMutation({
-    mutationFn: async (blockedId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+  // Unblock a user
+  const unblockUser = async (blockedId: string) => {
+    const userId = localStorage.getItem('firebase_user_id');
+    if (!userId) {
+      toast.error('You must be logged in to unblock users');
+      return;
+    }
 
-      const { error } = await supabase
-        .from('blocked_users')
-        .delete()
-        .eq('blocker_id', user.id)
-        .eq('blocked_id', blockedId);
+    try {
+      const blockedEntries = await queryDocuments('blocked_users', [
+        { field: 'blocker_id', operator: '==', value: userId },
+        { field: 'blocked_id', operator: '==', value: blockedId }
+      ]);
 
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['blocked-users'] });
+      for (const entry of blockedEntries) {
+        await deleteDocument('blocked_users', entry.id);
+      }
+
       toast.success('User unblocked successfully');
-    },
-    onError: () => {
+      loadBlockedUsers();
+    } catch (error) {
+      console.error('Error unblocking user:', error);
       toast.error('Failed to unblock user');
     }
-  });
+  };
 
-  // Check if a user is blocked by the current user or if they have blocked the current user
+  // Check if a user is blocked by the current user
   const isUserBlocked = (userId: string) => {
     return blockedUsers.includes(userId);
   };
 
+  // Check if a user has blocked the current user
   const isBlockedByUser = (userId: string) => {
     return blockedByUsers.includes(userId);
   };
 
+  // Check if the current user can interact with another user
   const canInteractWithUser = (userId: string) => {
     return !isUserBlocked(userId) && !isBlockedByUser(userId);
   };
@@ -97,12 +126,14 @@ export const useBlockedUsers = () => {
   return {
     blockedUsers,
     blockedByUsers,
-    blockUser: blockUser.mutate,
-    unblockUser: unblockUser.mutate,
+    blockUser,
+    unblockUser,
     isUserBlocked,
     isBlockedByUser,
     canInteractWithUser,
     isLoadingBlocks,
-    isLoadingBlockedBy
+    isLoadingBlockedBy,
+    loadBlockedUsers,
+    loadBlockedByUsers
   };
 };

@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadFile, queryDocuments } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useImageUpload = (currentUserId: string | null) => {
@@ -24,43 +24,43 @@ export const useImageUpload = (currentUserId: string | null) => {
     const signal = abortControllerRef.current.signal;
 
     try {
-      const { data: siteSettings } = await supabase
-        .from('site_settings')
-        .select('settings')
-        .eq('id', 1)
-        .abortSignal(signal)
-        .maybeSingle();
-
+      // Get site settings
+      const siteSettings = await queryDocuments('site_settings', [
+        { field: 'id', operator: '==', value: 'general' }
+      ]);
+      
       // Use settings from the database with proper type safety
       let dailyLimit = 10; // Default value
       
-      if (siteSettings?.settings && 
-          typeof siteSettings.settings === 'object' && 
-          siteSettings.settings !== null &&
-          'standard_photo_limit' in siteSettings.settings) {
-        dailyLimit = Number(siteSettings.settings.standard_photo_limit) || 10;
+      if (siteSettings.length > 0 && siteSettings[0].settings && 
+          typeof siteSettings[0].settings === 'object' && 
+          siteSettings[0].settings !== null &&
+          'standard_photo_limit' in siteSettings[0].settings) {
+        dailyLimit = Number(siteSettings[0].settings.standard_photo_limit) || 10;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', currentUserId)
-        .abortSignal(signal)
-        .maybeSingle();
+      // Get user profile
+      const profiles = await queryDocuments('profiles', [
+        { field: 'id', operator: '==', value: currentUserId }
+      ]);
+      
+      const profile = profiles.length > 0 ? profiles[0] : null;
 
       // VIP users have unlimited uploads
       if (profile?.role === 'vip') return true;
 
       const today = new Date().toISOString().split('T')[0];
-      const { data: uploadRecord } = await supabase
-        .from('daily_photo_uploads')
-        .select('upload_count, last_upload_date')
-        .eq('user_id', currentUserId)
-        .abortSignal(signal)
-        .maybeSingle();
+      
+      // Get today's upload count
+      const uploadRecords = await queryDocuments('daily_photo_uploads', [
+        { field: 'user_id', operator: '==', value: currentUserId },
+        { field: 'last_upload_date', operator: '==', value: today }
+      ]);
+
+      const uploadRecord = uploadRecords.length > 0 ? uploadRecords[0] : null;
 
       // No record or different date - reset count
-      if (!uploadRecord || uploadRecord.last_upload_date !== today) {
+      if (!uploadRecord) {
         return true;
       }
 
@@ -81,35 +81,30 @@ export const useImageUpload = (currentUserId: string | null) => {
     if (!currentUserId) return;
 
     abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
     
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      const { data: existingRecord } = await supabase
-        .from('daily_photo_uploads')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('last_upload_date', today)
-        .abortSignal(signal)
-        .maybeSingle();
+      // Get existing record
+      const uploadRecords = await queryDocuments('daily_photo_uploads', [
+        { field: 'user_id', operator: '==', value: currentUserId },
+        { field: 'last_upload_date', operator: '==', value: today }
+      ]);
+
+      const existingRecord = uploadRecords.length > 0 ? uploadRecords[0] : null;
 
       if (existingRecord) {
-        await supabase
-          .from('daily_photo_uploads')
-          .update({ upload_count: existingRecord.upload_count + 1 })
-          .eq('user_id', currentUserId)
-          .eq('last_upload_date', today)
-          .abortSignal(signal);
+        // Update existing record
+        await updateDocument('daily_photo_uploads', existingRecord.id, {
+          upload_count: existingRecord.upload_count + 1
+        });
       } else {
-        await supabase
-          .from('daily_photo_uploads')
-          .insert({
-            user_id: currentUserId,
-            last_upload_date: today,
-            upload_count: 1
-          })
-          .abortSignal(signal);
+        // Create new record
+        await createDocument('daily_photo_uploads', {
+          user_id: currentUserId,
+          last_upload_date: today,
+          upload_count: 1
+        });
       }
     } catch (error) {
       if (abortControllerRef.current?.signal.aborted) return;
@@ -135,24 +130,17 @@ export const useImageUpload = (currentUserId: string | null) => {
     try {
       setIsUploading(true);
       const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${currentUserId}_${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${currentUserId}/${fileName}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('chat_images')
-        .upload(filePath, selectedFile);
+      const { url } = await uploadFile(
+        'chat_images',
+        filePath,
+        selectedFile,
+        selectedFile.type
+      );
 
-      if (uploadError) {
-        toast.error('Failed to upload image');
-        console.error('Upload error:', uploadError);
-        return null;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat_images')
-        .getPublicUrl(filePath);
-
-      return publicUrl;
+      return url;
     } catch (error) {
       toast.error('Image upload failed');
       console.error('Upload error:', error);

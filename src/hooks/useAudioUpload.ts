@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const useAudioUpload = (currentUserId: string | null) => {
@@ -11,25 +11,17 @@ export const useAudioUpload = (currentUserId: string | null) => {
     setIsUploading(true);
     try {
       const fileExt = 'webm';
-      const fileName = `${currentUserId}_${Date.now()}.${fileExt}`;
-      const filePath = fileName;
-      const bucket = 'chat_audio';
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${currentUserId}/${fileName}`;
 
-      // Upload to audio bucket
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, audioBlob, { upsert: false, contentType: 'audio/webm' });
+      const { url } = await uploadFile(
+        'chat_audio',
+        filePath,
+        audioBlob,
+        'audio/webm'
+      );
 
-      if (error) {
-        toast.error('Failed to upload audio');
-        return null;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
-
-      return publicUrl;
+      return url;
     } catch (err) {
       toast.error('Audio upload failed');
       return null;
