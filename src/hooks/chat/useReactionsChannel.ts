@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useChannelManagement } from './useChannelManagement';
 import { isMockUser } from '@/utils/mockUsers';
 
+type ReactionsChannelType = ReturnType<typeof supabase.channel> | null;
+
 export const useReactionsChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
@@ -11,7 +13,7 @@ export const useReactionsChannel = (
 ) => {
   const { registerChannel } = useChannelManagement();
 
-  const setupReactionsChannel = useCallback(() => {
+  const setupReactionsChannel = useCallback((): ReactionsChannelType => {
     if (!currentUserId || !selectedUserId) return null;
 
     const channel = supabase

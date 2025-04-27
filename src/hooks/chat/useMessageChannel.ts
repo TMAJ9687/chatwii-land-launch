@@ -1,9 +1,11 @@
 
 import { useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { MessageWithMedia } from '@/types/message';
 import { useChannelManagement } from './useChannelManagement';
+import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
+
+type MessageChannelType = ReturnType<typeof supabase.channel> | null;
 
 export const useMessageChannel = (
   currentUserId: string | null,
@@ -12,84 +14,49 @@ export const useMessageChannel = (
 ) => {
   const { registerChannel } = useChannelManagement();
 
-  const setupMessageChannel = useCallback(() => {
-    if (!currentUserId) return null;
+  const setupMessageChannel = useCallback((): MessageChannelType => {
+    if (!currentUserId || !selectedUserId) return null;
 
+    const channelName = `private-messages-${currentUserId}-${selectedUserId}`;
+    
+    // For message between the current user and selected user
     const channel = supabase
-      .channel('all-messages')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+          filter: `(sender_id=eq.${currentUserId} AND receiver_id=eq.${selectedUserId}) OR (sender_id=eq.${selectedUserId} AND receiver_id=eq.${currentUserId})`,
         },
         async (payload) => {
-          const payloadNew = payload.new as Record<string, any>;
+          // Skip mock user updates
+          if (isMockUser(payload.new.sender_id as string)) return;
           
-          // Skip if sender or receiver is a mock user
-          if (payloadNew && (
-              isMockUser(payloadNew.sender_id as string) || 
-              isMockUser(payloadNew.receiver_id as string))) {
+          // Fetch the full message with media
+          const { data, error } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              message_media(*),
+              message_reactions(*)
+            `)
+            .eq('id', payload.new.id)
+            .maybeSingle();
+            
+          if (error || !data) {
+            console.error('Error fetching new message details:', error);
             return;
           }
           
-          if (selectedUserId && payloadNew && 
-             ((payloadNew.sender_id === currentUserId && payloadNew.receiver_id === selectedUserId) ||
-              (payloadNew.sender_id === selectedUserId && payloadNew.receiver_id === currentUserId))) {
-            
-            const newMessage = payloadNew as MessageWithMedia;
-            
-            setMessages(current => {
-              const exists = current.some(msg =>
-                (msg.id === newMessage.id) ||
-                (msg.content === newMessage.content &&
-                  msg.sender_id === newMessage.sender_id &&
-                  Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 1000)
-              );
-              
-              if (!exists) {
-                return [...current, { ...newMessage, media: null, reactions: [] }];
-              }
-              return current;
-            });
-            
-            try {
-              const { data: mediaData } = await supabase
-                .from('message_media')
-                .select('*')
-                .eq('message_id', newMessage.id);
-                
-              if (mediaData?.length) {
-                setMessages(current =>
-                  current.map(msg =>
-                    msg.id === newMessage.id
-                      ? { ...msg, media: mediaData[0] }
-                      : msg
-                  )
-                );
-              }
-
-              // Also fetch reactions
-              const { data: reactionsData } = await supabase
-                .from('message_reactions')
-                .select('*')
-                .eq('message_id', newMessage.id);
-                
-              if (reactionsData?.length) {
-                setMessages(current =>
-                  current.map(msg =>
-                    msg.id === newMessage.id
-                      ? { ...msg, reactions: reactionsData }
-                      : msg
-                  )
-                );
-              }
-            } catch (error) {
-              console.error('Error fetching media or reactions for message:', error);
-            }
-          }
+          const newMessage: MessageWithMedia = {
+            ...data,
+            media: data.message_media?.[0] || null,
+            reactions: data.message_reactions || []
+          };
+          
+          setMessages(prev => [...prev, newMessage]);
         }
       )
       .on(
@@ -98,25 +65,24 @@ export const useMessageChannel = (
           event: 'UPDATE',
           schema: 'public',
           table: 'messages',
-          filter: `or(receiver_id.eq.${currentUserId},sender_id.eq.${currentUserId})`,
+          filter: `(sender_id=eq.${currentUserId} AND receiver_id=eq.${selectedUserId}) OR (sender_id=eq.${selectedUserId} AND receiver_id=eq.${currentUserId})`,
         },
         (payload) => {
-          if (selectedUserId) {
-            setMessages(current =>
-              current.map(msg =>
-                msg.id === payload.new.id
-                  ? { ...msg, ...payload.new }
-                  : msg
-              )
-            );
-          }
+          // Skip mock user updates
+          if (isMockUser(payload.new.sender_id as string)) return;
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === payload.new.id ? { ...msg, ...payload.new } : msg
+            )
+          );
         }
       )
       .subscribe((status) => {
-        console.log('Message channel status:', status);
+        console.log(`Message channel status: ${status} for channel ${channelName}`);
       });
 
-    return registerChannel('messageChannel', channel);
+    return registerChannel(channelName, channel);
   }, [currentUserId, selectedUserId, setMessages, registerChannel]);
 
   return { setupMessageChannel };
