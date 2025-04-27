@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { History, Mail, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -83,6 +84,10 @@ const ChatInterface = () => {
     isVipUser
   );
 
+  // Set up message and reaction channels
+  const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
+  const { setupReactionsChannel } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
+
   const handleDeleteConversation = useCallback(() => {
     if (selectedUserId && !isDeletingConversation) {
       void deleteConversation(selectedUserId);
@@ -137,8 +142,8 @@ const ChatInterface = () => {
   }, [navigate, checkRulesAccepted]);
 
   useEffect(() => {
-    setupMessageChannel();
-    setupReactionsChannel();
+    const messageChannel = setupMessageChannel();
+    const reactionsChannel = setupReactionsChannel();
     
     return () => {
       cleanupChannels();
