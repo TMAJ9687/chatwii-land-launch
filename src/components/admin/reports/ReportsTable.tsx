@@ -101,7 +101,8 @@ export const ReportsTable = () => {
           id, reporter_id, reported_id, reason, suggest_ban, 
           created_at, status, resolved_at
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 100);
       
       if (error) throw error;
       
@@ -117,7 +118,8 @@ export const ReportsTable = () => {
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, nickname")
-          .in("id", Array.from(userIds));
+          .in("id", Array.from(userIds))
+          .range(0, 100);
           
         if (profilesError) throw profilesError;
         

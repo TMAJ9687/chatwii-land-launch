@@ -1,4 +1,5 @@
 
+
 // This is a mock implementation to replace Supabase
 
 export const supabase = {
@@ -50,3 +51,4 @@ export const supabase = {
   },
   rpc: (func: string, params: any) => ({ data: null, error: null }),
 };
+

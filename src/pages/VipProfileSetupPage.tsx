@@ -223,7 +223,7 @@ const VipProfileSetupPage = () => {
             interestId = existingInterest.id;
           } else {
             // Create new interest
-            const { data: newInterest } = await supabase
+            const { data: newInterest, error } = await supabase
               .from('interests')
               .insert({ name: interest })
               .select('id')
