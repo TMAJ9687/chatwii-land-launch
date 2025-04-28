@@ -6,6 +6,24 @@ import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
 
+// Helper function to convert any timestamp format to a numeric value for comparison
+const getTimestampValue = (timestamp: string | Date | Timestamp | undefined): number => {
+  if (!timestamp) return 0;
+  
+  if (timestamp instanceof Timestamp) {
+    // Convert Firebase Timestamp to milliseconds
+    return timestamp.toMillis();
+  } else if (timestamp instanceof Date) {
+    // Convert Date to milliseconds
+    return timestamp.getTime();
+  } else if (typeof timestamp === 'string') {
+    // Parse string date to milliseconds
+    return new Date(timestamp).getTime();
+  }
+  
+  return 0;
+};
+
 const getCutoffTimestamp = (role: string) => {
   const now = new Date();
   let hoursAgo = 1;
@@ -206,10 +224,10 @@ export const useMessages = (
         })
       );
       
-      // Sort messages by creation date
+      // Sort messages by creation date using our helper function
       const sortedMessages = messagesWithMedia.sort((a, b) => {
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
+        const dateA = getTimestampValue(a.created_at);
+        const dateB = getTimestampValue(b.created_at);
         return dateA - dateB;
       });
       
