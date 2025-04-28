@@ -76,6 +76,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         onMessagesRead={onMessagesRead}
         isTyping={isTyping}
         isVipUser={isVipUser}
+        isLoading={isLoading}
       />
 
       <MessageInput
@@ -88,3 +89,4 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     </>
   );
 };
+

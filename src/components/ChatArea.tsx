@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -46,7 +45,6 @@ export const ChatArea = ({
     if (savedRevealedImages) {
       try {
         const parsedImages = JSON.parse(savedRevealedImages);
-        // Ensure we're working with an array of strings
         const validIds = parsedImages
           .filter((id: any) => id && typeof id === 'string')
           .map((id: any) => String(id));
@@ -63,7 +61,6 @@ export const ChatArea = ({
     const maxRetries = 3;
     
     const markMessagesAsRead = async () => {
-      // Skip database operations for mock user
       if (isMockVipUser) {
         if (onMessagesRead) onMessagesRead();
         return;
@@ -72,7 +69,6 @@ export const ChatArea = ({
       if (currentUserId && selectedUser.id) {
         try {
           console.log('Marking messages as read from', selectedUser.id);
-          // Query unread messages from this sender
           const unreadMessages = await queryDocuments('messages', [
             { field: 'sender_id', operator: '==', value: selectedUser.id },
             { field: 'receiver_id', operator: '==', value: currentUserId },
@@ -81,7 +77,6 @@ export const ChatArea = ({
           
           console.log(`Found ${unreadMessages.length} unread messages to mark as read`);
           
-          // Update each message
           const updatePromises = unreadMessages.map(msg => {
             if (!msg || !msg.id) {
               console.warn('Invalid message, skipping:', msg);
