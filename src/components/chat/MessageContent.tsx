@@ -14,6 +14,20 @@ export const MessageContent: React.FC<MessageContentProps> = ({ message, isCurre
     return <p className="italic text-sm opacity-70">Message removed</p>;
   }
 
+  // Handle error messages with special formatting
+  if (message.content.includes('Error:') || message.content.includes('Failed to')) {
+    return (
+      <div>
+        <p className="break-words text-red-600 dark:text-red-400">{message.content}</p>
+        {message.translated_content && (
+          <p className="text-sm opacity-70 mt-1 italic">
+            {message.translated_content}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <p className="break-words">{message.content}</p>

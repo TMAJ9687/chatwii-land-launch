@@ -85,14 +85,35 @@ export const useMessages = (
     setIsLoading(true);
     lastFetchTimeRef.current = Date.now();
     
-    const cutoffTime = getCutoffTimestamp(currentUserRole);
-    
     try {
-      // Query for messages between the two users
-      const messagesData = await queryDocuments('messages', [
-        { field: 'deleted_at', operator: '==', value: null },
-        { field: 'participants', operator: 'array-contains', value: currentUserId }
-      ], 'created_at', 'asc');
+      // Try to use a simpler query first that doesn't require complex indexing
+      let messagesData;
+      
+      try {
+        // First attempt: Use a simpler query that doesn't require the complex index
+        messagesData = await queryDocuments('messages', [
+          { field: 'sender_id', operator: '==', value: currentUserId },
+          { field: 'receiver_id', operator: '==', value: selectedUserId }
+        ], 'created_at', 'asc');
+        
+        // Then fetch messages in the other direction
+        const reverseMessages = await queryDocuments('messages', [
+          { field: 'sender_id', operator: '==', value: selectedUserId },
+          { field: 'receiver_id', operator: '==', value: currentUserId }
+        ], 'created_at', 'asc');
+        
+        // Combine both sets of messages
+        messagesData = [...messagesData, ...reverseMessages];
+        
+      } catch (indexError) {
+        console.warn("Simple query approach failed, trying alternative query", indexError);
+        
+        // Fallback to query that might need an index - this will help users know they need to create the index
+        messagesData = await queryDocuments('messages', [
+          { field: 'deleted_at', operator: '==', value: null },
+          { field: 'participants', operator: 'array-contains', value: currentUserId }
+        ], 'created_at', 'asc');
+      }
       
       // Filter messages between current user and selected user
       const filteredMessages = messagesData.filter(msg => {
@@ -137,7 +158,7 @@ export const useMessages = (
           media: null,
           // Initialize reactions as an empty array
           reactions: [],
-          participants: message.participants
+          participants: message.participants || [message.sender_id, message.receiver_id]
         };
         
         formattedMessages.push(messageWithMedia);
@@ -185,7 +206,14 @@ export const useMessages = (
         })
       );
       
-      setMessages(messagesWithMedia);
+      // Sort messages by creation date
+      const sortedMessages = messagesWithMedia.sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateA - dateB;
+      });
+      
+      setMessages(sortedMessages);
       setError(null);
       
       // Mark messages as read after fetching
@@ -198,6 +226,14 @@ export const useMessages = (
       console.error('Error fetching messages:', err);
       setError(`Failed to load messages: ${err.message || 'Unknown error'}`);
       
+      // Show more helpful error message for index errors
+      if (err.message?.includes('index')) {
+        toast.error("Firebase index required. Please check console for details.");
+        console.info("To fix this error, create the required index in Firebase. Follow the link in the console error message.");
+      } else {
+        toast.error("Failed to load messages");
+      }
+      
       // Implement retry logic
       if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
@@ -205,8 +241,6 @@ export const useMessages = (
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
         return;
       }
-      
-      toast.error("Failed to load messages");
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;

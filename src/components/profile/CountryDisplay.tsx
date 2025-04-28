@@ -39,7 +39,7 @@ export const CountryDisplay: React.FC<CountryDisplayProps> = ({ country: propCou
               className="w-5 h-4 rounded mr-2"
               style={{ background: "#E5E7EB", objectFit: "cover" }}
               onError={(e) => {
-                console.warn(`Failed to load flag for: ${country} (${countryCode})`);
+                console.warn(`Failed to load flag for country: ${country} (${countryCode})`);
                 (e.target as HTMLImageElement).style.display = 'none';
               }}
             />

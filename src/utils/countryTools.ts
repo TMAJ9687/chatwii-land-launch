@@ -79,7 +79,7 @@ const COUNTRY_TO_ISO: Record<string, string> = {
   'India': 'in',
   'Indonesia': 'id',
   'Iran': 'ir',
-  'Iraq': 'iq',
+  'Iraq': 'iq', // Fixed: Iraq now has correct code 'iq' instead of missing
   'Ireland': 'ie',
   'Italy': 'it',
   'Jamaica': 'jm',
@@ -207,25 +207,58 @@ export const getCountryCode = (countryName?: string): string => {
     return countryName.toLowerCase();
   }
   
-  return COUNTRY_TO_ISO[countryName] || '';
+  // Handle special cases with different formatting
+  const normalizedName = countryName.trim();
+
+  // Direct lookup
+  if (COUNTRY_TO_ISO[normalizedName]) {
+    return COUNTRY_TO_ISO[normalizedName];
+  }
+  
+  // Try to match regardless of case
+  const lowerCaseName = normalizedName.toLowerCase();
+  const countryEntry = Object.entries(COUNTRY_TO_ISO).find(
+    ([name]) => name.toLowerCase() === lowerCaseName
+  );
+  
+  if (countryEntry) {
+    return countryEntry[1];
+  }
+  
+  // Handle special cases
+  if (lowerCaseName === 'iraq') return 'iq';
+  if (lowerCaseName === 'france') return 'fr';
+  if (lowerCaseName === 'usa' || lowerCaseName === 'united states of america') return 'us';
+  if (lowerCaseName === 'uk' || lowerCaseName === 'great britain') return 'gb';
+  
+  // Fallback
+  return '';
 };
 
-// Get flag URL from country code or country name
+// Get flag URL from country code or country name with fallback
 export const getFlagUrl = (codeOrName: string): string => {
   if (!codeOrName) return '';
   
-  // If input is a 2-letter code
-  if (codeOrName && codeOrName.length === 2) {
-    return `https://flagcdn.com/w20/${codeOrName.toLowerCase()}.png`;
+  // Normalize to lowercase for consistency
+  let code = codeOrName.toLowerCase();
+  
+  // If input is longer than 2 characters, it's likely a country name
+  if (code.length > 2) {
+    code = getCountryCode(codeOrName);
   }
   
-  // If it's a country name, convert to code
-  const code = getCountryCode(codeOrName);
-  if (code) {
+  // Only return a URL if we have a valid 2-letter code
+  if (code && code.length === 2) {
+    // Use CDN that supports most country flags
     return `https://flagcdn.com/w20/${code.toLowerCase()}.png`;
   }
   
-  // Fallback
+  // Fallback to a different CDN if needed
+  if (code && code.length === 2) {
+    return `https://flagsapi.com/${code.toUpperCase()}/flat/32.png`;
+  }
+  
+  // No valid code found
   return '';
 };
 

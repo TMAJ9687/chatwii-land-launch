@@ -1,4 +1,3 @@
-
 import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -45,9 +44,14 @@ export const UserListItem = ({
   
   useEffect(() => {
     if (country) {
-      const url = getFlagUrl(country);
-      setFlagUrl(url);
-      setShowFlag(!!url);
+      try {
+        const url = getFlagUrl(country);
+        setFlagUrl(url);
+        setShowFlag(!!url);
+      } catch (error) {
+        console.error(`Error getting flag for country: ${country}`, error);
+        setShowFlag(false);
+      }
     } else {
       setShowFlag(false);
     }
@@ -117,7 +121,7 @@ export const UserListItem = ({
         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
           {country && (
             <div className="flex items-center">
-              {showFlag && (
+              {showFlag && flagUrl ? (
                 <img 
                   src={flagUrl}
                   alt={`${country} flag`}
@@ -127,7 +131,7 @@ export const UserListItem = ({
                     setShowFlag(false);
                   }}
                 />
-              )}
+              ) : null}
               <span>{country}</span>
             </div>
           )}

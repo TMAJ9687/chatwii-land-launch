@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -33,7 +34,7 @@ export const ChatArea = ({
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<string>>(new Set());
-  const { blockedUsers, blockUser } = useBlockedUsers();
+  const { blockedUsers, blockUser, canInteractWithUser } = useBlockedUsers();
   const isMockVipUser = isMockUser(selectedUser.id);
   
   useEffect(() => {
