@@ -1,7 +1,5 @@
-
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createDocument, deleteDocument, queryDocuments } from '@/lib/firebase';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 interface ChatContextProps {
@@ -27,50 +25,35 @@ const ChatContext = createContext<ChatContextProps | undefined>(undefined);
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserNickname, setSelectedUserNickname] = useState<string>('');
-  const [showRules, setShowRules] = useState<boolean>(false);
-  const [acceptedRules, setAcceptedRules] = useState<boolean>(false);
+  const [showRules, setShowRules] = useState(false);
+  const [acceptedRules, setAcceptedRules] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'none' | 'inbox' | 'history' | 'blocked'>('none');
-  const [showReportPopup, setShowReportPopup] = useState<boolean>(false);
-  
+  const [showReportPopup, setShowReportPopup] = useState(false);
+
   const navigate = useNavigate();
   const { blockedUsers, blockUser, fetchBlockedUsers } = useBlockedUsers();
   const isBlocked = selectedUserId ? blockedUsers.includes(selectedUserId) : false;
 
-  const handleCloseChat = () => {
+  const handleCloseChat = useCallback(() => {
     setSelectedUserId(null);
     setSelectedUserNickname('');
-  };
+  }, []);
 
-  const handleUserSelect = (userId: string, nickname: string) => {
+  const handleUserSelect = useCallback((userId: string, nickname: string) => {
     setSelectedUserId(userId);
     setSelectedUserNickname(nickname || 'User');
     navigate('/chat');
-  };
+  }, [navigate]);
 
-  const handleAcceptRules = useCallback(async () => {
-    // Implementation depends on how rules acceptance is stored
-    // For now, just set the local state
+  const handleAcceptRules = useCallback(() => {
     setAcceptedRules(true);
     setShowRules(false);
-    
-    // In a real implementation, you would store this in a database
-    // Example:
-    // await createDocument('user_preferences', currentUserId, { acceptedRules: true });
+    // Optionally, save to DB for persistence
   }, []);
 
-  const checkRulesAccepted = useCallback(async () => {
-    // Implementation depends on how rules acceptance is stored
-    // For now, just check the local state
-    if (!acceptedRules) {
-      setShowRules(true);
-    }
-    
-    // In a real implementation, you would check from the database
-    // Example:
-    // const userPrefs = await getDocument('user_preferences', currentUserId);
-    // if (!userPrefs?.acceptedRules) {
-    //   setShowRules(true);
-    // }
+  const checkRulesAccepted = useCallback(() => {
+    if (!acceptedRules) setShowRules(true);
+    // Optionally, check from DB for persistence
   }, [acceptedRules]);
 
   const handleBlockUser = useCallback(async () => {
@@ -79,15 +62,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await blockUser(selectedUserId, currentUserId);
       handleCloseChat();
     }
-  }, [selectedUserId, blockUser]);
-  
-  // Fetch blocked users on mount
-  React.useEffect(() => {
+  }, [selectedUserId, blockUser, handleCloseChat]);
+
+  // Fetch blocked users on mount and whenever local userId changes
+  useEffect(() => {
     const currentUserId = localStorage.getItem('userId');
-    fetchBlockedUsers(currentUserId);
+    if (currentUserId) {
+      fetchBlockedUsers(currentUserId);
+    }
   }, [fetchBlockedUsers]);
 
-  const value = {
+  const value: ChatContextProps = {
     selectedUserId,
     selectedUserNickname,
     showRules,
@@ -110,7 +95,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useChatContext = () => {
   const context = useContext(ChatContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useChatContext must be used within a ChatProvider');
   }
   return context;
