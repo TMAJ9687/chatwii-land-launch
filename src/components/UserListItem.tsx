@@ -1,8 +1,8 @@
+import { useEffect, useState, useMemo } from "react";
 import { Crown, Bot } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getFlagUrl } from "@/utils/countryTools";
-import { useEffect, useState } from "react";
 
 interface UserListItemProps {
   name: string;
@@ -21,70 +21,78 @@ interface UserListItemProps {
   isCurrentUser?: boolean;
 }
 
-export const UserListItem = ({ 
-  name, 
-  gender, 
-  age, 
-  country, 
-  isVip = false, 
-  interests,
+export const UserListItem = ({
+  name,
+  gender,
+  age,
+  country,
+  isVip = false,
+  interests = [],
   isSelected = false,
   onClick,
   avatar,
-  profileTheme = 'default',
+  profileTheme = "default",
   isBlocked = false,
   onUnblock,
-  role = 'standard',
-  isCurrentUser = false
+  role = "standard",
+  isCurrentUser = false,
 }: UserListItemProps) => {
-  const firstLetter = name.charAt(0).toUpperCase();
-  const genderColor = gender === 'Female' ? 'text-pink-500' : 'text-blue-500';
-  const [flagUrl, setFlagUrl] = useState<string>('');
-  const [showFlag, setShowFlag] = useState<boolean>(true);
-  
+  const firstLetter = name?.charAt(0)?.toUpperCase() || "?";
+  const genderColor = useMemo(
+    () => (gender === "Female" ? "text-pink-500" : "text-blue-500"),
+    [gender]
+  );
+  const [flagUrl, setFlagUrl] = useState<string>("");
+  const [showFlag, setShowFlag] = useState<boolean>(false);
+
   useEffect(() => {
-    if (country) {
-      try {
-        const url = getFlagUrl(country);
+    if (!country) {
+      setShowFlag(false);
+      setFlagUrl("");
+      return;
+    }
+    try {
+      const url = getFlagUrl(country);
+      if (url) {
         setFlagUrl(url);
-        setShowFlag(!!url);
-      } catch (error) {
-        console.error(`Error getting flag for country: ${country}`, error);
+        setShowFlag(true);
+      } else {
         setShowFlag(false);
       }
-    } else {
+    } catch (error) {
       setShowFlag(false);
     }
   }, [country]);
-  
-  let themeBorderClass = '';
-  if (isVip) {
+
+  // Theme border for VIP users
+  const themeBorderClass = useMemo(() => {
+    if (!isVip) return "";
     switch (profileTheme) {
-      case 'gold':
-        themeBorderClass = 'border-2 border-yellow-500';
-        break;
-      case 'blue':
-        themeBorderClass = 'border-2 border-blue-400 shadow shadow-blue-300';
-        break;
-      case 'purple':
-        themeBorderClass = 'border-2 border-purple-500';
-        break;
-      case 'green':
-        themeBorderClass = 'border-2 border-green-500';
-        break;
+      case "gold":
+        return "border-2 border-yellow-500";
+      case "blue":
+        return "border-2 border-blue-400 shadow shadow-blue-300";
+      case "purple":
+        return "border-2 border-purple-500";
+      case "green":
+        return "border-2 border-green-500";
       default:
-        themeBorderClass = 'border-2 border-gray-300';
+        return "border-2 border-gray-300";
     }
-  }
+  }, [isVip, profileTheme]);
 
   return (
     <div
-      className={`flex items-start p-4 gap-4 ${
-        isSelected ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-      } ${isBlocked ? 'opacity-50 grayscale' : ''} cursor-pointer transition-all`}
+      className={`flex items-start p-4 gap-4
+        ${isSelected ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800"}
+        ${isBlocked ? "opacity-50 grayscale" : ""}
+        cursor-pointer transition-all`}
       onClick={onClick}
+      aria-selected={isSelected}
+      tabIndex={0}
+      role="listitem"
     >
-      <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ''} rounded-full`}>
+      <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ""} rounded-full`}>
         <Avatar className="w-12 h-12">
           {avatar ? (
             <AvatarImage src={avatar} alt={name} />
@@ -95,10 +103,10 @@ export const UserListItem = ({
           )}
         </Avatar>
       </div>
-      
+
       <div className="flex flex-col flex-grow min-w-0 gap-2">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-base">{name}</h3>
+          <h3 className="font-semibold text-base truncate">{name}</h3>
           <div className="flex items-center gap-2 ml-auto">
             <span className={`${genderColor} text-sm font-medium`}>
               {gender}, {age}
@@ -109,7 +117,7 @@ export const UserListItem = ({
                 VIP
               </span>
             )}
-            {role === 'bot' && (
+            {role === "bot" && (
               <span className="flex items-center text-xs font-bold text-blue-500">
                 <Bot className="h-3.5 w-3.5 mr-0.5" />
                 BOT
@@ -118,48 +126,51 @@ export const UserListItem = ({
           </div>
         </div>
 
+        {/* Country & Flag */}
         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
           {country && (
             <div className="flex items-center">
-              {showFlag && flagUrl ? (
-                <img 
+              {showFlag && flagUrl && (
+                <img
                   src={flagUrl}
                   alt={`${country} flag`}
                   className="w-5 h-4 mr-2 rounded-sm shadow-sm object-cover"
-                  onError={(e) => {
-                    console.warn(`Failed to load flag for country: ${country}`);
-                    setShowFlag(false);
-                  }}
+                  onError={() => setShowFlag(false)}
+                  loading="lazy"
+                  draggable={false}
                 />
-              ) : null}
+              )}
               <span>{country}</span>
             </div>
           )}
         </div>
 
-        {interests && interests.length > 0 && (
+        {/* Interests */}
+        {interests.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1">
             {interests.map((interest, idx) => (
-              <span 
-                key={idx} 
-                className={`px-2 py-0.5 text-xs rounded-full ${
-                  isVip 
-                    ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                }`}
+              <span
+                key={idx}
+                className={`px-2 py-0.5 text-xs rounded-full
+                  ${
+                    isVip
+                      ? "bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  }`}
               >
                 {interest}
               </span>
             ))}
           </div>
         )}
-        
+
+        {/* Blocked User Unblock Button */}
         {isBlocked && onUnblock && (
           <div className="mt-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onUnblock();
               }}
