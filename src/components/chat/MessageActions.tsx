@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EmojiPicker } from './EmojiPicker';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface MessageActionsProps {
   message: MessageWithMedia;
@@ -32,6 +32,19 @@ export const MessageActions = ({
 }: MessageActionsProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  const handleReactClick = useCallback(() => {
+    setShowEmojiPicker(true);
+  }, []);
+  
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    onReact(emoji);
+    setShowEmojiPicker(false);
+  }, [onReact]);
+  
+  const handleClose = useCallback(() => {
+    setShowEmojiPicker(false);
+  }, []);
+
   if (!isVipUser) return null;
 
   // Only show translate option if the message has content and is not in English
@@ -44,7 +57,7 @@ export const MessageActions = ({
         variant="ghost"
         size="icon"
         className="h-8 w-8 rounded-full"
-        onClick={() => setShowEmojiPicker(true)}
+        onClick={handleReactClick}
       >
         <SmileIcon className="h-4 w-4" />
       </Button>
@@ -86,11 +99,8 @@ export const MessageActions = ({
 
       {showEmojiPicker && (
         <EmojiPicker
-          onEmojiSelect={(emoji) => {
-            onReact(emoji);
-            setShowEmojiPicker(false);
-          }}
-          onClose={() => setShowEmojiPicker(false)}
+          onEmojiSelect={handleEmojiSelect}
+          onClose={handleClose}
         />
       )}
     </div>

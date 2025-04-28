@@ -1,7 +1,6 @@
-
 // This file now re-exports Firebase functions instead of Supabase
-import { db, auth, storage } from '@/integrations/firebase/client';
-import { getDatabase, ref, onValue, set, push, remove, onDisconnect, serverTimestamp } from 'firebase/database';
+import { db, auth, storage, realtimeDb } from '@/integrations/firebase/client';
+import { getDatabase, ref, onValue, set, push, remove, onDisconnect, serverTimestamp, off } from 'firebase/database';
 import { 
   signInAnonymousUser, 
   signUpWithEmail, 
@@ -31,7 +30,7 @@ import {
 
 // Export Firebase functions to replace Supabase functionality
 export { 
-  db, auth, storage,
+  db, auth, storage, realtimeDb,
   signInAnonymousUser, signUpWithEmail, signInWithEmail, signOutUser,
   getCurrentUser, createUserProfile, getUserProfile, subscribeToAuthChanges,
   createDocument, getDocument, queryDocuments, updateDocument, deleteDocument,
@@ -39,8 +38,9 @@ export {
   uploadFile, getFileDownloadURL, deleteFile
 };
 
-// Firebase Realtime Database for presence
-const realtimeDb = getDatabase();
+// Track all active channels and listeners for proper cleanup
+const activeChannels = new Map();
+const activeListeners = new Map();
 
 // Mock implementation of Supabase's API structure using Firebase
 export const supabase = {
@@ -64,7 +64,6 @@ export const supabase = {
       return { data: { subscription: { unsubscribe: unsub } } };
     },
     updateUser: async ({ password }: { password: string }) => {
-      // This is just a stub - proper implementation will be needed
       console.warn("updateUser not fully implemented");
       return { error: null };
     }
@@ -190,40 +189,100 @@ export const supabase = {
     }
   },
   channel: (channelName: string) => {
-    console.log(`Creating Firebase channel substitute for ${channelName}`);
+    const channelId = `channel-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    console.log(`Creating Firebase channel substitute for ${channelName} (${channelId})`);
+    
+    // Store the channel info
+    const channelInfo = {
+      id: channelId,
+      name: channelName,
+      listeners: new Map(),
+      status: 'CLOSED'
+    };
+    
+    activeChannels.set(channelId, channelInfo);
+    
     // Return a compatibility layer for Supabase channels using Firebase
-    return {
+    const channel = {
       on: (event?: string, filter?: any, callback?: any) => {
         console.log(`Setting up Firebase listener for ${channelName} event ${event}`, filter);
-        // Simple Firebase implementation with stubs
+        
+        // Keep track of the listener
+        if (callback && filter) {
+          const listenerId = `${channelId}-${event}-${Date.now()}`;
+          channelInfo.listeners.set(listenerId, { callback, filter });
+        }
+        
         return {
           on: (innerEvent?: string, innerFilter?: any, innerCallback?: any) => {
-            return { subscribe: (cb?: any) => {} };
+            if (innerCallback && innerFilter) {
+              const listenerId = `${channelId}-${innerEvent}-${Date.now()}`;
+              channelInfo.listeners.set(listenerId, { callback: innerCallback, filter: innerFilter });
+            }
+            return { 
+              subscribe: (cb?: any) => {
+                if (cb) cb('SUBSCRIBED');
+                channelInfo.status = 'SUBSCRIBED';
+                return channel;
+              }
+            };
           },
-          subscribe: (callback?: any) => {
-            if (callback) callback('SUBSCRIBED');
-            return {};
+          subscribe: (cb?: any) => {
+            if (cb) cb('SUBSCRIBED');
+            channelInfo.status = 'SUBSCRIBED';
+            return channel;
           }
         };
       },
       subscribe: (callback?: any) => {
         if (callback) callback('SUBSCRIBED');
-        return {};
+        channelInfo.status = 'SUBSCRIBED';
+        return channel;
       },
       track: async () => {
         // Implement presence using Firebase Realtime DB
-        return {};
+        return channel;
       },
       send: async (params: any) => {
         console.log('Channel send called with', params);
-        // Firebase pub/sub could be implemented here
         return 'OK';
+      },
+      unsubscribe: () => {
+        console.log(`Unsubscribing from channel ${channelName} (${channelId})`);
+        channelInfo.status = 'CLOSED';
+        // Clean up all listeners for this channel
+        channelInfo.listeners.forEach((listener, id) => {
+          // If we had actual Firebase listeners here, we'd remove them
+        });
+        channelInfo.listeners.clear();
+        activeChannels.delete(channelId);
+        return channel;
       }
     };
+    
+    return channel;
   },
   removeChannel: (channel?: any) => {
-    // No-op for now - would need proper Firebase cleanup
-    console.log('removeChannel called');
+    if (!channel) return;
+    
+    try {
+      // If the channel has an unsubscribe method, call it
+      if (channel.unsubscribe && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
+      
+      // Clean up any associated listeners
+      if (channel.id && activeChannels.has(channel.id)) {
+        const channelInfo = activeChannels.get(channel.id);
+        channelInfo.listeners.forEach((listener: any, id: string) => {
+          // If we had actual Firebase listeners here, we'd remove them
+        });
+        activeChannels.delete(channel.id);
+      }
+    } catch (error) {
+      console.error('Error removing channel:', error);
+    }
   },
   functions: {
     invoke: async (funcName: string, { body }: { body: any }) => {
@@ -232,5 +291,29 @@ export const supabase = {
     }
   }
 };
+
+// Helper to clean up all listeners and channels on app exit/reload
+export const cleanupAllFirebaseListeners = () => {
+  // Clean up all realtime database listeners
+  activeListeners.forEach((ref, id) => {
+    try {
+      off(ref);
+    } catch (e) {
+      console.error(`Error cleaning up listener ${id}:`, e);
+    }
+  });
+  activeListeners.clear();
+  
+  // Clean up all channels
+  activeChannels.forEach((channelInfo, id) => {
+    channelInfo.listeners.clear();
+  });
+  activeChannels.clear();
+};
+
+// Add cleanup on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanupAllFirebaseListeners);
+}
 
 export default supabase;

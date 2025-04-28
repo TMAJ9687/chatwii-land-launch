@@ -25,12 +25,14 @@ export function useRealtimeUpdates({
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxRetries = 5;
   const [retryCount, setRetryCount] = useState(0);
+  const shouldUpdateRef = useRef(true); // Use ref to prevent unnecessary re-renders
 
   const setupRealtimeListener = () => {
+    // Don't set up listener if disabled or path is missing
     if (!enabled || !path) return;
     
     try {
-      // Clean up any existing reference
+      // Clean up any existing reference to prevent duplicate listeners
       if (dbRefRef.current) {
         off(dbRefRef.current);
         dbRefRef.current = null;
@@ -44,26 +46,25 @@ export function useRealtimeUpdates({
       
       // Listen for changes
       onValue(dbRef, (snapshot) => {
+        // Only process data if component is still mounted
+        if (!shouldUpdateRef.current) return;
+        
         const data = snapshot.val();
         console.log(`Received update for ${path}:`, data);
         
-        if (!data) {
-          // Handle empty data case
-          return;
+        if (data) {
+          // Process the data
+          // Note: Since we're using a basic listener, we'd need additional logic
+          // to determine if this is an insert, update or delete
+          
+          if (onUpdate) {
+            onUpdate(data);
+          }
+          
+          setIsConnected(true);
+          setError(null);
+          setRetryCount(0);
         }
-        
-        // Process the data
-        // Note: Since we're using a basic listener, we'd need additional logic
-        // to determine if this is an insert, update or delete
-        // This is simplified from the Supabase implementation
-        
-        if (onUpdate) {
-          onUpdate(data);
-        }
-        
-        setIsConnected(true);
-        setError(null);
-        setRetryCount(0);
         
         // Clear any pending reconnection timeouts
         if (reconnectTimeoutRef.current) {
@@ -71,6 +72,8 @@ export function useRealtimeUpdates({
           reconnectTimeoutRef.current = null;
         }
       }, (error) => {
+        if (!shouldUpdateRef.current) return;
+        
         setIsConnected(false);
         setError(`Connection error: ${error.message}`);
         
@@ -80,8 +83,10 @@ export function useRealtimeUpdates({
           console.log(`Will attempt to reconnect in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            setRetryCount(prev => prev + 1);
-            setupRealtimeListener();
+            if (shouldUpdateRef.current) {
+              setRetryCount(prev => prev + 1);
+              setupRealtimeListener();
+            }
           }, delay);
         } else {
           setError("Failed to connect after multiple attempts");
@@ -97,10 +102,13 @@ export function useRealtimeUpdates({
   };
 
   useEffect(() => {
+    // Set up the listener when the component mounts
+    shouldUpdateRef.current = true;
     setupRealtimeListener();
     
     // Cleanup function
     return () => {
+      shouldUpdateRef.current = false;
       if (dbRefRef.current) {
         console.log(`Cleaning up realtime updates for ${path}`);
         off(dbRefRef.current);

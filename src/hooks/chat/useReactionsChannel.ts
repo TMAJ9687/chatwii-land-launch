@@ -1,10 +1,10 @@
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useChannelManagement } from './useChannelManagement';
 import { isMockUser } from '@/utils/mockUsers';
-
-type ReactionsChannelType = ReturnType<typeof supabase.channel> | null;
+import { realtimeDb } from '@/integrations/firebase/client';
+import { ref, onValue, off } from 'firebase/database';
 
 export const useReactionsChannel = (
   currentUserId: string | null,
@@ -12,38 +12,56 @@ export const useReactionsChannel = (
   fetchMessages: () => void
 ) => {
   const { registerChannel } = useChannelManagement();
+  const reactionListenerRef = useRef<any>(null);
 
-  const setupReactionsChannel = useCallback((): ReactionsChannelType => {
+  // Cleanup function to remove any existing listeners
+  const cleanupReactionListener = useCallback(() => {
+    if (reactionListenerRef.current) {
+      off(reactionListenerRef.current);
+      reactionListenerRef.current = null;
+      console.log('Cleaned up reaction listener');
+    }
+  }, []);
+
+  // Setup Firebase realtime listener instead of Supabase channel
+  const setupReactionsListener = useCallback(() => {
     if (!currentUserId || !selectedUserId) return null;
-
-    const channel = supabase
-      .channel('message-reactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'message_reactions'
-        },
-        async (payload) => {
-          // Type safety: check if payload.new exists and has a user_id property
-          const payloadData = payload.new as Record<string, any> | undefined;
-          
-          // Skip mock user updates
-          if (payloadData && isMockUser(payloadData.user_id as string)) return;
-          
-          // Only refresh messages when reactions change
-          if (selectedUserId) {
-            fetchMessages();
-          }
+    
+    // Clean up any existing listener first
+    cleanupReactionListener();
+    
+    try {
+      console.log('Setting up reactions listener with Firebase');
+      
+      // Create a reference to the reactions path in the database
+      // This is a simplified approach - in a production app, you might want
+      // to structure this differently based on your data model
+      const reactionsRef = ref(realtimeDb, 'message_reactions');
+      reactionListenerRef.current = reactionsRef;
+      
+      // Set up the value listener
+      onValue(reactionsRef, (snapshot) => {
+        // Skip mock user updates
+        if (isMockUser(selectedUserId)) return;
+        
+        // Only refresh messages when reactions change and for the current selected user
+        if (selectedUserId) {
+          fetchMessages();
         }
-      )
-      .subscribe((status) => {
-        console.log('Reactions channel status:', status);
+      }, (error) => {
+        console.error('Error listening to reactions:', error);
       });
+      
+      return reactionsRef;
+    } catch (error) {
+      console.error('Failed to setup reactions listener:', error);
+      return null;
+    }
+  }, [currentUserId, selectedUserId, fetchMessages, cleanupReactionListener]);
 
-    return registerChannel('reactionsChannel', channel);
-  }, [currentUserId, selectedUserId, fetchMessages, registerChannel]);
-
-  return { setupReactionsChannel };
+  // Return the cleanup function so it can be used in useChannelSetup
+  return { 
+    setupReactionsListener,
+    cleanupReactionListener
+  };
 };

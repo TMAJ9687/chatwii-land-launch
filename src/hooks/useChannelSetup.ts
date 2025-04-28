@@ -12,23 +12,38 @@ export const useChannelSetup = (
 ) => {
   const { cleanupChannels } = useChannelManagement();
   const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
-  const { setupReactionsChannel } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
+  const { setupReactionsListener, cleanupReactionListener } = useReactionsChannel(
+    currentUserId, 
+    selectedUserId, 
+    fetchMessages
+  );
 
   useEffect(() => {
-    let messageChannel: ReturnType<typeof setupMessageChannel> | null = null;
-    let reactionsChannel: ReturnType<typeof setupReactionsChannel> | null = null;
+    // Only set up channels when we have both user IDs
+    if (!currentUserId || !selectedUserId) {
+      return;
+    }
 
-    const setupChannels = async () => {
-      messageChannel = setupMessageChannel();
-      reactionsChannel = setupReactionsChannel();
-    };
-
-    setupChannels().catch(error => {
-      console.error("Error setting up channels:", error);
-    });
+    console.log(`Setting up channels for conversation: ${currentUserId} -> ${selectedUserId}`);
     
+    // Initialize message channel 
+    const messageChannel = setupMessageChannel();
+    
+    // Initialize reactions listener using Firebase
+    setupReactionsListener();
+    
+    // Clean up function
     return () => {
+      console.log('Cleaning up channels and listeners');
       cleanupChannels();
+      cleanupReactionListener();
     };
-  }, [currentUserId, selectedUserId, setupMessageChannel, setupReactionsChannel, cleanupChannels]);
+  }, [
+    currentUserId, 
+    selectedUserId, 
+    setupMessageChannel, 
+    setupReactionsListener, 
+    cleanupChannels, 
+    cleanupReactionListener
+  ]);
 };
