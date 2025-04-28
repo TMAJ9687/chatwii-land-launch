@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
@@ -13,41 +12,40 @@ interface MessageMediaProps {
   toggleImageReveal: () => void;
 }
 
-export const MessageMedia: React.FC<MessageMediaProps> = ({ 
-  media, 
-  messageId,
+export const MessageMedia: React.FC<MessageMediaProps> = ({
+  media,
   isCurrentUser,
   onImageClick,
   isRevealed,
-  toggleImageReveal
+  toggleImageReveal,
 }) => {
   const [loadingImage, setLoadingImage] = useState(true);
 
   if (!media) return null;
 
-  const handleImageLoad = () => {
-    setLoadingImage(false);
-  };
-
   if (media.media_type === 'image') {
     return (
       <div className="mt-2 relative group">
-        <img 
-          src={media.file_url} 
-          alt="Chat image" 
+        {/* Show image only after loaded */}
+        <img
+          src={media.file_url}
+          alt="Chat image"
           className={`max-w-[300px] max-h-[300px] object-cover rounded-lg transition-all duration-300 ${
             !isRevealed ? 'filter blur-lg' : ''
           }`}
-          onLoad={handleImageLoad}
           style={{ display: loadingImage ? 'none' : 'block' }}
+          onLoad={() => setLoadingImage(false)}
           onClick={() => {
-            if (isRevealed) {
-              onImageClick(media.file_url);
-            }
+            if (isRevealed) onImageClick(media.file_url);
           }}
         />
+        {loadingImage && (
+          <div className="w-[300px] h-[300px] flex items-center justify-center text-xs text-gray-500">
+            Loading image...
+          </div>
+        )}
         <Button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             toggleImageReveal();
           }}
