@@ -28,20 +28,29 @@ export const useChannelSetup = (
     isListening: isListeningToReactions 
   } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
 
-  // Debounced setup function to prevent rapid setup/teardown cycles
+  // Debounced setup function with increased delay to prevent rapid setup/teardown cycles
   const debouncedSetup = useRef(debounce((cId: string, sId: string) => {
     if (isSettingUp) return;
     
     setIsSettingUp(true);
+    
+    // First ensure cleanup is complete
     cleanupAllChannels();
     
     // Small delay to ensure cleanup is complete
     setTimeout(() => {
-      setupMessageChannel();
-      setupReactionsListener();
+      // Only proceed if the user IDs haven't changed during the timeout
+      if (
+        currentUserId === cId && 
+        selectedUserId === sId && 
+        previousUserIdRef.current === sId
+      ) {
+        setupMessageChannel();
+        setupReactionsListener();
+      }
       setIsSettingUp(false);
-    }, 100);
-  }, 300)).current;
+    }, 200);
+  }, 400)).current;
 
   // Centralized setup and cleanup to prevent infinite loops
   useEffect(() => {

@@ -30,8 +30,8 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
 
   const nickname = initialNickname;
 
-  // Form validation - only need at least one interest, not two
-  const isValid = !!gender && !!age && selectedInterests.length > 0;
+  // Form validation - gender and age are required but interests are optional
+  const isValid = !!gender && !!age;
 
   const handleInterestChange = (interest: string) => {
     setSelectedInterests(prev => {
@@ -60,11 +60,6 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       return;
     }
     
-    if (selectedInterests.length === 0) {
-      toast.error("Please select at least one interest.");
-      return;
-    }
-    
     submitProfile({
       nickname,
       gender,
@@ -79,7 +74,6 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     if (isLoading) return "Saving...";
     if (!gender) return "Select Gender";
     if (!age) return "Select Age";
-    if (selectedInterests.length === 0) return "Select Interests";
     return "Continue to Chat";
   };
 
@@ -107,7 +101,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
             : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
         }`}
         onClick={handleSubmit}
-        disabled={isLoading}
+        disabled={isLoading || !isValid}
       >
         {getButtonLabel()}
       </Button>

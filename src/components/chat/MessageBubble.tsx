@@ -6,11 +6,10 @@ import { MessageActions } from './MessageActions';
 import { MessageContent } from './MessageContent';
 import { MessageMedia } from './MessageMedia';
 import { MessageReactions } from './MessageReactions';
-import { MessageTimestamp } from './MessageTimestamp';
-import { MessageStatus } from './MessageStatus';
 import { ReplyPreview } from './ReplyPreview';
 import { queryDocuments } from '@/lib/firebase';
 import { MessageBubbleWrapper } from './message/MessageBubbleWrapper';
+import { MessageVisibilityStatus } from './message/MessageVisibilityStatus';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -138,13 +137,12 @@ export const MessageBubble = ({
         translating={translatingMessageId === message.id}
       />
 
-      <div className="flex items-center justify-between mt-1">
-        <MessageTimestamp
-          timestamp={formatTimestamp(message.created_at)}
-          isCurrentUser={isCurrentUser}
-        />
-        {isCurrentUser && isVipUser && <MessageStatus isRead={message.is_read} />}
-      </div>
+      <MessageVisibilityStatus
+        timestamp={formatTimestamp(message.created_at)}
+        isRead={message.is_read}
+        isCurrentUser={isCurrentUser}
+        isVipUser={isVipUser}
+      />
     </MessageBubbleWrapper>
   );
 };

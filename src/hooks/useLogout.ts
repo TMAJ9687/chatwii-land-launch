@@ -22,25 +22,28 @@ export const useLogout = (defaultRedirect = "/feedback") => {
       const provider = localStorage.getItem('firebase_user_provider');
       const shouldDeleteProfile = role === 'standard' || provider === 'anonymous';
 
+      // Run operations in parallel where possible
+      const promises = [];
+      
       // First, remove user presence to stop realtime updates
       if (userId) {
-        await removeUserPresence(userId);
+        promises.push(removeUserPresence(userId));
       }
 
       // Then clean up user profile if needed
       if (userId && shouldDeleteProfile) {
-        try {
-          await Promise.race([
-            deleteUserProfile(userId),
-            new Promise((_, reject) => setTimeout(() => reject('Profile deletion timeout'), 5000))
-          ]);
-        } catch (error) {
-          console.error('Profile deletion error:', error);
-        }
+        promises.push(
+          deleteUserProfile(userId).catch(error => {
+            console.error('Profile deletion error:', error);
+          })
+        );
       }
 
-      // Close all Firebase database connections
-      closeDbConnection();
+      // Wait for presence removal and profile deletion (with timeout)
+      await Promise.all(promises);
+      
+      // Close all Firebase database connections first
+      await closeDbConnection();
 
       // Sign out the user
       await signOutUser();
@@ -49,8 +52,8 @@ export const useLogout = (defaultRedirect = "/feedback") => {
       ['vip_registration_email', 'vip_registration_nickname', 'firebase_user_id', 'firebase_user_role', 'firebase_user_provider']
         .forEach(key => localStorage.removeItem(key));
 
-      // Navigate to feedback page
-      setTimeout(() => window.location.replace(defaultRedirect), 100);
+      // Navigate to feedback page immediately
+      window.location.replace(defaultRedirect);
     } catch (error) {
       console.error('Logout error:', error);
       toast.error("An unexpected error occurred during logout");

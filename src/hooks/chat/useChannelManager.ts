@@ -2,6 +2,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { ref, onValue, off, DatabaseReference } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
+import { debounce } from 'lodash';
 
 // Type for channel registry
 interface ChannelRegistry {
@@ -36,8 +37,8 @@ export const useChannelManager = () => {
     return [user1Id, user2Id].sort().join('_');
   };
   
-  // Listen to a specific path with proper cleanup handling
-  const listenToChannel = useCallback((channelName: string, path: string, callback: (data: any) => void) => {
+  // Listen to a specific path with proper cleanup handling - debounced version to prevent spam
+  const listenToChannel = useCallback(debounce((channelName: string, path: string, callback: (data: any) => void) => {
     if (!isMountedRef.current) return () => {};
     
     // Check if channel already exists and is active
@@ -78,7 +79,7 @@ export const useChannelManager = () => {
       log(`Error setting up channel ${channelName}:`, error);
       return () => {};
     }
-  }, [log]);
+  }, 300), [log]); // Debounce channel setup to prevent rapid setup/teardown cycles
   
   // Clean up a specific channel
   const cleanupChannel = useCallback((channelName: string) => {

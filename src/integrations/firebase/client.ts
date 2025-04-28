@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getDatabase, connectDatabaseEmulator, ref, onValue, goOffline, goOnline } from "firebase/database";
+import { getDatabase, connectDatabaseEmulator, ref, onValue, goOffline, goOnline, off } from "firebase/database";
 import { firebaseConfig } from "./config";
 
 // Initialize Firebase
@@ -27,6 +27,7 @@ if (import.meta.env.DEV) {
 // Track connection state
 let isSetup = false;
 let connectionMonitorRef: any = null;
+let activeListeners: Record<string, any> = {};
 
 // Safe monitor setup
 export const setupConnectionMonitoring = () => {
@@ -66,16 +67,48 @@ function handleOffline() {
   console.log("Network connection lost, Firebase will attempt to reconnect automatically");
 }
 
+// Track listener for cleanup
+export const trackListener = (path: string, listener: any) => {
+  activeListeners[path] = listener;
+  return listener;
+};
+
+// Remove listener
+export const removeListener = (path: string) => {
+  if (activeListeners[path]) {
+    try {
+      off(activeListeners[path]);
+    } catch (error) {
+      console.warn(`Error removing listener for ${path}:`, error);
+    }
+    delete activeListeners[path];
+  }
+};
+
 // Properly close database connection
-export const closeDbConnection = () => {
+export const closeDbConnection = async () => {
   try {
+    // Remove all active listeners first
+    Object.keys(activeListeners).forEach(path => {
+      try {
+        off(activeListeners[path]);
+      } catch (error) {
+        console.warn(`Error removing listener for ${path}:`, error);
+      }
+    });
+    activeListeners = {};
+    
     // Remove event listeners
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
     
     // Remove connection monitor
     if (connectionMonitorRef) {
-      connectionMonitorRef();
+      try {
+        connectionMonitorRef();
+      } catch (e) {
+        console.warn('Error removing connection monitor:', e);
+      }
       connectionMonitorRef = null;
     }
     
@@ -84,7 +117,9 @@ export const closeDbConnection = () => {
     
     isSetup = false;
     console.log("Firebase realtime database connection closed");
+    return true;
   } catch (error) {
     console.error("Error closing database connection:", error);
+    return false;
   }
 };
