@@ -1,5 +1,5 @@
 
-import { ref, set, serverTimestamp, onDisconnect, onValue } from 'firebase/database';
+import { ref, set, serverTimestamp, onDisconnect, onValue, update } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { UserProfile } from '@/integrations/firebase/auth';
 
@@ -77,10 +77,11 @@ export const updateUserStatusToAway = async (userId: string) => {
   const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
   
   try {
-    await set(userPresenceRef, {
+    // Use update to only modify specified fields without overwriting other data
+    await update(userPresenceRef, {
       status: 'away',
       last_seen: serverTimestamp()
-    }, { merge: true });
+    });
   } catch (error) {
     console.error('Failed to update user status to away:', error);
   }
@@ -95,10 +96,11 @@ export const updateUserStatusToOnline = async (userId: string) => {
   const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
   
   try {
-    await set(userPresenceRef, {
+    // Use update to only modify specified fields without overwriting other data
+    await update(userPresenceRef, {
       status: 'online',
       last_seen: serverTimestamp()
-    }, { merge: true });
+    });
   } catch (error) {
     console.error('Failed to update user status to online:', error);
   }
