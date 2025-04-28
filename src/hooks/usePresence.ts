@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, onValue, set, serverTimestamp, onDisconnect } from 'firebase/database';
@@ -24,22 +23,26 @@ export const usePresence = (currentUserId: string | null) => {
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const userPresenceRef = useRef<any>(null);
 
+  // --- Handle presence setup/cleanup ---
   useEffect(() => {
     if (!currentUserId) return;
 
-    const presenceRef = ref(realtimeDb, 'presence');
-    const myPresenceRef = ref(realtimeDb, `presence/${currentUserId}`);
+    let unsubPresenceListener: (() => void) | undefined;
 
+    // Setup user presence in database and presence listener
     const setupPresence = async () => {
       try {
-        // Get user profile data from Firestore to use in presence
+        // Fetch user profile
         const userProfile = await getUserProfile(currentUserId);
-        
-        // Set up disconnect hook to remove presence when user disconnects
+
+        // Reference for user's own presence
+        const myPresenceRef = ref(realtimeDb, `presence/${currentUserId}`);
+
+        // Remove presence on disconnect
         onDisconnect(myPresenceRef).remove();
 
-        // Set initial presence with user profile data
-        set(myPresenceRef, {
+        // Set initial presence data
+        await set(myPresenceRef, {
           user_id: currentUserId,
           nickname: userProfile?.nickname || 'Anonymous',
           role: userProfile?.role || 'standard',
@@ -54,18 +57,17 @@ export const usePresence = (currentUserId: string | null) => {
 
         userPresenceRef.current = myPresenceRef;
 
-        // Listen for presence changes
-        const unsubscribe = onValue(presenceRef, (snapshot) => {
+        // Listen for global presence updates
+        const presenceRef = ref(realtimeDb, 'presence');
+        unsubPresenceListener = onValue(presenceRef, (snapshot) => {
+          const users: PresenceUser[] = [];
           if (!snapshot.exists()) {
             setOnlineUsers([MOCK_VIP_USER]);
             return;
           }
-
-          const users: PresenceUser[] = [];
           snapshot.forEach((childSnapshot) => {
             const userData = childSnapshot.val();
             const userId = childSnapshot.key;
-            
             if (userData && userId) {
               users.push({
                 ...userData,
@@ -74,37 +76,29 @@ export const usePresence = (currentUserId: string | null) => {
               });
             }
           });
-
           // Always include mock VIP user
           if (!users.some(u => u.user_id === MOCK_VIP_USER.user_id)) {
             users.push(MOCK_VIP_USER);
           }
-
           setOnlineUsers(users);
         });
 
-        return unsubscribe;
       } catch (error) {
         console.error('Error in presence system:', error);
         toast.error('Failed to connect to presence system');
       }
     };
 
-    const unsubPromise = setupPresence();
-    
+    setupPresence();
+
+    // Cleanup on unmount
     return () => {
-      // Clean up presence on unmount
       if (userPresenceRef.current) {
         set(userPresenceRef.current, null);
       }
-      
-      unsubPromise.then(unsubFunc => {
-        if (typeof unsubFunc === 'function') {
-          unsubFunc();
-        }
-      }).catch(err => {
-        console.error('Error cleaning up presence subscription:', err);
-      });
+      if (typeof unsubPresenceListener === 'function') {
+        unsubPresenceListener();
+      }
     };
   }, [currentUserId]);
 
