@@ -1,7 +1,13 @@
 
-import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import Turnstile from "react-turnstile"; // Change from named import to default import
+import React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 interface CaptchaModalProps {
   open: boolean;
@@ -11,25 +17,35 @@ interface CaptchaModalProps {
   onExpire: () => void;
 }
 
-export const CaptchaModal = ({ open, onClose, onSuccess, onError, onExpire }: CaptchaModalProps) => {
+export const CaptchaModal: React.FC<CaptchaModalProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  onError,
+  onExpire,
+}) => {
+  const handleCaptchaChange = (token: string | null) => {
+    if (token) {
+      onSuccess(token);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>CAPTCHA Verification</DialogTitle>
+          <DialogTitle>Verify you're human</DialogTitle>
+          <DialogDescription>
+            Please complete the CAPTCHA verification below to continue.
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center py-4">
-          {/* TODO: Replace the below sitekey with your real Cloudflare Turnstile sitekey */}
-          <Turnstile
-            sitekey="1x00000000000000000000AA" // <-- Use real key in production!
-            onSuccess={onSuccess}
+        <div className="flex justify-center pt-4">
+          <ReCAPTCHA
+            sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+            onChange={handleCaptchaChange}
+            onExpired={onExpire}
             onError={onError}
-            onExpire={onExpire}
-            theme="light"
           />
-          <p className="mt-3 text-xs text-gray-500 text-center">
-            Please complete the CAPTCHA to continue.
-          </p>
         </div>
       </DialogContent>
     </Dialog>

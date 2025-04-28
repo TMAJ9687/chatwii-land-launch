@@ -5,6 +5,7 @@ import {
   subscribeToAuthChanges, 
   getUserProfile
 } from '@/lib/firebase';
+import { updateUserPresence, removeUserPresence } from '@/utils/presenceUtils';
 
 // Define the UserProfile type inline
 interface UserProfile {
@@ -32,6 +33,7 @@ export const useAuthProfile = () => {
 
   useEffect(() => {
     let cancelled = false;
+    let presenceRef: any = null;
 
     const checkAuthAndLoadProfile = async () => {
       try {
@@ -40,6 +42,11 @@ export const useAuthProfile = () => {
           if (cancelled) return;
 
           if (!user) {
+            // Clean up presence if user was previously logged in
+            if (currentUserId) {
+              await removeUserPresence(currentUserId);
+            }
+            
             setCurrentUserId(null);
             setProfile(null);
             navigate('/');
@@ -58,6 +65,13 @@ export const useAuthProfile = () => {
             setIsVipUser(userProfile.vip_status || userProfile.role === 'vip');
             setCurrentUserRole(userProfile.role || 'standard');
             setProfile(userProfile as UserProfile);
+            
+            // Update user presence with profile data
+            try {
+              presenceRef = await updateUserPresence(user.uid, userProfile);
+            } catch (error) {
+              console.error('Failed to update presence:', error);
+            }
           } else {
             setCurrentUserId(null);
             setProfile(null);
@@ -83,6 +97,11 @@ export const useAuthProfile = () => {
     
     return () => { 
       cancelled = true; 
+      // Clean up presence reference
+      if (presenceRef) {
+        removeUserPresence(currentUserId || '');
+      }
+      
       // Handle the promise correctly
       unsubPromise.then(unsubFunc => {
         if (typeof unsubFunc === 'function') {
@@ -92,7 +111,7 @@ export const useAuthProfile = () => {
         console.error('Error cleaning up auth subscription:', err);
       });
     };
-  }, [navigate]);
+  }, [navigate, currentUserId]);
 
   return {
     currentUserId,
