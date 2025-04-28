@@ -1,3 +1,4 @@
+
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -5,7 +6,8 @@ import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo, useEffect } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
-import { supabase } from "@/integrations/supabase/client";
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface UserListProps {
   users: any[];
@@ -25,34 +27,28 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     const fetchInterests = async () => {
       try {
         const userIds = users.map(user => user.user_id);
-        
-        const { data, error } = await supabase
-          .from('user_interests')
-          .select(`
-            user_id,
-            interest_id,
-            interests (name)
-          `)
-          .in('user_id', userIds);
-        
-        if (error) {
-          console.error('Error fetching interests:', error);
-          return;
-        }
-        
         const interestsByUser: Record<string, string[]> = {};
         
-        data.forEach(item => {
-          const userId = item.user_id;
-          const interestName = item.interests?.name;
+        // Fetch interests for all users from Firebase
+        for (const userId of userIds) {
+          const interestsRef = collection(db, 'user_interests');
+          const interestsQuery = query(
+            interestsRef,
+            where('user_id', '==', userId)
+          );
           
-          if (interestName) {
-            if (!interestsByUser[userId]) {
-              interestsByUser[userId] = [];
+          const interestsSnapshot = await getDocs(interestsQuery);
+          const userInterestList: string[] = [];
+          
+          interestsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.interest_name) {
+              userInterestList.push(data.interest_name);
             }
-            interestsByUser[userId].push(interestName);
-          }
-        });
+          });
+          
+          interestsByUser[userId] = userInterestList;
+        }
         
         setUserInterests(interestsByUser);
       } catch (err) {

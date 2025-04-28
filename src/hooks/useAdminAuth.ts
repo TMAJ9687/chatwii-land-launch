@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from 'firebase/firestore';
 import { toast } from "sonner";
 
 export const useAdminAuth = () => {
@@ -11,32 +12,24 @@ export const useAdminAuth = () => {
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const currentUser = auth.currentUser;
         
-        if (!user) {
+        if (!currentUser) {
           setIsAdmin(false);
           setUser(null);
           setIsLoading(false);
           return;
         }
 
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
+        const profileRef = doc(db, "profiles", currentUser.uid);
+        const profileSnap = await getDoc(profileRef);
 
-        if (error) {
-          console.error("Admin check error:", error);
-          toast.error("Failed to verify admin status");
-          setIsAdmin(false);
-          setUser(null);
-        } else if (profile?.role !== 'admin') {
+        if (!profileSnap.exists() || profileSnap.data()?.role !== 'admin') {
           setIsAdmin(false);
           setUser(null);
         } else {
           setIsAdmin(true);
-          setUser(user);
+          setUser(currentUser);
         }
       } catch (error) {
         console.error("Admin check failed:", error);
@@ -50,12 +43,12 @@ export const useAdminAuth = () => {
     checkAdminStatus();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const unsubscribe = auth.onAuthStateChanged(() => {
       checkAdminStatus();
     });
 
     return () => {
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 

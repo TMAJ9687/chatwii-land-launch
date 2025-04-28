@@ -1,6 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db, auth } from '@/lib/firebase';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -10,36 +11,55 @@ export const BlockedUsersSidebar = () => {
   const { data: blockedUsers } = useQuery({
     queryKey: ['blocked-users'],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('blocked_users')
-        .select(`
-          blocked_id,
-          profiles!blocked_users_blocked_id_fkey (
+      const blockedUsersRef = collection(db, 'blocked_users');
+      const blockedQuery = query(
+        blockedUsersRef,
+        where('blocker_id', '==', user.uid)
+      );
+      
+      const querySnapshot = await getDocs(blockedQuery);
+      const blockedData = [];
+      
+      for (const blockedDoc of querySnapshot.docs) {
+        const data = blockedDoc.data();
+        
+        // Get profile for blocked user
+        const profilesRef = collection(db, 'profiles');
+        const profileQuery = query(
+          profilesRef,
+          where('id', '==', data.blocked_id)
+        );
+        
+        const profileSnapshot = await getDocs(profileQuery);
+        let nickname = 'Unknown';
+        
+        if (!profileSnapshot.empty) {
+          nickname = profileSnapshot.docs[0].data().nickname || 'Unknown';
+        }
+        
+        blockedData.push({
+          blockedDoc: blockedDoc.id,
+          blocked_id: data.blocked_id,
+          profiles: {
             nickname
-          )
-        `)
-        .eq('blocker_id', user.id);
-
-      if (error) throw error;
-      return data;
+          }
+        });
+      }
+      
+      return blockedData;
     }
   });
 
   const unblockMutation = useMutation({
-    mutationFn: async (blockedId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
+    mutationFn: async (params: { docId: string, blockedId: string }) => {
+      const user = auth.currentUser;
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('blocked_users')
-        .delete()
-        .eq('blocker_id', user.id)
-        .eq('blocked_id', blockedId);
-
-      if (error) throw error;
+      // Delete the blocked_users document
+      await deleteDoc(doc(db, 'blocked_users', params.docId));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['blocked-users'] });
@@ -59,7 +79,7 @@ export const BlockedUsersSidebar = () => {
           <Button 
             variant="destructive" 
             size="sm"
-            onClick={() => unblockMutation.mutate(blocked.blocked_id)}
+            onClick={() => unblockMutation.mutate({ docId: blocked.blockedDoc, blockedId: blocked.blocked_id })}
           >
             Unblock
           </Button>

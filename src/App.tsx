@@ -22,7 +22,8 @@ import VipSuccessPage from "./pages/VipSuccessPage";
 import VipCancelPage from "./pages/VipCancelPage";
 
 import AdminLoginPage from "./pages/AdminLoginPage";
-import { supabase } from "./integrations/supabase/client";
+import { auth, db } from "./lib/firebase";
+import { doc, getDoc } from 'firebase/firestore';
 
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
@@ -46,20 +47,17 @@ const useAdminAuth = () => {
   useEffect(() => {
     const check = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || !session.user) {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
           setIsAdmin(false);
           setChecked(true);
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle();
+        const profileRef = doc(db, "profiles", currentUser.uid);
+        const profileSnap = await getDoc(profileRef);
 
-        setIsAdmin(profile?.role === "admin");
+        setIsAdmin(profileSnap.exists() && profileSnap.data()?.role === "admin");
       } catch (error) {
         console.error("Admin auth check failed:", error);
         setIsAdmin(false);
@@ -70,12 +68,12 @@ const useAdminAuth = () => {
     
     check();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const unsubscribe = auth.onAuthStateChanged(() => {
       check();
     });
 
     return () => {
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 

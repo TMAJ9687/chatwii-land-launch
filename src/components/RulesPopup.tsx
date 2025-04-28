@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/lib/firebase";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,7 @@ export const RulesPopup = ({ open, onOpenChange, onAccept }: RulesPopupProps) =>
 
   const handleConfirmDecline = async () => {
     // Sign out the user
-    await supabase.auth.signOut();
+    await auth.signOut();
     // Navigate to the landing page
     navigate("/");
   };

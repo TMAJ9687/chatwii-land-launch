@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { realtimeDb } from '@/integrations/firebase/client';
+import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
 import { useChannelManagement } from './useChannelManagement';
 
@@ -18,27 +19,24 @@ export const useTypingIndicator = (
     return `typing:${currentUserId}-${selectedUserId}`;
   }, [currentUserId, selectedUserId]);
   
-  // Set up channel to listen for typing events
+  // Set up Firebase listener for typing events
   useEffect(() => {
     if (!isVipUser || !selectedUserId || !currentUserId) return;
     
     const channelName = getTypingChannelName();
-    const typingChannel = supabase.channel(channelName);
+    const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
     
-    typingChannel
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
-        if (payload.userId === selectedUserId) {
-          setIsTyping(payload.isTyping);
-        }
-      })
-      .subscribe((status) => {
-        console.log(`Typing channel status: ${status}`);
-      });
-      
-    registerChannel(channelName, typingChannel);
+    const unsubscribe = onValue(typingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.userId === selectedUserId) {
+        setIsTyping(data.isTyping);
+      }
+    });
+    
+    registerChannel(channelName, typingRef);
     
     return () => {
-      supabase.removeChannel(typingChannel);
+      off(typingRef);
     };
   }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, registerChannel]);
 
@@ -58,21 +56,16 @@ export const useTypingIndicator = (
     debounce((isTyping: boolean) => {
       if (!isVipUser || !selectedUserId || !currentUserId) return;
       
-      const channelName = getTypingChannelName();
-      supabase.channel(channelName)
-        .send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: { userId: currentUserId, isTyping }
-        })
-        .then((status) => {
-          console.log('Broadcast typing status:', status);
-        })
-        .catch((error) => {
-          console.error('Error broadcasting typing status:', error);
-        });
+      const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
+      set(typingRef, {
+        userId: currentUserId,
+        isTyping,
+        timestamp: serverTimestamp()
+      }).catch(error => {
+        console.error('Error broadcasting typing status:', error);
+      });
     }, 300),
-    [selectedUserId, currentUserId, isVipUser, getTypingChannelName]
+    [selectedUserId, currentUserId, isVipUser]
   );
 
   return {

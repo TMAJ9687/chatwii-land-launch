@@ -1,5 +1,6 @@
 
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDoc, query, where, getDocs, Timestamp, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 
 export type BanDuration = '1day' | '1week' | '1month' | 'permanent';
@@ -7,137 +8,136 @@ export type VipDuration = '1month' | '3months' | 'permanent';
 
 // General user status management
 export const updateUserVisibility = async (userId: string, visibility: 'online' | 'offline') => {
-  const { error } = await supabase
-    .from("profiles")
-    .update({ visibility })
-    .eq("id", userId);
-  
-  if (error) {
-    throw new Error(`Failed to update user visibility: ${error.message}`);
+  try {
+    const userRef = doc(db, "profiles", userId);
+    await updateDoc(userRef, { visibility });
+    return true;
+  } catch (error) {
+    console.error('Failed to update user visibility:', error);
+    throw new Error(`Failed to update user visibility: ${(error as Error).message}`);
   }
-  
-  return true;
 };
 
 // Ban user functionality
 export const banUser = async (userId: string, reason: string, duration: BanDuration) => {
-  const expiresAt = duration === 'permanent' ? null : 
-    new Date(Date.now() + {
-      '1day': 24 * 60 * 60 * 1000,
-      '1week': 7 * 24 * 60 * 60 * 1000,
-      '1month': 30 * 24 * 60 * 60 * 1000,
-    }[duration] || 0).toISOString();
+  try {
+    const expiresAt = duration === 'permanent' ? null : 
+      new Date(Date.now() + {
+        '1day': 24 * 60 * 60 * 1000,
+        '1week': 7 * 24 * 60 * 60 * 1000,
+        '1month': 30 * 24 * 60 * 60 * 1000,
+      }[duration] || 0);
 
-  // Create ban record
-  const { error: banError } = await supabase
-    .from('bans')
-    .insert({
+    // Create ban record
+    await addDoc(collection(db, 'bans'), {
       user_id: userId,
       reason,
-      expires_at: expiresAt,
+      expires_at: expiresAt ? Timestamp.fromDate(expiresAt) : null,
+      created_at: serverTimestamp()
     });
 
-  if (banError) {
-    throw new Error(`Failed to create ban record: ${banError.message}`);
+    // Set user offline
+    await updateUserVisibility(userId, 'offline');
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to ban user:', error);
+    throw error;
   }
-
-  // Set user offline
-  await updateUserVisibility(userId, 'offline');
-  
-  return true;
 };
 
 // VIP management
 export const upgradeToVip = async (userId: string, duration: VipDuration) => {
-  const endDate = duration === 'permanent' ? null : 
-    new Date(Date.now() + {
-      '1month': 30 * 24 * 60 * 60 * 1000,
-      '3months': 90 * 24 * 60 * 60 * 1000,
-    }[duration] || 0).toISOString();
+  try {
+    const endDate = duration === 'permanent' ? null : 
+      new Date(Date.now() + {
+        '1month': 30 * 24 * 60 * 60 * 1000,
+        '3months': 90 * 24 * 60 * 60 * 1000,
+      }[duration] || 0);
 
-  // Update user profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ 
+    // Update user profile
+    const userRef = doc(db, "profiles", userId);
+    await updateDoc(userRef, { 
       role: 'vip',
       vip_status: true 
-    })
-    .eq('id', userId);
+    });
 
-  if (profileError) {
-    throw new Error(`Failed to upgrade user: ${profileError.message}`);
-  }
-
-  // Create subscription record
-  const { error: subscriptionError } = await supabase
-    .from('vip_subscriptions')
-    .insert({
+    // Create subscription record
+    await addDoc(collection(db, 'vip_subscriptions'), {
       user_id: userId,
-      start_date: new Date().toISOString(),
-      end_date: endDate,
+      start_date: serverTimestamp(),
+      end_date: endDate ? Timestamp.fromDate(endDate) : null,
       is_active: true,
       payment_provider: 'admin_granted'
     });
-
-  if (subscriptionError) {
-    throw new Error(`Failed to create subscription: ${subscriptionError.message}`);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to upgrade user:', error);
+    throw error;
   }
-  
-  return true;
 };
 
 export const downgradeFromVip = async (userId: string) => {
-  // Update user profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ 
+  try {
+    // Update user profile
+    const userRef = doc(db, "profiles", userId);
+    await updateDoc(userRef, { 
       role: 'standard',
       vip_status: false 
-    })
-    .eq('id', userId);
+    });
 
-  if (profileError) {
-    throw new Error(`Failed to downgrade user: ${profileError.message}`);
+    // Deactivate subscriptions
+    const subscriptionsRef = collection(db, 'vip_subscriptions');
+    const subscriptionsQuery = query(
+      subscriptionsRef, 
+      where('user_id', '==', userId)
+    );
+    
+    const querySnapshot = await getDocs(subscriptionsQuery);
+    const updatePromises = querySnapshot.docs.map(doc => 
+      updateDoc(doc.ref, { is_active: false })
+    );
+    
+    await Promise.all(updatePromises);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to downgrade user:', error);
+    throw error;
   }
-
-  // Deactivate subscriptions
-  const { error: subscriptionError } = await supabase
-    .from('vip_subscriptions')
-    .update({ is_active: false })
-    .eq('user_id', userId);
-
-  if (subscriptionError) {
-    throw new Error(`Failed to update subscription: ${subscriptionError.message}`);
-  }
-  
-  return true;
 };
 
 // User data
 export const getUserById = async (userId: string) => {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
+  try {
+    const userDoc = await getDoc(doc(db, "profiles", userId));
     
-  if (error) {
-    throw new Error(`Could not fetch user: ${error.message}`);
+    if (!userDoc.exists()) {
+      throw new Error(`User not found: ${userId}`);
+    }
+    
+    return { id: userDoc.id, ...userDoc.data() };
+  } catch (error) {
+    console.error('Failed to fetch user:', error);
+    throw error;
   }
-  
-  return data;
 };
 
 // Unban functionality
 export const unbanUser = async (userId: string) => {
-  const { error } = await supabase
-    .from("bans")
-    .delete()
-    .eq("user_id", userId);
-
-  if (error) {
-    throw new Error(`Failed to unban user: ${error.message}`);
+  try {
+    const bansRef = collection(db, 'bans');
+    const bansQuery = query(bansRef, where('user_id', '==', userId));
+    
+    const querySnapshot = await getDocs(bansQuery);
+    const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+    
+    await Promise.all(deletePromises);
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to unban user:', error);
+    throw error;
   }
-  
-  return true;
 };

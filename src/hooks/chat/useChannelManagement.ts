@@ -1,5 +1,7 @@
+
 import { useRef, useCallback, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { realtimeDb } from '@/integrations/firebase/client';
+import { ref, onValue, off } from 'firebase/database';
 
 export const useChannelManagement = () => {
   const channelsRef = useRef<Record<string, any>>({});
@@ -14,7 +16,7 @@ export const useChannelManagement = () => {
         if (channel) {
           console.log(`Auto cleaning up channel on unmount: ${name}`);
           try {
-            supabase.removeChannel(channel);
+            off(channel);
           } catch (e) {
             console.error(`Error removing channel ${name}:`, e);
           }
@@ -31,7 +33,7 @@ export const useChannelManagement = () => {
       if (channel) {
         console.log(`Cleaning up channel: ${name}`);
         try {
-          supabase.removeChannel(channel);
+          off(channel);
         } catch (e) {
           console.error(`Error removing channel ${name}:`, e);
         }
@@ -46,7 +48,7 @@ export const useChannelManagement = () => {
     if (channelsRef.current[channelName]) {
       console.log(`Removing specific channel: ${channelName}`);
       try {
-        supabase.removeChannel(channelsRef.current[channelName]);
+        off(channelsRef.current[channelName]);
       } catch (e) {
         console.error(`Error removing channel ${channelName}:`, e);
       }
@@ -61,7 +63,7 @@ export const useChannelManagement = () => {
     if (channelsRef.current[channelName]) {
       console.log(`Replacing existing channel: ${channelName}`);
       try {
-        supabase.removeChannel(channelsRef.current[channelName]);
+        off(channelsRef.current[channelName]);
       } catch (e) {
         console.error(`Error removing existing channel ${channelName}:`, e);
       }

@@ -1,6 +1,7 @@
 
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export interface VipUser {
   id: string;
@@ -21,32 +22,41 @@ export const useVipUsers = () => {
     queryKey: ["vip-users"],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(`
-            *, 
-            vip_subscriptions (
-              end_date,
-              is_active
-            )
-          `)
-          .eq("role", "vip")
-          .order("nickname");
-
-        if (error) throw error;
+        // Fetch VIP users from Firebase
+        const profilesRef = collection(db, 'profiles');
+        const vipQuery = query(
+          profilesRef,
+          where("role", "==", "vip")
+        );
         
-        if (!data || data.length === 0) {
-          return [];
+        const querySnapshot = await getDocs(vipQuery);
+        const users: VipUser[] = [];
+        
+        // Process user documents
+        for (const doc of querySnapshot.docs) {
+          const userData = doc.data();
+          
+          // Fetch subscription data for this user
+          const subscriptionsRef = collection(db, 'vip_subscriptions');
+          const subscriptionsQuery = query(
+            subscriptionsRef,
+            where("user_id", "==", doc.id)
+          );
+          
+          const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
+          const subscriptions = subscriptionsSnapshot.docs.map(subDoc => subDoc.data());
+          
+          users.push({
+            id: doc.id,
+            ...userData,
+            vip_subscriptions: subscriptions.map(sub => ({
+              end_date: sub.end_date,
+              is_active: sub.is_active
+            }))
+          } as VipUser);
         }
         
-        // Transform the data to match the VipUser interface
-        return data.map(user => ({
-          ...user,
-          // Ensure vip_subscriptions is always an array
-          vip_subscriptions: Array.isArray(user.vip_subscriptions) 
-            ? user.vip_subscriptions 
-            : (user.vip_subscriptions ? [user.vip_subscriptions] : [])
-        })) as VipUser[];
+        return users;
       } catch (err) {
         console.error("Failed to fetch VIP users:", err);
         return [];
