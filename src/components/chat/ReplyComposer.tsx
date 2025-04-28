@@ -9,12 +9,14 @@ interface ReplyComposerProps {
   originalMessage: MessageWithMedia | null;
   onSendReply: (content: string) => void;
   onCancel: () => void;
+  disabled?: boolean; // Added disabled prop
 }
 
 export const ReplyComposer = ({
   originalMessage,
   onSendReply,
-  onCancel
+  onCancel,
+  disabled = false // Add default value
 }: ReplyComposerProps) => {
   const [content, setContent] = useState('');
 
@@ -59,8 +61,9 @@ export const ReplyComposer = ({
           placeholder="Type your reply..."
           className="flex-1"
           autoFocus
+          disabled={disabled}
         />
-        <Button type="submit" disabled={!content.trim()}>
+        <Button type="submit" disabled={!content.trim() || disabled}>
           Send
         </Button>
       </form>

@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 
 interface VoiceRecorderButtonProps {
   isRecording: boolean;
-  onClick: () => void;
+  onClick: () => void; // Use this for actual click handling
+  onStartRecording?: () => Promise<void>; // Added as optional
+  onStopRecording?: () => void; // Added as optional
   disabled?: boolean;
 }
 

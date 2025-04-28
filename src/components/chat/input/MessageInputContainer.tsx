@@ -31,16 +31,21 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const { validateMessage } = useMessageValidation();
-  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Fix the properties being used from useImageUpload
   const { 
-    selectedImage, 
-    imagePreview, 
-    handleImageSelect, 
-    cancelImageSelection, 
-    uploadSelectedImage 
+    previewUrl,
+    selectedFile,
+    isUploading,
+    uploadError,
+    handleFileSelect,
+    uploadImage,
+    clearFileSelection
   } = useImageUpload(currentUserId);
 
+  // Fix the properties being used from useVoiceRecorder
   const { 
     isRecording,
     audioBlob,
@@ -99,13 +104,13 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
       return;
     }
 
-    if (selectedImage) {
+    if (selectedFile) {
       try {
-        const imageUrl = await uploadSelectedImage();
+        const imageUrl = await uploadImage();
         if (imageUrl) {
           onSendMessage(message, imageUrl);
           setMessage('');
-          cancelImageSelection();
+          clearFileSelection();
           handleTypingStatus(false);
         }
       } catch (error) {
@@ -115,8 +120,8 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
     }
 
     if (message.trim()) {
-      const { isValid } = validateMessage(message);
-      if (isValid) {
+      const { valid, message: errorMessage } = validateMessage(message);
+      if (valid) {
         onSendMessage(message);
         setMessage('');
         handleTypingStatus(false);
@@ -133,24 +138,26 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
 
   return (
     <div className="p-2 border-t flex flex-col gap-2">
-      {imagePreview && (
+      {previewUrl && (
         <ImagePreview 
-          imageUrl={imagePreview} 
-          onCancel={cancelImageSelection} 
+          previewUrl={previewUrl} 
+          onCancel={clearFileSelection} 
         />
       )}
       
       {audioUrl && !isRecording && (
         <VoicePreview 
           audioUrl={audioUrl} 
+          onSend={handleSend}
           onCancel={resetRecording} 
+          disabled={disabled}
         />
       )}
       
       <div className="flex items-end gap-2">
         {!isRecording && !audioBlob && (
           <AttachmentButton 
-            onImageSelect={handleImageSelect} 
+            onClick={handleFileSelect} 
             disabled={disabled || !!audioBlob}
           />
         )}
@@ -167,15 +174,14 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
         {!isRecording && !audioBlob && (
           <SendButton 
             onClick={handleSend} 
-            disabled={disabled || (!message.trim() && !selectedImage)}
+            disabled={disabled || (!message.trim() && !selectedFile)}
           />
         )}
         
-        {!isRecording && !audioBlob && !selectedImage && !message.trim() && (
+        {!isRecording && !audioBlob && !selectedFile && !message.trim() && (
           <VoiceRecorderButton
             isRecording={isRecording}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
+            onClick={startRecording}
             disabled={disabled}
           />
         )}
@@ -183,10 +189,7 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
         {isRecording && (
           <ActionButtons 
             onStop={stopRecording} 
-            onCancel={() => {
-              resetRecording();
-              handleTypingStatus(false);
-            }}
+            onCancel={resetRecording}
             disabled={disabled}
           />
         )}

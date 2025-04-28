@@ -2,7 +2,7 @@
 import { Button } from '../ui/button';
 
 interface ImagePreviewProps {
-  previewUrl: string;
+  previewUrl: string; // Changed from imageUrl
   onCancel: () => void;
 }
 

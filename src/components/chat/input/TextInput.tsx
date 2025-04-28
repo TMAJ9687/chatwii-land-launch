@@ -3,39 +3,32 @@ import React from 'react';
 import { Input } from '@/components/ui/input';
 
 interface TextInputProps {
-  message: string;
-  charLimit: number;
+  value: string; // Changed from message
   onChange: (value: string) => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  placeholder?: string;
   disabled?: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
+  ref?: React.RefObject<HTMLInputElement>;
 }
 
 export const TextInput: React.FC<TextInputProps> = ({
-  message,
-  charLimit,
+  value, // Changed from message
   onChange,
   onKeyPress,
-  disabled,
-  inputRef
+  placeholder = "Type a message...",
+  disabled = false,
+  ref
 }) => {
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1">
       <Input
-        ref={inputRef}
-        value={message}
+        ref={ref}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyPress={onKeyPress}
-        placeholder={disabled ? "You cannot message this user" : "Type a message..."}
-        className="pr-16"
-        maxLength={charLimit}
+        placeholder={disabled ? "You cannot message this user" : placeholder}
         disabled={disabled}
       />
-      <div className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
-        message.length > charLimit ? 'text-destructive' : 'text-muted-foreground'
-      }`}>
-        {message.length}/{charLimit}
-      </div>
     </div>
   );
 };

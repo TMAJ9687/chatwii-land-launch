@@ -1,7 +1,7 @@
 
 import { useRef, useState } from 'react';
 
-export const useVoiceRecorder = () => {
+export const useVoiceRecorder = (userId?: string | null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,13 +54,30 @@ export const useVoiceRecorder = () => {
     }
   };
 
+  // Adding a mock upload function since it's being referenced but wasn't defined
+  const uploadVoiceMessage = async (): Promise<string | null> => {
+    if (!audioBlob) return null;
+    // This would normally upload to a server or storage service
+    // For now just return a mock URL
+    return mediaUrl;
+  };
+
+  // Renaming to be consistent with usage
+  const resetRecording = clearRecording;
+  
+  // For compatibility with what's being used in MessageInputContainer
+  const audioUrl = mediaUrl;
+
   return {
     isRecording,
     audioBlob,
     error,
     mediaUrl,
+    audioUrl, // Added alias
     startRecording,
     stopRecording,
     clearRecording,
+    resetRecording, // Added alias
+    uploadVoiceMessage // Added missing function
   };
 };
