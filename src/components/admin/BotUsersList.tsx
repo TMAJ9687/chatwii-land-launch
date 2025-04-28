@@ -1,45 +1,55 @@
-import { useQuery } from "@tanstack/react-query";
+
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+// Mock bot users data
+const MOCK_BOT_USERS = [
+  {
+    id: 'bot1',
+    nickname: 'ChatBot',
+    age: 25,
+    gender: 'Female',
+    country: 'USA',
+    bot_config: { persona: 'Friendly assistant' }
+  },
+  {
+    id: 'bot2',
+    nickname: 'HelperBot',
+    age: 30,
+    gender: 'Male',
+    country: 'Canada',
+    bot_config: { persona: 'Technical support' }
+  }
+];
 
 export const BotUsersList = () => {
   const { toast } = useToast();
+  const [botUsers, setBotUsers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
-  const { data: botUsers, isLoading, refetch } = useQuery({
-    queryKey: ["bot-users"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(`
-          *,
-          bot_config (
-            persona
-          )
-        `)
-        .eq("role", "bot")
-        .order("nickname");
-
-      if (error) throw error;
-      return data;
-    },
-  });
+  useEffect(() => {
+    // Mock loading data
+    setTimeout(() => {
+      setBotUsers(MOCK_BOT_USERS);
+      setIsLoading(false);
+    }, 1000);
+  }, []);
 
   const handleDelete = async (botId: string) => {
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", botId);
-
-    if (profileError) {
+    try {
+      // Mock deletion
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Update state
+      setBotUsers(prevBots => prevBots.filter(bot => bot.id !== botId));
+      
+      toast({ title: "Success", description: "Bot deleted successfully" });
+    } catch (error) {
       toast({ title: "Error", description: "Failed to delete bot", variant: "destructive" });
-      return;
     }
-
-    toast({ title: "Success", description: "Bot deleted successfully" });
-    refetch();
   };
 
   if (isLoading) {

@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useHookForm } from '@/hooks/useHookForm';
@@ -36,39 +35,22 @@ const VipRegistrationPage = () => {
         return;
       }
 
-      // Check nickname availability on server-side
-      const { data: isAvailable, error: checkError } = await supabase.rpc('is_nickname_available', { 
-        check_nickname: nickname 
-      });
-
-      if (checkError) throw checkError;
-
-      if (!isAvailable) {
-        throw new Error("This nickname is already taken. Please choose another one.");
+      try {
+        // Mock registration - simulate checking nickname availability
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Save details and navigate to payment
+        localStorage.setItem('vip_registration_email', data.email);
+        localStorage.setItem('vip_registration_nickname', nickname);
+        
+        toast.success("Registration successful!", {
+          description: "Please complete payment to continue."
+        });
+        
+        navigate('/vip-plans');
+      } catch (error: any) {
+        throw new Error(error.message || "Registration failed");
       }
-
-      // Sign up user
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            nickname: nickname
-          }
-        }
-      });
-      
-      if (error) throw error;
-      
-      // Save details and navigate to payment
-      localStorage.setItem('vip_registration_email', data.email);
-      localStorage.setItem('vip_registration_nickname', nickname);
-      
-      toast.success("Registration successful!", {
-        description: "Please complete payment to continue."
-      });
-      
-      navigate('/vip-plans');
     }
   );
 

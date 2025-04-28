@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { Trash2 } from "lucide-react";
 
 type SiteSettingsJson = {
@@ -29,21 +28,12 @@ export const ProfanitySettings = () => {
   const fetchSettings = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .maybeSingle();
-      if (error) throw error;
-
-      let base = {};
-      if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
-        base = data.settings;
-      }
+      // Mock fetching settings
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       setSettings({
-        profanity_nickname: Array.isArray(base["profanity_nickname"]) ? base["profanity_nickname"].map(String) : [],
-        profanity_chat: Array.isArray(base["profanity_chat"]) ? base["profanity_chat"].map(String) : [],
-        ...base,
+        profanity_nickname: ["badword1", "badword2"],
+        profanity_chat: ["offensive1", "offensive2"],
       });
     } catch (e) {
       toast.error("Failed to load profanity data");
@@ -53,15 +43,15 @@ export const ProfanitySettings = () => {
   };
 
   const updateSettingsInSupabase = async (newFields: Partial<SiteSettingsJson>) => {
-    // Merge with previous
-    const updated = { ...settings, ...newFields };
+    // Mock update settings
     try {
-      const { error } = await supabase
-        .from("site_settings")
-        .upsert({ id: 1, settings: updated }, { onConflict: "id" });
-      if (error) throw error;
-      toast.success("Updated successfully!");
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Merge with previous settings
+      const updated = { ...settings, ...newFields };
       setSettings(updated);
+      
+      toast.success("Updated successfully!");
     } catch (e) {
       toast.error("Failed to update settings");
     }
@@ -71,9 +61,13 @@ export const ProfanitySettings = () => {
   const handleAddWord = (type: "profanity_nickname" | "profanity_chat") => {
     const word = (type === "profanity_nickname" ? nicknameWord.trim() : chatWord.trim()).toLowerCase();
     if (!word) return toast.error("Cannot add an empty word");
+    
+    // Check if word already exists
     if (settings[type]?.includes(word)) return toast.error("Duplicate word");
+    
     const updatedArr = [...(settings[type] || []), word];
     updateSettingsInSupabase({ [type]: updatedArr });
+    
     if (type === "profanity_nickname") setNicknameWord("");
     else setChatWord("");
   };

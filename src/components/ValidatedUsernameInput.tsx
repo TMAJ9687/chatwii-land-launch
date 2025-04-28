@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { generateRandomUsername } from '@/lib/username-generator';
 import { validateNickname } from '@/utils/profileValidation';
 import { useProfanityList } from '@/hooks/useProfanityList';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface ValidatedUsernameInputProps {
@@ -35,10 +34,10 @@ export const ValidatedUsernameInput = ({
     const timeoutId = setTimeout(async () => {
       setIsCheckingAvailability(true);
       try {
-        const { data: isAvailable } = await supabase.rpc('is_nickname_available', { 
-          check_nickname: value 
-        });
-
+        // Mock implementation - simulate checking
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const isAvailable = true; // Assume available
+        
         if (!isAvailable) {
           onValidityChange?.(false);
           toast.error("This nickname is already taken");

@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 type SiteSettingsJson = {
   vip_prices?: {
@@ -31,23 +30,10 @@ export const VipPricesSettings = () => {
   const fetchPrices = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .maybeSingle();
-
-      let obj = {};
-      if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
-        obj = data.settings;
-      }
-      const serverPrices = obj["vip_prices"] || {};
-
-      setPrices({
-        plan_1m: typeof serverPrices.plan_1m === "number" ? serverPrices.plan_1m : DEFAULT_PRICES.plan_1m,
-        plan_6m: typeof serverPrices.plan_6m === "number" ? serverPrices.plan_6m : DEFAULT_PRICES.plan_6m,
-        plan_1y: typeof serverPrices.plan_1y === "number" ? serverPrices.plan_1y : DEFAULT_PRICES.plan_1y,
-      });
+      // Mock fetching prices
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setPrices(DEFAULT_PRICES);
     } catch {
       toast.error("Failed to load VIP prices");
     } finally {
@@ -70,22 +56,9 @@ export const VipPricesSettings = () => {
       plan_1y: typeof prices.plan_1y === "number" && prices.plan_1y >= 0 ? prices.plan_1y : DEFAULT_PRICES.plan_1y,
     };
     try {
-      // fetch base settings so we don't overwrite other keys
-      const { data } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .maybeSingle();
-      let obj = {};
-      if (data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)) {
-        obj = data.settings;
-      }
-
-      const merged = { ...obj, vip_prices: toSave };
-      const { error } = await supabase
-        .from("site_settings")
-        .upsert({ id: 1, settings: merged }, { onConflict: "id" });
-      if (error) throw error;
+      // Mock saving prices
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       toast.success("VIP prices saved");
       setPrices(toSave);
     } catch {

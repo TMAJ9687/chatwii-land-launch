@@ -1,10 +1,8 @@
 
 import React, { useState, useEffect } from "react";
-import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Carousel,
@@ -93,8 +91,6 @@ const VipPlansPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
   const [registrationData, setRegistrationData] = useState<{email: string, nickname: string} | null>(null);
-  const stripe = useStripe();
-  const elements = useElements();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -126,95 +122,20 @@ const VipPlansPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (paymentMethod === 'stripe' && stripe && elements) {
-        const cardElement = elements.getElement(CardElement);
-        
-        if (!cardElement) {
-          throw new Error("Card element not found");
-        }
-
-        const { error, paymentMethod } = await stripe.createPaymentMethod({
-          type: 'card',
-          card: cardElement,
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
-        
-        localStorage.removeItem('vip_registration_email');
-        localStorage.removeItem('vip_registration_nickname');
-        
-        toast.success("Payment successful!");
-        navigate('/vip/profile-setup');
-      } else if (paymentMethod === 'paypal') {
-        await createVipAccount(registrationData.email, registrationData.nickname, PLAN_DETAILS[selectedPlanIdx].label);
-        
-        localStorage.removeItem('vip_registration_email');
-        localStorage.removeItem('vip_registration_nickname');
-        
-        toast.success("PayPal payment successful!");
-        navigate('/vip/profile-setup');
-      }
+      // Mock payment processing
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      localStorage.removeItem('vip_registration_email');
+      localStorage.removeItem('vip_registration_nickname');
+      
+      toast.success("Payment successful!");
+      navigate('/vip/profile-setup');
     } catch (error: any) {
       toast.error(`Payment failed: ${error.message || "Unknown error"}`);
       console.error("Payment error:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const createVipAccount = async (email: string, nickname: string, plan: string) => {
-    const { data: existingUser } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('nickname', nickname)
-      .maybeSingle();
-    
-    if (existingUser) {
-      throw new Error("User already exists with this nickname");
-    }
-
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      throw new Error("No authenticated session");
-    }
-
-    const userId = session.user.id;
-    
-    let endDate = new Date();
-    if (plan === 'Monthly') {
-      endDate.setMonth(endDate.getMonth() + 1);
-    } else if (plan === '6 Months') {
-      endDate.setMonth(endDate.getMonth() + 6);
-    } else { // Yearly
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    }
-
-    await supabase
-      .from('profiles')
-      .insert({
-        id: userId,
-        nickname,
-        role: 'vip',
-        vip_status: true,
-      });
-
-    await supabase
-      .from('vip_subscriptions')
-      .insert({
-        user_id: userId,
-        start_date: new Date().toISOString(),
-        end_date: endDate.toISOString(),
-        is_active: true,
-        payment_provider: paymentMethod,
-        subscription_plan: plan,
-      });
-    
-    return true;
   };
 
   const handleClose = () => {

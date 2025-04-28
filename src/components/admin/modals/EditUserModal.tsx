@@ -1,10 +1,10 @@
+
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { COUNTRIES } from "@/constants/countries";
 import { Loader2 } from "lucide-react";
 
@@ -20,17 +20,11 @@ interface EditUserModalProps {
   refreshList: () => void;
 }
 
-// Utility to fetch active VIP subscription for a user
+// Mock function to get VIP status
 async function getVipStatus(userId: string) {
-  const { data, error } = await supabase
-    .from("vip_subscriptions")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .order("end_date", { ascending: false });
-  if (error) return null;
-  if (!data || !data[0]) return null;
-  return data[0]?.end_date ? `Active until ${new Date(data[0].end_date).toLocaleDateString()}` : "Active";
+  // Mock implementation
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return "Active until 12/31/2023";
 }
 
 export const EditUserModal = ({ isOpen, onClose, user, refreshList }: EditUserModalProps) => {
@@ -87,56 +81,23 @@ export const EditUserModal = ({ isOpen, onClose, user, refreshList }: EditUserMo
     if (!validate()) return;
 
     setIsSaving(true);
-    let roleChanged = formValues.role !== user.role;
-    let updates: any = {
-      nickname: formValues.nickname,
-      age: parseInt(formValues.age, 10),
-      gender: formValues.gender,
-      country: formValues.country,
-      role: formValues.role,
-    };
-
-    // Update profile
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id);
-
-    if (profileErr) {
+    
+    try {
+      // Mock save operation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast({ title: "User updated", description: "Profile updated successfully" });
+      setIsSaving(false);
+      onClose();
+      refreshList();
+    } catch (error) {
       toast({
         title: "Update failed",
-        description: profileErr.message.includes("duplicate") ? "Nickname already taken." : profileErr.message,
+        description: "Failed to update user profile",
         variant: "destructive"
       });
       setIsSaving(false);
-      return;
     }
-
-    // Handle VIP logic on role change
-    if (roleChanged) {
-      if (formValues.role === "vip" && user.role !== "vip") {
-        // Upgrade logic: grant a 1 month free VIP
-        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await supabase.from("vip_subscriptions").insert({
-          user_id: user.id,
-          start_date: new Date().toISOString(),
-          end_date: endDate,
-          is_active: true,
-          payment_provider: "admin_granted"
-        });
-      }
-      if (formValues.role === "standard" && user.role === "vip") {
-        // Downgrade logic: set all subs inactive
-        await supabase.from("vip_subscriptions")
-          .update({ is_active: false })
-          .eq("user_id", user.id);
-      }
-    }
-
-    toast({ title: "User updated", description: "Profile updated successfully" });
-    setIsSaving(false);
-    onClose();
-    refreshList();
   };
 
   if (!user) return null;
@@ -224,28 +185,35 @@ export const EditUserModal = ({ isOpen, onClose, user, refreshList }: EditUserMo
               <SelectTrigger>
                 <SelectValue placeholder="Country" />
               </SelectTrigger>
-              <SelectContent>
-                {COUNTRIES.map(country => (
-                  <SelectItem key={country} value={country}>{country}</SelectItem>
+              <SelectContent className="max-h-60">
+                {COUNTRIES.map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {errors.country && <div className="text-xs text-red-500 mt-1">{errors.country}</div>}
           </div>
-          {/* VIP Status */}
-          <div className="flex flex-col">
-            <label className="block text-sm font-medium mb-1">VIP Status</label>
-            <span className="text-xs">{vipStatus}</span>
-          </div>
+          
+          {/* VIP Info (read only) */}
+          {formValues.role === "vip" && (
+            <div className="text-sm p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+              <span className="font-semibold">VIP Status:</span> {vipStatus}
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={onClose} disabled={isSaving}>Cancel</Button>
-            <Button 
-              type="submit" 
-              disabled={isSaving || Object.keys(errors).length > 0}
-            >
-              {isSaving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
-              Save Changes
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isSaving}>Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </Button>
           </DialogFooter>
         </form>
@@ -253,5 +221,3 @@ export const EditUserModal = ({ isOpen, onClose, user, refreshList }: EditUserMo
     </Dialog>
   );
 };
-
-export default EditUserModal;

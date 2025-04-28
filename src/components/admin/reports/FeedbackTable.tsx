@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { 
   Table, TableHeader, TableRow, TableHead, 
@@ -9,7 +8,6 @@ import {
 } from "@/components/ui/table";
 import { Star, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   AlertDialog, AlertDialogAction, AlertDialogCancel, 
   AlertDialogContent, AlertDialogDescription, 
@@ -26,86 +24,55 @@ type Feedback = {
   user_nickname?: string;
 };
 
+// Mock feedback data
+const MOCK_FEEDBACK = [
+  {
+    id: 1,
+    user_id: "user1",
+    rating: 5,
+    comment: "Great service!",
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    user_nickname: "JohnDoe"
+  },
+  {
+    id: 2,
+    user_id: null,
+    rating: 3,
+    comment: "It's okay, could be better.",
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    user_nickname: "Anonymous"
+  }
+];
+
 export const FeedbackTable = () => {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
-  const queryClient = useQueryClient();
-  const [feedbackToDelete, setFeedbackToDelete] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const deleteMutation = useMutation({
-    mutationFn: async (feedbackId: number) => {
-      const { error } = await supabase
-        .from('feedback')
-        .delete()
-        .eq('id', feedbackId);
+  useEffect(() => {
+    // Mock fetching feedback
+    setTimeout(() => {
+      setFeedback(MOCK_FEEDBACK);
+      setLoading(false);
+    }, 1000);
+  }, []);
 
-      if (error) throw error;
-      return feedbackId;
-    },
-    onSuccess: (feedbackId) => {
+  const handleDelete = async (feedbackId: number) => {
+    setDeletingId(feedbackId);
+    try {
+      // Mock deletion
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Remove from state
       setFeedback(prev => prev.filter(item => item.id !== feedbackId));
       toast.success('Feedback deleted successfully');
-      setFeedbackToDelete(null);
-    },
-    onError: (error) => {
+    } catch (error) {
       console.error('Error deleting feedback:', error);
       toast.error('Failed to delete feedback');
-    }
-  });
-
-  const fetchFeedback = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("feedback")
-        .select()
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      
-      if (data) {
-        const userIds = new Set<string>();
-        data.forEach(item => {
-          if (item.user_id) {
-            userIds.add(item.user_id);
-          }
-        });
-        
-        let nicknameMap = new Map<string, string>();
-        
-        if (userIds.size > 0) {
-          const { data: profiles, error: profilesError } = await supabase
-            .from("profiles")
-            .select("id, nickname")
-            .in("id", Array.from(userIds));
-            
-          if (profilesError) throw profilesError;
-          
-          profiles?.forEach(profile => {
-            nicknameMap.set(profile.id, profile.nickname);
-          });
-        }
-        
-        const feedbackWithUsernames = data.map(item => ({
-          ...item,
-          user_nickname: item.user_id ? (nicknameMap.get(item.user_id) || "Unknown User") : "Anonymous"
-        }));
-        
-        setFeedback(feedbackWithUsernames);
-      }
-    } catch (error) {
-      console.error("Error fetching feedback:", error);
-      toast.error("Failed to load feedback data", {
-        description: "There was a problem fetching the feedback data."
-      });
     } finally {
-      setLoading(false);
+      setDeletingId(null);
     }
   };
-  
-  useEffect(() => {
-    fetchFeedback();
-  }, []);
   
   const renderStars = (rating: number | null) => {
     if (rating === null) return "No rating";
@@ -179,10 +146,10 @@ export const FeedbackTable = () => {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction 
-                            onClick={() => deleteMutation.mutate(item.id)}
-                            disabled={deleteMutation.isPending}
+                            onClick={() => handleDelete(item.id)}
+                            disabled={deletingId === item.id}
                           >
-                            {deleteMutation.isPending && deleteMutation.variables === item.id ? (
+                            {deletingId === item.id ? (
                               <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 Deleting...

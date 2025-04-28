@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
@@ -18,19 +17,9 @@ const FeedbackPage = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Get user ID if available
+  // Mock getting user ID
   useEffect(() => {
-    const getUserId = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        setUserId(data?.user?.id || null);
-      } catch (error) {
-        console.error("Error getting user:", error);
-        // Continue without user ID (anonymous feedback)
-      }
-    };
-    
-    getUserId();
+    setUserId(null);
   }, []);
 
   const handleSubmit = async () => {
@@ -38,12 +27,8 @@ const FeedbackPage = () => {
     
     setSubmitting(true);
     try {
-      // Insert feedback with optional user_id
-      await supabase.from("feedback").insert({
-        user_id: userId, // May be null for anonymous feedback
-        rating,
-        comment: comment.trim() || null,
-      });
+      // Mock submit
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       setSubmitted(true);
       toast.success("Thank you for your feedback!");

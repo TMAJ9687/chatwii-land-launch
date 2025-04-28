@@ -1,5 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
+// Mock implementation of profile utilities
 
 /**
  * Directly checks if a nickname is available in the database
@@ -7,16 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
  */
 export const checkNicknameAvailability = async (nickname: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase.rpc('is_nickname_available', { 
-      check_nickname: nickname 
-    });
-    
-    if (error) {
-      console.error('Error checking nickname availability:', error);
-      return false;
-    }
-    
-    return !!data; // Convert to boolean
+    // Mock implementation - always returns true
+    return true;
   } catch (error) {
     console.error('Failed to check nickname availability:', error);
     return false;

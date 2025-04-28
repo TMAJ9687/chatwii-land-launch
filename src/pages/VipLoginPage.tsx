@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -70,12 +69,8 @@ const VipLoginPage = () => {
     setIsSubmitting(true);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-      
-      if (error) throw error;
+      // Mock login
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Successful login
       toast.success("Login successful!");

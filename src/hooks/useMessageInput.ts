@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 import { EmojiClickData } from 'emoji-picker-react';
-import { supabase } from '@/integrations/supabase/client';
 import { getCharLimit } from '@/utils/messageValidation';
 import { useMessageValidation } from '@/hooks/useMessageValidation';
 import { useProfanityList } from '@/hooks/useProfanityList';
@@ -19,24 +18,10 @@ export const useMessageInput = ({ onSendMessage }: UseMessageInputProps) => {
   const { validateMessage, recordMessage } = useMessageValidation(isUserVip);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch user role on component mount
+  // Mock implementation for fetching user role
   useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role, vip_status')
-          .eq('id', session.user.id)
-          .single();
-        
-        const isVip = data?.role === 'vip' || data?.vip_status === true;
-        setIsUserVip(isVip);
-        setCharLimit(getCharLimit(isVip));
-      }
-    };
-
-    fetchUserRole();
+    setIsUserVip(false);
+    setCharLimit(getCharLimit(false));
   }, []);
 
   const handleSend = () => {

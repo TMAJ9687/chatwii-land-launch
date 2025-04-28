@@ -24,7 +24,6 @@ import { useVipSettings } from '@/hooks/useVipSettings';
 import { THEME_OPTIONS, COUNTRY_OPTIONS } from '@/constants/vipSettings';
 import { ProfileTheme } from '@/types/profile';
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface SettingsAvatars {
   vip_male: string[];
@@ -42,32 +41,19 @@ const getCleanAvatars = (avatars: any): SettingsAvatars => ({
 });
 
 const getSiteAvatars = async (gender: string): Promise<string[]> => {
-  const { data } = await supabase.from("site_settings").select("settings").eq("id", 1).maybeSingle();
-
-  let avatars: SettingsAvatars = {
-    vip_male: [],
-    vip_female: [],
-    standard_male: null,
-    standard_female: null,
-  };
-
-  if (data?.settings) {
-    // settings might be a string or object due to database possible types
-    let parsedSettings: any = data.settings;
-    if (typeof parsedSettings === "string") {
-      try {
-        parsedSettings = JSON.parse(parsedSettings);
-      } catch {
-        // fallback to default avatars structure
-      }
-    }
-    if (parsedSettings.avatars) {
-      avatars = getCleanAvatars(parsedSettings.avatars);
-    }
+  // Mock implementation
+  if (gender === "female") {
+    return [
+      "https://example.com/avatars/female1.jpg",
+      "https://example.com/avatars/female2.jpg",
+      "https://example.com/avatars/female3.jpg"
+    ];
   }
-
-  if (gender === "female") return avatars.vip_female || [];
-  return avatars.vip_male || [];
+  return [
+    "https://example.com/avatars/male1.jpg",
+    "https://example.com/avatars/male2.jpg",
+    "https://example.com/avatars/male3.jpg"
+  ];
 };
 
 const VipSettingsPage = () => {
@@ -232,4 +218,3 @@ const VipSettingsPage = () => {
 };
 
 export default VipSettingsPage;
-

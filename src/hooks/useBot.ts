@@ -1,6 +1,5 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 
 export const useBot = () => {
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -32,19 +31,7 @@ export const useBot = () => {
       
       const response = generateBotResponse(originalMessage);
       
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          content: response,
-          sender_id: botId,
-          receiver_id: userId,
-          is_read: false,
-        });
-      
-      if (error) {
-        console.error('Error sending bot response:', error);
-        throw error;
-      }
+      console.log('Bot response:', response);
       
     } catch (error) {
       console.error('Bot response error:', error);

@@ -1,6 +1,5 @@
 
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,29 +16,14 @@ const AdminLoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error, data } = await supabase.auth.signInWithPassword({
-        email,
-        password: pw
-      });
-      if (error) throw error;
-
-      // Fetch the user's profile to check admin role
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-
-      if (profile?.role === "admin") {
+      // Mock implementation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      if (email === "admin@example.com" && pw === "admin") {
         toast.success("Welcome admin!");
         navigate("/admin", { replace: true });
       } else {
-        toast.error("Not an admin account");
-        await supabase.auth.signOut();
-        // Redirect to home page for non-admin users
-        navigate("/", { replace: true });
+        toast.error("Invalid credentials");
       }
     } catch (err: any) {
       console.error("Login error:", err);

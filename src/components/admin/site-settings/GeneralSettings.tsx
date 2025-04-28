@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 export const GeneralSettings = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -20,53 +19,13 @@ export const GeneralSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('site_settings')
-        .select('settings')
-        .eq('id', 1)
-        .single();
-
-      if (error) throw error;
-
-      if (data?.settings) {
-        // Safely access the settings object with proper type checking
-        const settingsObj = typeof data.settings === 'object' && data.settings !== null 
-          ? data.settings 
-          : {};
-          
-        // Make sure settingsObj is not an array before attempting to access properties
-        if (!Array.isArray(settingsObj)) {
-          // Ensure adsense_links is an array of strings
-          let adsenseLinks = ["", "", ""];
-          
-          if (Array.isArray(settingsObj.adsense_links)) {
-            // Convert each item to string and ensure we have exactly 3 items
-            adsenseLinks = settingsObj.adsense_links
-              .map(link => String(link)) // Convert each item to string
-              .slice(0, 3); // Take only the first 3 items
-              
-            // If there are less than 3 items, fill the rest with empty strings
-            while (adsenseLinks.length < 3) {
-              adsenseLinks.push("");
-            }
-          }
-
-          const maintenance_mode = typeof settingsObj.maintenance_mode === 'boolean'
-            ? settingsObj.maintenance_mode
-            : false;
-
-          setSettings({
-            adsense_links: adsenseLinks,
-            maintenance_mode
-          });
-        } else {
-          // Default values if settingsObj is an array
-          setSettings({
-            adsense_links: ["", "", ""],
-            maintenance_mode: false
-          });
-        }
-      }
+      // Mock fetching settings
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setSettings({
+        adsense_links: ["", "", ""],
+        maintenance_mode: false
+      });
     } catch (error) {
       console.error('Error fetching settings:', error);
       toast.error('Failed to load settings');
@@ -87,32 +46,9 @@ export const GeneralSettings = () => {
 
   const handleSave = async () => {
     try {
-      const { data: existingData } = await supabase
-        .from('site_settings')
-        .select('settings')
-        .eq('id', 1)
-        .single();
-
-      // Ensure existingSettings is an object
-      const existingSettings = typeof existingData?.settings === 'object' && existingData?.settings !== null 
-        ? existingData.settings 
-        : {};
+      // Mock saving settings
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Make sure existingSettings is not an array before spreading
-      const baseSettings = !Array.isArray(existingSettings) ? existingSettings : {};
-
-      const newSettings = {
-        ...baseSettings,
-        adsense_links: settings.adsense_links,
-        maintenance_mode: settings.maintenance_mode
-      };
-
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert({ id: 1, settings: newSettings });
-
-      if (error) throw error;
-
       toast.success('General settings saved successfully');
     } catch (error) {
       console.error('Error saving settings:', error);

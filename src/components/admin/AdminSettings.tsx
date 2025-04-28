@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useImageUpload } from "@/hooks/useImageUpload";
 
 export const AdminSettings = () => {
@@ -16,7 +16,6 @@ export const AdminSettings = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
 
   // Track component mounted state
@@ -24,7 +23,6 @@ export const AdminSettings = () => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      abortControllerRef.current?.abort();
     };
   }, []);
 
@@ -32,46 +30,20 @@ export const AdminSettings = () => {
   const { handleFileSelect, selectedFile, previewUrl, uploadImage, clearFileSelection, isUploading } 
     = useImageUpload(userId || '');
 
-  // Fetch admin profile data
+  // Mock fetch admin profile data
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          setIsLoading(false);
-          return;
-        }
-
-        setUserId(user.id);
-        
-        const { data: profileData, error } = await supabase
-          .from('profiles')
-          .select('nickname, avatar_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("Error fetching profile:", error);
-          toast("Failed to load admin profile");
-          return;
-        }
-        
-        if (isMountedRef.current && profileData) {
-          setProfile(profileData);
-          setNickname(profileData.nickname || '');
-        }
-      } catch (error) {
-        console.error("Error:", error);
-        toast("An unexpected error occurred");
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        const mockProfile = {
+          nickname: 'Admin',
+          avatar_url: null
+        };
+        setUserId('admin-user-id');
+        setProfile(mockProfile);
+        setNickname(mockProfile.nickname);
+        setIsLoading(false);
       }
-    };
-
-    fetchProfile();
+    }, 1000);
   }, []);
 
   // Save avatar changes
@@ -82,13 +54,7 @@ export const AdminSettings = () => {
       const imageUrl = await uploadImage();
       
       if (imageUrl) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ avatar_url: imageUrl })
-          .eq('id', userId);
-          
-        if (error) throw error;
-        
+        // Mock update profile
         setProfile(prev => prev ? { ...prev, avatar_url: imageUrl } : null);
         clearFileSelection();
         toast("Avatar updated successfully");
@@ -104,22 +70,10 @@ export const AdminSettings = () => {
     if (!nickname.trim() || !userId) return;
     
     try {
-      const { data: isAvailable } = await supabase.rpc('is_nickname_available', { 
-        check_nickname: nickname 
-      });
-
-      if (!isAvailable && profile?.nickname !== nickname) {
-        toast("This nickname is already taken");
-        return;
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ nickname })
-        .eq('id', userId);
-        
-      if (error) throw error;
+      // Mock check nickname availability
+      await new Promise(resolve => setTimeout(resolve, 500));
       
+      // Mock update profile
       setProfile(prev => prev ? { ...prev, nickname } : null);
       toast("Display name updated successfully");
     } catch (error) {
@@ -141,9 +95,8 @@ export const AdminSettings = () => {
     }
     
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      
-      if (error) throw error;
+      // Mock password update
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       setCurrentPassword("");
       setNewPassword("");
