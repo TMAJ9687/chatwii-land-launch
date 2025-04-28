@@ -1,9 +1,8 @@
 
-import { ref, set, serverTimestamp, onDisconnect, onValue, update } from 'firebase/database';
+import { ref, set, serverTimestamp, onDisconnect, onValue } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { UserProfile } from '@/integrations/firebase/auth';
 
-// Enhanced presence utilities with proper cleanup
+// Enhanced presence utilities with proper cleanup and error handling
 export const updateUserPresence = async (userId: string, profile: any) => {
   if (!userId) return null;
 
@@ -15,23 +14,27 @@ export const updateUserPresence = async (userId: string, profile: any) => {
     const unsub = onValue(connectedRef, async (snapshot) => {
       if (!snapshot.val()) return;
 
-      // Register cleanup on disconnect
-      await onDisconnect(userStatusRef).remove();
+      try {
+        // Register cleanup on disconnect
+        await onDisconnect(userStatusRef).remove();
 
-      // Update user status to online
-      await set(userStatusRef, {
-        user_id: userId,
-        nickname: profile?.nickname || 'Anonymous',
-        role: profile?.role || 'standard',
-        avatar_url: profile?.avatar_url || null,
-        country: profile?.country || null,
-        gender: profile?.gender || null,
-        age: profile?.age || null,
-        vip_status: profile?.vip_status || false,
-        last_seen: serverTimestamp(),
-        status: 'online',
-        is_current_user: true
-      });
+        // Update user status to online
+        await set(userStatusRef, {
+          user_id: userId,
+          nickname: profile?.nickname || 'Anonymous',
+          role: profile?.role || 'standard',
+          avatar_url: profile?.avatar_url || null,
+          country: profile?.country || null,
+          gender: profile?.gender || null,
+          age: profile?.age || null,
+          vip_status: profile?.vip_status || false,
+          last_seen: serverTimestamp(),
+          status: 'online',
+          is_current_user: true
+        });
+      } catch (error) {
+        console.warn('Failed to set up presence:', error);
+      }
     });
 
     return userStatusRef;
@@ -47,18 +50,25 @@ export const removeUserPresence = async (userId: string) => {
   try {
     const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
 
-    // Cancel the onDisconnect operation first
+    // Cancel the onDisconnect operation first, with error handling
     try {
       await onDisconnect(userPresenceRef).cancel();
     } catch (error) {
-      console.warn('Error canceling presence disconnect:', error);
+      console.warn('Error canceling presence disconnect, continuing with logout:', error);
+      // Continue with logout process even if this fails
     }
 
-    // Then remove the presence immediately
-    await set(userPresenceRef, null);
-    return true;
+    // Then try to remove the presence
+    try {
+      await set(userPresenceRef, null);
+      return true;
+    } catch (error) {
+      // Just log but consider it successful for logout flow
+      console.warn('Presence removal failed due to permissions, continuing with logout:', error);
+      return true; // Return true to not block logout flow
+    }
   } catch (error) {
-    console.error('Presence removal failed:', error);
-    return false;
+    console.warn('Presence system error, continuing with logout:', error);
+    return true; // Return true to not block logout flow
   }
 };

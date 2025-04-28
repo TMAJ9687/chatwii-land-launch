@@ -2,45 +2,36 @@
 import React from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { cn } from '@/lib/utils';
+import { MessageSquare } from 'lucide-react';
 
 interface MessageReplyContentProps {
-  message: MessageWithMedia | null;
+  message: MessageWithMedia;
   isCurrentUser: boolean;
 }
 
-export const MessageReplyContent = ({
+export const MessageReplyContent: React.FC<MessageReplyContentProps> = ({
   message,
   isCurrentUser
-}: MessageReplyContentProps) => {
-  if (!message) return null;
-
-  // Get appropriate preview based on message type
-  const getPreviewContent = () => {
-    if (message.content) {
-      return message.content.length > 50
-        ? message.content.substring(0, 50) + '...'
-        : message.content;
-    } 
-    
-    if (message.media) {
-      return message.media.media_type === 'voice'
-        ? '[Voice message]'
-        : '[Image message]';
-    }
-    
-    return '[Message]';
-  };
-
-  const previewContent = getPreviewContent();
-
+}) => {
+  const hasMedia = !!message.media;
+  const isDeleted = !!message.deleted_at;
+  
   return (
-    <div className={cn(
-      "text-xs px-3 py-1 rounded-t-md opacity-80 shadow-sm",
-      isCurrentUser 
-        ? "bg-primary/60 text-primary-foreground" 
-        : "bg-muted/75 text-foreground"
-    )}>
-      <span className="font-semibold">Replying to:</span> {previewContent}
+    <div
+      className={cn(
+        "flex items-center gap-1 mb-1 px-2 py-1 text-xs",
+        "border-l-2 rounded-sm max-w-[90%]",
+        isCurrentUser ? "ml-auto bg-primary/10 border-primary/30" : "mr-auto bg-muted/50 border-muted-foreground/30"
+      )}
+    >
+      <MessageSquare className="h-3 w-3 flex-shrink-0" />
+      <span className="truncate">
+        {isDeleted ? (
+          <span className="italic">This message was deleted</span>
+        ) : hasMedia && !message.content ? (
+          <span>[Image]</span>
+        ) : message.content || "[Empty message]"}
+      </span>
     </div>
   );
 };

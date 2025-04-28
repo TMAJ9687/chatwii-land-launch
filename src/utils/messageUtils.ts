@@ -84,3 +84,33 @@ export function mergeMessages(
   // Convert back to array and sort
   return sortMessagesByDate(Array.from(messageMap.values()));
 }
+
+/**
+ * Insert a temporary message into the message list
+ * For optimistic UI updates
+ */
+export function insertTemporaryMessage(
+  messages: MessageWithMedia[],
+  tempMessage: MessageWithMedia
+): MessageWithMedia[] {
+  return sortMessagesByDate([...messages, tempMessage]);
+}
+
+/**
+ * Replace a temporary message with its confirmed version
+ * For optimistic UI updates
+ */
+export function replaceTemporaryMessage(
+  messages: MessageWithMedia[],
+  tempId: string, 
+  confirmedMessage: MessageWithMedia | null
+): MessageWithMedia[] {
+  // If we don't have a confirmed message, just remove the temp one
+  if (!confirmedMessage) {
+    return messages.filter(msg => !msg.id.includes(tempId));
+  }
+  
+  return messages.map(msg => 
+    msg.id.includes(tempId) ? confirmedMessage : msg
+  );
+}

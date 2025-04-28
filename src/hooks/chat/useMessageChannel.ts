@@ -4,6 +4,7 @@ import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { mergeMessages } from '@/utils/messageUtils';
 
 export const useMessageChannel = (
   currentUserId: string | null,
@@ -16,6 +17,8 @@ export const useMessageChannel = (
   const localMessagesRef = useRef<MessageWithMedia[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const processedMessagesRef = useRef<Record<string, boolean>>({});
+  const channelNameRef = useRef<string | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
   // Process raw message data with media and reactions
   const processMessages = useCallback(async (messagesData: any) => {
@@ -59,52 +62,24 @@ export const useMessageChannel = (
     }
   }, []);
 
-  // Keep a local cache of messages to prevent flicker during updates
+  // Keep a local cache of messages to prevent flicker during updates and ensure immediate state updates
   const updateMessagesCache = useCallback((newMessages: MessageWithMedia[]) => {
     if (!newMessages || newMessages.length === 0) return;
     
-    const updatedMessages = [...localMessagesRef.current];
-    let hasChanges = false;
-    
-    // Process each new message
-    newMessages.forEach(newMsg => {
-      // Check if we've already processed this exact message state
-      const messageKey = `${newMsg.id}-${newMsg.updated_at || newMsg.created_at}`;
-      if (processedMessagesRef.current[messageKey]) {
-        return; // Skip already processed messages
-      }
-      
-      // Mark as processed
-      processedMessagesRef.current[messageKey] = true;
-      
-      // Find existing message index
-      const existingIndex = updatedMessages.findIndex(m => m.id === newMsg.id);
-      
-      if (existingIndex >= 0) {
-        // Update existing message
-        updatedMessages[existingIndex] = newMsg;
-        hasChanges = true;
-      } else {
-        // Add new message
-        updatedMessages.push(newMsg);
-        hasChanges = true;
-      }
+    // Get the current messages from state to merge with
+    setMessages(currentMessages => {
+      // Merge new messages with existing ones using our utility
+      const merged = mergeMessages(currentMessages, newMessages);
+      // Update our local ref
+      localMessagesRef.current = merged;
+      return merged;
     });
     
-    // If we made changes, update the cache and state
-    if (hasChanges) {
-      // Sort by created_at
-      updatedMessages.sort((a, b) => {
-        const dateA = a.created_at instanceof Date ? a.created_at.getTime() : 
-          new Date(a.created_at as any).getTime();
-        const dateB = b.created_at instanceof Date ? b.created_at.getTime() : 
-          new Date(b.created_at as any).getTime();
-        return dateA - dateB;
-      });
-      
-      localMessagesRef.current = updatedMessages;
-      setMessages(updatedMessages);
-    }
+    // Mark messages as processed to avoid duplicates
+    newMessages.forEach(msg => {
+      const messageKey = `${msg.id}-${msg.updated_at || msg.created_at}`;
+      processedMessagesRef.current[messageKey] = true;
+    });
   }, [setMessages]);
 
   // Immediate update of UI with new messages
@@ -113,8 +88,8 @@ export const useMessageChannel = (
     latestDataRef.current = data;
     
     if (!data) {
-      setMessages([]);
-      localMessagesRef.current = [];
+      // Don't clear messages when no data - might be a temporary connection issue
+      // Instead, keep showing the existing messages
       return;
     }
     
@@ -127,11 +102,18 @@ export const useMessageChannel = (
       
       // Update connection status
       setConnectionStatus('connected');
+      reconnectAttemptRef.current = 0;
     } catch (error) {
       console.error('Error handling real-time update:', error);
-      setConnectionStatus('disconnected');
+      
+      // Only set to disconnected if we've had multiple failures
+      if (reconnectAttemptRef.current > 1) {
+        setConnectionStatus('disconnected');
+      }
+      
+      reconnectAttemptRef.current++;
     }
-  }, [processMessages, setMessages, updateMessagesCache]);
+  }, [processMessages, updateMessagesCache]);
 
   // Main effect for setting up message channel
   useEffect(() => {
@@ -141,44 +123,50 @@ export const useMessageChannel = (
       isMockUser(selectedUserId)
     ) {
       if (isListeningRef.current) {
+        console.log("Missing user IDs or mock user, cleaning up channel");
         isListeningRef.current = false;
+        if (channelNameRef.current) {
+          cleanupChannel(channelNameRef.current);
+          channelNameRef.current = null;
+        }
       }
       return;
-    }
-
-    // Reset cache when user changes
-    if (selectedUserId) {
-      processedMessagesRef.current = {};
-      localMessagesRef.current = [];
     }
 
     // Set connection status to connecting
     setConnectionStatus('connecting');
 
-    // Reset listening status when user changes
-    if (isListeningRef.current) {
-      isListeningRef.current = false;
-    }
-
-    // Mark that we're now listening to avoid duplicate listeners
-    isListeningRef.current = true;
-
     // Unique channel keys
     const convId = getConversationId(currentUserId, selectedUserId);
     const channelName = `messages_${convId}`;
     const path = `messages/${convId}`;
+    
+    // Store the channel name for cleanup
+    channelNameRef.current = channelName;
 
-    console.log(`Setting up message channel for ${channelName}`);
-
-    // Subscribe with immediate processing
-    const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
-
-    // Cleanup on unmount or dependency change
-    return () => {
-      console.log(`Cleaning up message channel ${channelName}`);
-      isListeningRef.current = false;
-      cleanup();
-    };
+    // Only set up a new listener if one isn't already active for this channel
+    if (!isListeningRef.current || channelName !== channelNameRef.current) {
+      console.log(`Setting up message channel for ${channelName}`);
+      
+      // Clean up any existing channel first
+      if (channelNameRef.current && channelNameRef.current !== channelName) {
+        console.log(`Cleaning up previous channel ${channelNameRef.current}`);
+        cleanupChannel(channelNameRef.current);
+      }
+      
+      // Mark that we're now listening
+      isListeningRef.current = true;
+      
+      // Subscribe with immediate processing
+      const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
+      
+      // Return cleanup function
+      return () => {
+        console.log(`Cleaning up message channel ${channelName}`);
+        isListeningRef.current = false;
+        cleanup();
+      };
+    }
   }, [
     currentUserId,
     selectedUserId,

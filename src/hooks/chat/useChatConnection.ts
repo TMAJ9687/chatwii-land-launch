@@ -1,10 +1,11 @@
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, onValue, off, goOnline } from 'firebase/database';
 
 /**
  * Custom hook for managing a persistent connection to Firebase Realtime Database for chat
- * Handles proper connection lifecycle and prevents unnecessary reconnections
+ * Enhanced with better state synchronization and auto-recovery
  */
 export const useChatConnection = (shouldConnect: boolean = true) => {
   // Track connection status
@@ -16,6 +17,7 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoReconnectRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const connectionAttemptTimeRef = useRef<number>(0);
   
   // Clean up any existing retry timers
   const cleanupRetryTimers = useCallback(() => {
@@ -32,6 +34,14 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
 
   // Reconnect function that can be called externally
   const reconnect = useCallback(() => {
+    // Prevent multiple reconnection attempts within 2 seconds
+    const now = Date.now();
+    if (now - connectionAttemptTimeRef.current < 2000) {
+      console.log("Reconnect throttled - too soon since last attempt");
+      return;
+    }
+    
+    connectionAttemptTimeRef.current = now;
     cleanupRetryTimers();
     retryCountRef.current = 0;
     
@@ -56,7 +66,7 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
       console.error("Error during reconnection attempt:", err);
       setConnectionError("Failed to reconnect. Please try again.");
     }
-  }, []);
+  }, [cleanupRetryTimers]);
   
   // Function to set up connection monitoring
   const setupConnectionMonitoring = useCallback(() => {
@@ -78,30 +88,34 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
           retryCountRef.current = 0;
           cleanupRetryTimers();
           
-          // Start an auto-reconnect ping every 30 seconds to keep the connection alive
+          // Auto-reconnect ping at longer interval when already connected
           if (!autoReconnectRef.current) {
             autoReconnectRef.current = setInterval(() => {
               if (shouldConnect && !isConnectedRef.current) {
                 console.log("Auto-reconnect ping");
                 goOnline(realtimeDb);
               }
-            }, 30000);
+            }, 45000); // Less frequent pings when connected
           }
         } else if (shouldConnect) {
-          // Only attempt retry if we should be connected
+          // Schedule reconnect only if we should be connected
           scheduleReconnect();
         }
       };
       
       connectionRefObj.current = onConnectionChange;
-      onValue(connectedRef, onConnectionChange, (error) => {
+      
+      // Add error function to catch connection errors
+      const onError = (error: any) => {
         console.error("Firebase connection monitoring error:", error);
         setConnectionError("Connection monitoring error");
         scheduleReconnect();
-      });
+      };
       
-      // Set up user presence for better debugging
-      setupPresenceMonitoring();
+      onValue(connectedRef, onConnectionChange, onError);
+      
+      // No need to set up presence monitoring here
+      // It's handled separately in usePresence hook
       
     } catch (err) {
       console.error('Error setting up connection monitoring:', err);
@@ -110,36 +124,14 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
     }
   }, [shouldConnect, cleanupRetryTimers]);
   
-  // Function to set up presence monitoring
-  const setupPresenceMonitoring = useCallback(() => {
-    try {
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        const presencePath = `presence/${userId}/status`;
-        const presenceRef = ref(realtimeDb, presencePath);
-        
-        const updatePresence = (snapshot: any) => {
-          if (snapshot.val() === true) {
-            console.log('User presence system active');
-          }
-        };
-        
-        presenceRefObj.current = updatePresence;
-        onValue(presenceRef, updatePresence);
-      }
-    } catch (err) {
-      console.warn('Error setting up presence monitoring:', err);
-    }
-  }, []);
-  
   // Schedule reconnection with exponential backoff
   const scheduleReconnect = useCallback(() => {
     if (!shouldConnect) return;
     
     cleanupRetryTimers();
     
-    // Calculate backoff time (max 30 seconds)
-    const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 30000);
+    // Calculate backoff time - reduced max to 15 seconds
+    const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 15000);
     
     console.log(`Scheduling reconnect attempt in ${delay}ms (attempt ${retryCountRef.current + 1})`);
     
@@ -180,18 +172,28 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
     cleanupRetryTimers();
   }, [cleanupRetryTimers]);
 
-  // Set up connection monitoring on mount
+  // Set up connection monitoring on mount or when shouldConnect changes
   useEffect(() => {
     if (shouldConnect) {
       setupConnectionMonitoring();
+    } else {
+      cleanupListeners();
     }
     
     return () => {
       cleanupListeners();
     };
   }, [shouldConnect, setupConnectionMonitoring, cleanupListeners]);
+  
+  // Force reconnect when switching from inactive to active
+  useEffect(() => {
+    if (shouldConnect) {
+      reconnect();
+    }
+  }, [shouldConnect, reconnect]);
 
   return {
+    // Return actual value for more reliable UI updates
     isConnected: isConnectedRef.current,
     error: connectionError,
     reconnect

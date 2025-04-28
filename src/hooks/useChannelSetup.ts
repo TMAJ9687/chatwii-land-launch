@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
@@ -43,10 +42,11 @@ export const useChannelSetup = (
     if (messageStatus === 'connected' && setupTimeoutRef.current) {
       clearTimeout(setupTimeoutRef.current);
       setupTimeoutRef.current = null;
+      setupRetryCountRef.current = 0;
     }
   }, [messageStatus]);
 
-  // Setup effect for channel initialization with retry logic
+  // Setup effect for channel initialization with improved retry logic
   useEffect(() => {
     // Only proceed if we have both user IDs
     if (!currentUserId || !selectedUserId) {
@@ -83,28 +83,22 @@ export const useChannelSetup = (
       // Fetch messages right away
       fetchMessages();
       
-      // Give a little time for setup to complete
+      // Give time for setup to complete
       setupTimeoutRef.current = setTimeout(() => {
         setIsSettingUp(false);
         
         // Check channel status and retry if needed
-        if (!channelStatus.messages && setupRetryCountRef.current < 3) {
-          console.log(`Channel setup incomplete after timeout, retrying (${setupRetryCountRef.current + 1}/3)`);
+        if (!channelStatus.messages && setupRetryCountRef.current < 2) {
+          console.log(`Channel setup incomplete, trying another approach (${setupRetryCountRef.current + 1}/2)`);
           setupRetryCountRef.current += 1;
           
-          // Force cleanup and retry after delay
-          cleanupAllChannels(false);
-          
-          // Setup a retry with exponential backoff
-          const delay = 1000 * Math.pow(2, setupRetryCountRef.current);
-          setupTimeoutRef.current = setTimeout(() => {
-            // Reset so we'll trigger the setup again
-            setupAttemptRef.current = false;
-            // Force a refresh
-            fetchMessages();
-          }, delay);
+          // Force a direct fetch instead of more retries
+          fetchMessages();
+        } else if (!channelStatus.messages) {
+          // If we're still not connected after retries, inform the user but don't keep retrying
+          toast.info("Using cached messages. Reconnecting in background...");
         }
-      }, 2000); // Increased timeout to give more time for setup
+      }, 3000); // Increased timeout to give more time for setup
     }
   }, [currentUserId, selectedUserId, fetchMessages, isSettingUp, channelStatus, cleanupAllChannels]);
 

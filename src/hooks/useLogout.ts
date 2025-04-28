@@ -47,39 +47,51 @@ export const useLogout = (defaultRedirect = "/feedback") => {
     const forceLogoutTimeout = setTimeout(() => {
       console.warn("Logout operation timed out - forcing logout");
       forceLogout();
-    }, 2000); // Force logout after 2 seconds if still processing (reduced from 3s)
+    }, 2000); // Force logout after 2 seconds if still processing
 
     try {
       const userId = localStorage.getItem('firebase_user_id');
       const role = localStorage.getItem('firebase_user_role') || 'standard';
       const provider = localStorage.getItem('firebase_user_provider');
       
-      // First, ensure DB connection is closed properly
-      console.log("Starting Firebase connection closure");
-      await Promise.race([
-        closeDbConnection(),
-        new Promise(resolve => setTimeout(resolve, 800)) // 800ms max timeout
-      ]);
-      
-      // Then remove presence
-      if (userId) {
-        console.log("Removing user presence");
-        await Promise.race([
-          removeUserPresence(userId),
-          new Promise(resolve => setTimeout(resolve, 800)) // 800ms max timeout
-        ]);
-      }
-      
-      // Sign out the user
-      console.log("Signing out");
-      await Promise.race([
-        signOutUser(),
-        new Promise(resolve => setTimeout(resolve, 1000)) // 1s max timeout
-      ]);
-      
-      // Clean up localStorage immediately
+      // Clean up localStorage immediately to prevent any further API calls with old credentials
       console.log("Clearing localStorage");
       keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // First, ensure DB connection is closed properly
+      console.log("Starting Firebase connection closure");
+      try {
+        await Promise.race([
+          closeDbConnection(),
+          new Promise(resolve => setTimeout(resolve, 800)) // 800ms max timeout
+        ]);
+      } catch (err) {
+        console.warn("Error closing DB connection, continuing with logout:", err);
+      }
+      
+      // Then remove presence - if we get permission errors, that's ok
+      if (userId) {
+        console.log("Removing user presence");
+        try {
+          await Promise.race([
+            removeUserPresence(userId),
+            new Promise(resolve => setTimeout(resolve, 800)) // 800ms max timeout
+          ]);
+        } catch (err) {
+          console.warn("Error removing presence, continuing with logout:", err);
+        }
+      }
+      
+      // Sign out the user - do this last
+      console.log("Signing out");
+      try {
+        await Promise.race([
+          signOutUser(),
+          new Promise(resolve => setTimeout(resolve, 1000)) // 1s max timeout
+        ]);
+      } catch (err) {
+        console.warn("Error during sign out, forcing redirect:", err);
+      }
       
       // Handle profile deletion in the background
       const shouldDeleteProfile = role === 'standard' || provider === 'anonymous';

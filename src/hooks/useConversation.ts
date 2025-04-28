@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -8,6 +9,7 @@ import { createDocument, queryDocuments } from '@/lib/firebase';
 import { isMockUser } from '@/utils/mockUsers';
 import { MessageWithMedia } from '@/types/message';
 import { v4 as uuidv4 } from 'uuid';
+import { insertTemporaryMessage } from '@/utils/messageUtils';
 
 export const useConversation = (
   currentUserId: string | null,
@@ -128,11 +130,13 @@ export const useConversation = (
       }
       const now = new Date().toISOString();
       const tempId = `temp-${uuidv4()}`;
-      // Optimistic UI update
-      setMessages((current) => [
-        ...current,
-        createOptimisticMessage(tempId, now, content, imageUrl)
-      ]);
+      
+      // Create optimistic message
+      const optimisticMessage = createOptimisticMessage(tempId, now, content, imageUrl);
+      
+      // Optimistic UI update - use our utility for consistent state updates
+      setMessages(currentMessages => insertTemporaryMessage(currentMessages, optimisticMessage));
+      
       try {
         // For bots
         const recipientProfiles = await queryDocuments('profiles', [
@@ -164,17 +168,23 @@ export const useConversation = (
             created_at: now
           });
         }
+        
         fetchUnreadCount();
+        
+        // Slight delay before fetching to allow Firebase to update
         setTimeout(() => {
           fetchMessages();
-        }, 400); // Slightly shorter delay is fine
+        }, 400);
 
         return true;
       } catch (error: any) {
         console.error('Error in handleSendMessage:', error);
+        
+        // Remove optimistic message on error
         setMessages(current =>
-          current.filter(msg => !msg.id.startsWith('temp-'))
+          current.filter(msg => msg.id !== tempId)
         );
+        
         const msg =
           error.message?.includes('CORS') || error.message?.includes('storage')
             ? "Media upload failed. Please check Firebase Storage configuration."
