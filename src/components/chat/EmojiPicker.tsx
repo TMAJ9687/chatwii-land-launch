@@ -1,4 +1,3 @@
-
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useTheme } from 'next-themes';
@@ -10,13 +9,26 @@ interface EmojiPickerProps {
 
 export const EmojiPicker = ({ onEmojiSelect, onClose }: EmojiPickerProps) => {
   const { theme } = useTheme();
-  
+
+  // Handler to ensure only valid emoji are returned
+  const handleEmojiSelect = (emoji: any) => {
+    if (emoji && typeof emoji.native === 'string') {
+      onEmojiSelect(emoji.native);
+    }
+  };
+
   return (
     <div className="absolute right-0 top-full z-50">
-      <div className="fixed inset-0" onClick={onClose} />
+      {/* Overlay to close on click outside */}
+      <div
+        className="fixed inset-0"
+        aria-label="Close emoji picker"
+        tabIndex={-1}
+        onClick={onClose}
+      />
       <Picker
         data={data}
-        onEmojiSelect={(emoji: any) => onEmojiSelect(emoji.native)}
+        onEmojiSelect={handleEmojiSelect}
         theme={theme === 'dark' ? 'dark' : 'light'}
         previewPosition="none"
         skinTonePosition="none"
