@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -9,6 +10,7 @@ import { MessageTimestamp } from './MessageTimestamp';
 import { MessageStatus } from './MessageStatus';
 import { ReplyPreview } from './ReplyPreview';
 import { queryDocuments } from '@/lib/firebase';
+import { MessageBubbleWrapper } from './message/MessageBubbleWrapper';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -107,48 +109,42 @@ export const MessageBubble = ({
   };
 
   return (
-    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} relative group`}>
-      <div
-        className={`max-w-[70%] rounded-lg p-3 ${
-          isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
-        }`}
-      >
-        {message.reply_to && (
-          <ReplyPreview replyMessage={replyMessage} isCurrentUser={isCurrentUser} />
-        )}
+    <MessageBubbleWrapper message={message} isCurrentUser={isCurrentUser}>
+      {message.reply_to && (
+        <ReplyPreview replyMessage={replyMessage} isCurrentUser={isCurrentUser} />
+      )}
 
-        <MessageContent message={message} isCurrentUser={isCurrentUser} />
+      <MessageContent message={message} isCurrentUser={isCurrentUser} />
 
-        <MessageMedia
-          media={message.media}
-          messageId={message.id}
+      <MessageMedia
+        media={message.media}
+        messageId={message.id}
+        isCurrentUser={isCurrentUser}
+        onImageClick={onImageClick}
+        isRevealed={isImageRevealed(message.id)}
+        toggleImageReveal={handleToggleImageReveal}
+      />
+
+      <MessageReactions reactions={message.reactions} />
+
+      <MessageActions
+        message={message}
+        isCurrentUser={isCurrentUser}
+        isVipUser={isVipUser}
+        onUnsend={() => handleUnsendMessage(message.id)}
+        onReply={() => startReply(message.id)}
+        onReact={emoji => handleReactToMessage(message.id, emoji)}
+        onTranslate={() => translateMessage(message)}
+        translating={translatingMessageId === message.id}
+      />
+
+      <div className="flex items-center justify-between mt-1">
+        <MessageTimestamp
+          timestamp={formatTimestamp(message.created_at)}
           isCurrentUser={isCurrentUser}
-          onImageClick={onImageClick}
-          isRevealed={isImageRevealed(message.id)}
-          toggleImageReveal={handleToggleImageReveal}
         />
-
-        <MessageReactions reactions={message.reactions} />
-
-        <MessageActions
-          message={message}
-          isCurrentUser={isCurrentUser}
-          isVipUser={isVipUser}
-          onUnsend={() => handleUnsendMessage(message.id)}
-          onReply={() => startReply(message.id)}
-          onReact={emoji => handleReactToMessage(message.id, emoji)}
-          onTranslate={() => translateMessage(message)}
-          translating={translatingMessageId === message.id}
-        />
-
-        <div className="flex items-center justify-between mt-1">
-          <MessageTimestamp
-            timestamp={formatTimestamp(message.created_at)}
-            isCurrentUser={isCurrentUser}
-          />
-          {isCurrentUser && isVipUser && <MessageStatus isRead={message.is_read} />}
-        </div>
+        {isCurrentUser && isVipUser && <MessageStatus isRead={message.is_read} />}
       </div>
-    </div>
+    </MessageBubbleWrapper>
   );
 };

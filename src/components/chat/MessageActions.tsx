@@ -19,7 +19,7 @@ interface MessageActionsProps {
   onReply: () => void;
   onReact: (emoji: string) => void;
   onTranslate: () => void;
-  translating?: boolean; // Added the missing prop
+  translating?: boolean;
 }
 
 export const MessageActions = ({
@@ -30,7 +30,7 @@ export const MessageActions = ({
   onReply,
   onReact,
   onTranslate,
-  translating = false, // Added with default value
+  translating = false,
 }: MessageActionsProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 

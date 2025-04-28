@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
@@ -22,14 +23,15 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [age, setAge] = useState<string>("");
   const { country, countryCode } = useDetectCountry();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
-
+  const [isOpen, setIsOpen] = useState(true); // Open by default to make interests selection more visible
+  
   const { profanityList } = useProfanityList('nickname');
   const { submitProfile, isLoading } = useProfileSubmission();
 
   const nickname = initialNickname;
 
-  const isValid = gender && age && selectedInterests.length > 0;
+  // Form validation - only need at least one interest, not two
+  const isValid = !!gender && !!age && selectedInterests.length > 0;
 
   const handleInterestChange = (interest: string) => {
     setSelectedInterests(prev => {
@@ -48,10 +50,21 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   };
 
   const handleSubmit = () => {
-    if (!isValid) {
-      toast.error("Please select gender, age, and at least one interest.");
+    if (!gender) {
+      toast.error("Please select your gender.");
       return;
     }
+    
+    if (!age) {
+      toast.error("Please select your age.");
+      return;
+    }
+    
+    if (selectedInterests.length === 0) {
+      toast.error("Please select at least one interest.");
+      return;
+    }
+    
     submitProfile({
       nickname,
       gender,
@@ -59,6 +72,15 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       country,
       interests: selectedInterests,
     });
+  };
+
+  // Helper function to provide better field-specific guidance
+  const getButtonLabel = (): string => {
+    if (isLoading) return "Saving...";
+    if (!gender) return "Select Gender";
+    if (!age) return "Select Age";
+    if (selectedInterests.length === 0) return "Select Interests";
+    return "Continue to Chat";
   };
 
   return (
@@ -79,11 +101,15 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       <AgeSelector age={age} onChange={setAge} />
 
       <Button
-        className="w-full bg-[#F97316] hover:bg-orange-600 text-white"
+        className={`w-full ${
+          isValid 
+            ? 'bg-[#F97316] hover:bg-orange-600 text-white' 
+            : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+        }`}
         onClick={handleSubmit}
-        disabled={!isValid || isLoading}
+        disabled={isLoading}
       >
-        {isLoading ? "Saving..." : "Continue to Chat"}
+        {getButtonLabel()}
       </Button>
 
       <CountryDisplay country={country} countryCode={countryCode} />

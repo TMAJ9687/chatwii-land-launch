@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
@@ -22,11 +22,18 @@ export const InterestsSelector: React.FC<InterestsSelectorProps> = ({
     "Food", "Technology", "Art", "Books", "Fashion"
   ];
 
+  // Auto-expand the interests selector by default
+  useEffect(() => {
+    if (!isOpen && selectedInterests.length === 0) {
+      onToggle(true);
+    }
+  }, [isOpen, selectedInterests, onToggle]);
+
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Interests (Select up to 2)
+          Interests (Select at least 1, up to 2)
         </label>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm">
@@ -48,6 +55,13 @@ export const InterestsSelector: React.FC<InterestsSelectorProps> = ({
             </Button>
           ))}
         </div>
+        <p className="text-xs text-gray-500">
+          {selectedInterests.length === 0 ? (
+            <span className="text-amber-500">Please select at least one interest</span>
+          ) : (
+            `Selected: ${selectedInterests.length}/2`
+          )}
+        </p>
       </CollapsibleContent>
     </Collapsible>
   );
