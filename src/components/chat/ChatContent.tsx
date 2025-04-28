@@ -9,7 +9,7 @@ import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
 import { useChatConnection } from '@/hooks/chat/useChatConnection';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, AlertTriangle } from 'lucide-react';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -110,7 +110,8 @@ export const ChatContent: React.FC<ChatContentProps> = ({
 
       {/* Connection Status Warning */}
       {!isConnected && !localError && selectedUserId && (
-        <Alert variant="warning" className="mx-4 mt-4 bg-amber-50 border-amber-500">
+        <Alert variant="default" className="mx-4 mt-4 bg-amber-50 border-amber-500">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertTitle>Connection Status</AlertTitle>
           <AlertDescription>
             Connecting to message service...
