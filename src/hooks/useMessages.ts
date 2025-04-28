@@ -33,10 +33,12 @@ export const useMessages = (
   const isFetchingRef = useRef(false);
   const maxRetries = 3;
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchedUserIdRef = useRef<string | null>(null);
 
   const resetState = useCallback(() => {
     setMessages([]);
     setError(null);
+    isFetchingRef.current = false;
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -45,10 +47,19 @@ export const useMessages = (
 
   const fetchMessages = useCallback(async (retryCount = 0) => {
     // Return early if already loading or if userIds are missing
-    if (!selectedUserId || !currentUserId || isFetchingRef.current) {
-  return; // Silent return to avoid flooding logs
-}
-
+    if (
+      !selectedUserId || 
+      !currentUserId || 
+      isFetchingRef.current ||
+      selectedUserId === lastFetchedUserIdRef.current
+    ) {
+      return;
+    }
+    
+    // Set state to prevent concurrent fetches
+    isFetchingRef.current = true;
+    lastFetchedUserIdRef.current = selectedUserId;
+    setIsLoading(true);
     
     // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
@@ -71,22 +82,17 @@ export const useMessages = (
         reactions: msg.reactions || []
       }));
 
-      console.log('Setting mock messages:', completeMessages);
       setMessages(completeMessages);
       setIsLoading(false);
+      isFetchingRef.current = false;
       setError(null);
       return;
     }
     
-    console.log('Fetching messages between users:', {currentUserId, selectedUserId});
-    isFetchingRef.current = true;
-    setIsLoading(true);
-    
     try {
-      // Simplified query approach
+      // Simplified query approach with batch processing
       const messages = await fetchAllMessages(currentUserId, selectedUserId);
       
-      console.log('Final fetched messages:', messages.length);
       setMessages(messages);
       setError(null);
       
@@ -110,12 +116,17 @@ export const useMessages = (
       if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
           console.log(`Retrying fetch messages (attempt ${retryCount + 1})`);
+          isFetchingRef.current = false; // Reset fetching state to allow retry
           fetchMessages(retryCount + 1);
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
+      } else {
+        isFetchingRef.current = false; // Reset on max retries
       }
     } finally {
       setIsLoading(false);
-      isFetchingRef.current = false;
+      setTimeout(() => {
+        isFetchingRef.current = false; // Reset after a small delay to prevent rapid re-fetching
+      }, 500);
     }
   }, [selectedUserId, currentUserId, markMessagesAsRead]);
 
@@ -133,23 +144,46 @@ export const useMessages = (
       ])
     ]);
     
-    console.log(`Messages from ${userId1}: ${fromUser1.length}, from ${userId2}: ${fromUser2.length}`);
-    
-    // Combine and process messages
+    // Combine and filter valid messages
     const allMessages = [...fromUser1, ...fromUser2].filter(msg => msg && typeof msg === 'object');
-    const processedMessages = await processMessages(allMessages);
     
-    // Sort by creation date
-    return processedMessages.sort((a, b) => {
-      const dateA = getTimestampValue(a.created_at);
-      const dateB = getTimestampValue(b.created_at);
-      return dateA - dateB;
-    });
-  };
-
-  // Process raw message data into proper MessageWithMedia format
-  const processMessages = async (rawMessages: any[]): Promise<MessageWithMedia[]> => {
-    const formattedMessages = rawMessages.map(message => {
+    if (allMessages.length === 0) {
+      return [];
+    }
+    
+    // Get message IDs for batch queries
+    const messageIds = allMessages.map(msg => msg.id).filter(Boolean);
+    
+    // Make batch queries for media and reactions
+    const [mediaRecords, reactionRecords] = await Promise.all([
+      queryDocuments('message_media', [
+        { field: 'message_id', operator: 'in', value: messageIds }
+      ]),
+      queryDocuments('message_reactions', [
+        { field: 'message_id', operator: 'in', value: messageIds }
+      ])
+    ]);
+    
+    // Create lookup maps
+    const mediaByMessageId = mediaRecords.reduce((acc, media) => {
+      if (media && media.message_id) {
+        acc[media.message_id] = media;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+    
+    const reactionsByMessageId = reactionRecords.reduce((acc, reaction) => {
+      if (reaction && reaction.message_id) {
+        if (!acc[reaction.message_id]) {
+          acc[reaction.message_id] = [];
+        }
+        acc[reaction.message_id].push(reaction);
+      }
+      return acc;
+    }, {} as Record<string, any[]>);
+    
+    // Process all messages
+    const processedMessages = allMessages.map(message => {
       let createdAt = message.created_at;
       if (createdAt) {
         if (createdAt instanceof Timestamp) {
@@ -175,56 +209,18 @@ export const useMessages = (
         translated_content: message.translated_content,
         language_code: message.language_code,
         reply_to: message.reply_to,
-        media: null,
-        reactions: [],
+        media: mediaByMessageId[message.id] || null,
+        reactions: reactionsByMessageId[message.id] || [],
         participants: message.participants || [message.sender_id, message.receiver_id].filter(Boolean)
       };
     });
     
-    // Get media and reactions in batches
-    const messagesWithMedia = await Promise.all(
-      formattedMessages.map(async (message) => {
-        try {
-          const mediaRecords = await queryDocuments('message_media', [
-            { field: 'message_id', operator: '==', value: message.id }
-          ]);
-          
-          if (mediaRecords.length > 0) {
-            const mediaRecord = mediaRecords[0];
-            message.media = {
-              id: mediaRecord.id || '',
-              message_id: mediaRecord.message_id || '',
-              user_id: mediaRecord.user_id || '',
-              file_url: mediaRecord.file_url || '',
-              media_type: mediaRecord.media_type as 'image' | 'voice' | 'video' || 'image',
-              created_at: mediaRecord.created_at || new Date().toISOString()
-            };
-          }
-          
-          const reactionRecords = await queryDocuments('message_reactions', [
-            { field: 'message_id', operator: '==', value: message.id }
-          ]);
-          
-          if (Array.isArray(reactionRecords)) {
-            message.reactions = reactionRecords
-              .filter(reaction => reaction && typeof reaction === 'object')
-              .map(reaction => ({
-                id: reaction.id || '',
-                message_id: reaction.message_id || '',
-                user_id: reaction.user_id || '',
-                emoji: reaction.emoji || '',
-                created_at: reaction.created_at || new Date().toISOString()
-              }));
-          }
-        } catch (e) {
-          console.error(`Error processing message ${message.id}:`, e);
-        }
-        
-        return message;
-      })
-    );
-    
-    return messagesWithMedia;
+    // Sort by creation date
+    return processedMessages.sort((a, b) => {
+      const dateA = getTimestampValue(a.created_at);
+      const dateB = getTimestampValue(b.created_at);
+      return dateA - dateB;
+    });
   };
 
   // Clean up any pending retries when component unmounts or dependencies change
@@ -236,10 +232,13 @@ export const useMessages = (
     };
   }, [selectedUserId, currentUserId]);
 
-  // Reset state when selecting a new user
+  // Reset state and trigger fetch when selecting a new user
   useEffect(() => {
-    resetState();
-  }, [selectedUserId, resetState]);
+    if (selectedUserId !== lastFetchedUserIdRef.current) {
+      resetState();
+      fetchMessages();
+    }
+  }, [selectedUserId, resetState, fetchMessages]);
 
   return {
     messages,
