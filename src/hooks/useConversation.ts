@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -20,20 +19,22 @@ export const useConversation = (
   const { handleBotResponse } = useBot();
   const { fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } = useGlobalMessages(currentUserId);
 
-  // Create an async wrapper function for messages hook
-  const markMessagesAsReadAsync = async (userId: string) => {
-    try {
-      await markMessagesAsRead(userId);
-      fetchUnreadCount();
-      return Promise.resolve();
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
-      return Promise.resolve();
-    }
-  };
+  // Helper: Mark messages as read and refresh unread count
+  const markMessagesAsReadAsync = useCallback(
+    async (userId: string) => {
+      try {
+        await markMessagesAsRead(userId);
+        fetchUnreadCount();
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    },
+    [markMessagesAsRead, fetchUnreadCount]
+  );
 
-  const { 
-    messages, 
+  // Messages state/hooks
+  const {
+    messages,
     setMessages,
     fetchMessages,
     isLoading,
@@ -41,39 +42,36 @@ export const useConversation = (
     resetState
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
 
+  // Message actions (delete, etc.)
   const {
     deleteConversation,
     isDeletingConversation
   } = useMessageActions(currentUserId || '', isVipUser);
 
-  // Update selected user ID in the global messages context
+  // -- Side Effects and Event Handlers --
+
+  // Keep selected user ID in global messages context
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
   }, [selectedUserId, updateSelectedUserId]);
 
-  // Fetch messages when a new user is selected
+  // Fetch/reset messages on user switch
   useEffect(() => {
     if (selectedUserId && currentUserId) {
-      console.log('New user selected, fetching messages:', selectedUserId);
       setHasSelectedNewUser(true);
-      
       resetState();
       fetchMessages();
     }
   }, [selectedUserId, currentUserId, fetchMessages, resetState]);
 
-  // Reset the "new user selected" flag after a delay
+  // Reset flag after delay when new user selected
   useEffect(() => {
-    if (hasSelectedNewUser) {
-      const timer = setTimeout(() => {
-        setHasSelectedNewUser(false);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
+    if (!hasSelectedNewUser) return;
+    const timer = setTimeout(() => setHasSelectedNewUser(false), 1000);
+    return () => clearTimeout(timer);
   }, [hasSelectedNewUser]);
 
-  // Show message errors, but not immediately after selecting a new user
+  // Show error only if not right after user switch
   useEffect(() => {
     if (messagesError && !hasSelectedNewUser) {
       console.error('Message error:', messagesError);
@@ -81,10 +79,10 @@ export const useConversation = (
     }
   }, [messagesError, hasSelectedNewUser]);
 
-  // Handle conversation deletion
+  // --- Event Handlers ---
+
   const handleDeleteConversation = useCallback(async () => {
     if (!selectedUserId || !currentUserId || isDeletingConversation) return;
-
     try {
       await deleteConversation(selectedUserId);
       resetState();
@@ -96,108 +94,97 @@ export const useConversation = (
     }
   }, [selectedUserId, currentUserId, isDeletingConversation, deleteConversation, fetchMessages, resetState]);
 
-  // Handle sending messages with improved error handling
-  const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
-    if (!selectedUserId || !currentUserId) {
-      toast.error("Cannot send message - missing user information");
-      return;
-    }
-
-    if (isMockUser(selectedUserId)) {
-      toast.error("This is a demo VIP user. You cannot send messages to this account.");
-      return;
-    }
-
-    try {
-      console.log('Sending message:', {content, hasImage: !!imageUrl});
-      
-      // Generate a temporary ID for optimistic UI update
-      const tempId = `temp-${uuidv4()}`;
-      const now = new Date().toISOString();
-      
-      // Create optimistic message for immediate UI feedback
-      const optimisticMessage: MessageWithMedia = {
-        id: tempId,
-        content: content || (imageUrl ? '[Image]' : ''),
-        sender_id: currentUserId,
-        receiver_id: selectedUserId,
-        created_at: now,
-        is_read: false,
-        media: imageUrl ? {
+  const createOptimisticMessage = (
+    tempId: string, now: string, content: string, imageUrl: string | undefined
+  ): MessageWithMedia => ({
+    id: tempId,
+    content: content || (imageUrl ? '[Image]' : ''),
+    sender_id: currentUserId!,
+    receiver_id: selectedUserId!,
+    created_at: now,
+    is_read: false,
+    media: imageUrl
+      ? {
           id: `temp-media-${uuidv4()}`,
           message_id: tempId,
-          user_id: currentUserId,
+          user_id: currentUserId!,
           file_url: imageUrl,
           media_type: imageUrl.includes('voice') ? 'voice' : 'image',
           created_at: now
-        } : null,
-        reactions: []
-      };
+        }
+      : null,
+    reactions: []
+  });
 
-      // Update UI optimistically
-      setMessages(current => [...current, optimisticMessage]);
-      
-      // Get recipient profile for bot handling
-      const recipientProfiles = await queryDocuments('profiles', [
-        { field: 'id', operator: '==', value: selectedUserId }
+  const handleSendMessage = useCallback(
+    async (content: string, imageUrl?: string) => {
+      if (!selectedUserId || !currentUserId) {
+        toast.error("Cannot send message - missing user information");
+        return;
+      }
+      if (isMockUser(selectedUserId)) {
+        toast.error("This is a demo VIP user. You cannot send messages to this account.");
+        return;
+      }
+      const now = new Date().toISOString();
+      const tempId = `temp-${uuidv4()}`;
+      // Optimistic UI update
+      setMessages((current) => [
+        ...current,
+        createOptimisticMessage(tempId, now, content, imageUrl)
       ]);
-      const recipientProfile = recipientProfiles.length > 0 ? recipientProfiles[0] : null;
+      try {
+        // For bots
+        const recipientProfiles = await queryDocuments('profiles', [
+          { field: 'id', operator: '==', value: selectedUserId }
+        ]);
+        const recipientProfile = recipientProfiles?.[0] || null;
 
-      // Create the message in Firestore
-      const messageId = await createDocument('messages', {
-        content: content || (imageUrl ? '[Image]' : ''),
-        sender_id: currentUserId,
-        receiver_id: selectedUserId,
-        is_read: false,
-        created_at: now,
-        participants: [currentUserId, selectedUserId]
-      });
-      
-      console.log('Message created with ID:', messageId);
-
-      // If it's a bot user, trigger a response
-      if (recipientProfile?.role === 'bot' && content) {
-        handleBotResponse(selectedUserId, currentUserId, content);
-      }
-
-      // Create media record if image URL is provided
-      if (imageUrl && messageId) {
-        console.log('Creating media record for message:', messageId);
-        await createDocument('message_media', {
-          message_id: messageId,
-          user_id: currentUserId,
-          file_url: imageUrl,
-          media_type: imageUrl.includes('voice') ? 'voice' : 'image',
-          created_at: now
+        // Create actual message
+        const messageId = await createDocument('messages', {
+          content: content || (imageUrl ? '[Image]' : ''),
+          sender_id: currentUserId,
+          receiver_id: selectedUserId,
+          is_read: false,
+          created_at: now,
+          participants: [currentUserId, selectedUserId]
         });
-      }
 
-      // Update the global unread count
-      fetchUnreadCount();
+        // Bot auto-response if needed
+        if (recipientProfile?.role === 'bot' && content) {
+          handleBotResponse(selectedUserId, currentUserId, content);
+        }
+        // If media, upload the media doc
+        if (imageUrl && messageId) {
+          await createDocument('message_media', {
+            message_id: messageId,
+            user_id: currentUserId,
+            file_url: imageUrl,
+            media_type: imageUrl.includes('voice') ? 'voice' : 'image',
+            created_at: now
+          });
+        }
+        fetchUnreadCount();
+        setTimeout(() => {
+          fetchMessages();
+        }, 400); // Slightly shorter delay is fine
 
-      // Remove optimistic message and fetch the actual messages
-      // We're using a tiny delay to avoid race conditions
-      setTimeout(() => {
-        fetchMessages();
-      }, 500);
-      
-      return true;
-    } catch (error: any) {
-      console.error('Error in handleSendMessage:', error);
-      
-      // Remove the optimistic message on error
-      setMessages(current => current.filter(msg => !msg.id.includes('temp-')));
-      
-      // Show appropriate error message
-      if (error.message?.includes('CORS') || error.message?.includes('storage')) {
-        toast.error("Media upload failed. Please check Firebase Storage configuration.");
-      } else {
-        toast.error("Failed to send message. Please try again.");
+        return true;
+      } catch (error: any) {
+        console.error('Error in handleSendMessage:', error);
+        setMessages(current =>
+          current.filter(msg => !msg.id.startsWith('temp-'))
+        );
+        const msg =
+          error.message?.includes('CORS') || error.message?.includes('storage')
+            ? "Media upload failed. Please check Firebase Storage configuration."
+            : "Failed to send message. Please try again.";
+        toast.error(msg);
+        return false;
       }
-      
-      return false;
-    }
-  }, [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount, fetchMessages]);
+    },
+    [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount, fetchMessages]
+  );
 
   return {
     messages,
