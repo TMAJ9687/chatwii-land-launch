@@ -94,14 +94,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     <>
       {isReplying && replyToMessage && (
         <ReplyComposer
-          message={replyToMessage}
+          originalMessage={replyToMessage}
+          onSendReply={handleSendReply}
           onCancel={cancelReply}
-          onSend={handleSendReply}
-          currentUserId={currentUserId || ""}
-          replyContent={replyContent}
-          onReplyContentChange={setReplyContent}
           disabled={disabled}
-          isVipUser={isVipUser}
         />
       )}
 
