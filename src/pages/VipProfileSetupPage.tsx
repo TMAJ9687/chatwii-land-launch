@@ -23,7 +23,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { auth, db, storage } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { supabase } from '@/integrations/firebase/firebase-adapter'; // Keep for compatibility
 
 const ageOptions = Array.from({ length: 63 }, (_, i) => 18 + i);
 const INTERESTS = [

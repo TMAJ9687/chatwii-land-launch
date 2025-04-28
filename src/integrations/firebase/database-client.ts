@@ -1,32 +1,19 @@
-
-import { 
-  db, auth, storage,
-  createDocument, setDocument, getDocument, updateDocument, deleteDocument,
-  queryDocuments, subscribeToDocument, subscribeToQuery,
-  uploadFile, getFileDownloadURL, deleteFile
-} from '@/lib/firebase';
 import { 
   collection, doc, getDocs, query, where, orderBy, limit,
   serverTimestamp, Timestamp, DocumentData, 
-  WhereFilterOp // Import the Firebase operator type
+  WhereFilterOp
 } from 'firebase/firestore';
 import { ref } from 'firebase/storage';
-import { getUserProfile } from '@/integrations/firebase/auth';
+import { db, auth, storage } from './client';
+import { uploadFile, getFileDownloadURL, deleteFile } from './storage';
+import { getUserProfile } from './auth';
 
-// Type for our condition objects
-type FirebaseCondition = {
-  field: string;
-  operator: WhereFilterOp;
-  value: any;
-};
-
-// Mock the Supabase client with Firebase functionality
-export const supabase = {
+// Firebase database client
+export const firebaseClient = {
   auth: {
     signInWithPassword: async ({ email, password }: { email: string, password: string }) => {
       try {
-        // Import the function dynamically to avoid circular dependencies
-        const { signInWithEmail } = await import('@/integrations/firebase/auth');
+        const { signInWithEmail } = await import('./auth');
         const user = await signInWithEmail(email, password);
         return { data: { user }, error: null };
       } catch (error) {
@@ -35,7 +22,7 @@ export const supabase = {
     },
     signUp: async ({ email, password }: { email: string, password: string }) => {
       try {
-        const { signUpWithEmail } = await import('@/integrations/firebase/auth');
+        const { signUpWithEmail } = await import('./auth');
         const user = await signUpWithEmail(email, password);
         return { data: { user }, error: null };
       } catch (error) {
@@ -44,7 +31,7 @@ export const supabase = {
     },
     signOut: async () => {
       try {
-        const { signOutUser } = await import('@/integrations/firebase/auth');
+        const { signOutUser } = await import('./auth');
         await signOutUser();
         return { error: null };
       } catch (error) {
@@ -89,6 +76,7 @@ export const supabase = {
       eq: (field: string, value: any) => ({
         single: async () => {
           try {
+            const { queryDocuments } = await import('./firestore');
             const documents = await queryDocuments(table, [
               { field, operator: "==" as WhereFilterOp, value }
             ]);
@@ -99,6 +87,7 @@ export const supabase = {
         },
         maybeSingle: async () => {
           try {
+            const { queryDocuments } = await import('./firestore');
             const documents = await queryDocuments(table, [
               { field, operator: "==" as WhereFilterOp, value }
             ]);
@@ -109,6 +98,7 @@ export const supabase = {
         },
         range: async (from: number, to: number) => {
           try {
+            const { queryDocuments } = await import('./firestore');
             const documents = await queryDocuments(table, [
               { field, operator: "==" as WhereFilterOp, value }
             ]);
@@ -122,6 +112,7 @@ export const supabase = {
           limit: (count: number) => ({
             range: async (from: number, to: number) => {
               try {
+                const { queryDocuments } = await import('./firestore');
                 const documents = await queryDocuments(
                   table, 
                   [{ field, operator: "==" as WhereFilterOp, value }],
@@ -140,6 +131,7 @@ export const supabase = {
       order: (column: string, options?: { ascending?: boolean }) => ({
         range: async (from: number, to: number) => {
           try {
+            const { queryDocuments } = await import('./firestore');
             const documents = await queryDocuments(
               table, 
               [],
@@ -154,6 +146,7 @@ export const supabase = {
         limit: (count: number) => ({
           range: async (from: number, to: number) => {
             try {
+              const { queryDocuments } = await import('./firestore');
               const documents = await queryDocuments(
                 table, 
                 [],
@@ -171,6 +164,7 @@ export const supabase = {
       in: (field: string, values: any[]) => ({
         range: async (from: number, to: number) => {
           try {
+            const { queryDocuments } = await import('./firestore');
             // Firebase doesn't have direct 'in' operator in the same way
             // Use "in" operator in Firebase
             const documents = await queryDocuments(table, [
@@ -203,6 +197,7 @@ export const supabase = {
       select: (columns: string) => ({
         single: async () => {
           try {
+            const { setDocument, createDocument, getDocument } = await import('./firestore');
             let insertId: string;
             if (values.id) {
               await setDocument(table, values.id, values);
@@ -220,6 +215,7 @@ export const supabase = {
       }),
       single: async () => {
         try {
+          const { setDocument, createDocument, getDocument } = await import('./firestore');
           let insertId: string;
           if (values.id) {
             await setDocument(table, values.id, values);
@@ -239,6 +235,7 @@ export const supabase = {
       eq: (field: string, value: any) => ({
         single: async () => {
           try {
+            const { queryDocuments, updateDocument, getDocument } = await import('./firestore');
             // Find document by field
             const documents = await queryDocuments(table, [
               { field, operator: "==" as WhereFilterOp, value }
@@ -259,6 +256,7 @@ export const supabase = {
       }),
       match: async (criteria: any) => {
         try {
+          const { queryDocuments, updateDocument, getDocument } = await import('./firestore');
           // Find document by multiple criteria
           const conditions = Object.entries(criteria).map(([field, value]) => ({
             field, 
@@ -266,7 +264,7 @@ export const supabase = {
             value
           }));
           
-          const documents = await queryDocuments(table, conditions as FirebaseCondition[]);
+          const documents = await queryDocuments(table, conditions as any[]);
           
           if (documents && documents[0]) {
             const docId = documents[0].id;
@@ -282,6 +280,7 @@ export const supabase = {
       },
       single: async () => {
         try {
+          const { updateDocument, getDocument } = await import('./firestore');
           if (!values.id) {
             return { data: null, error: new Error("ID is required for single update") };
           }
@@ -298,6 +297,7 @@ export const supabase = {
       eq: (field: string, value: any) => ({
         single: async () => {
           try {
+            const { queryDocuments, deleteDocument } = await import('./firestore');
             // Find document by field
             const documents = await queryDocuments(table, [
               { field, operator: "==" as WhereFilterOp, value }
@@ -317,6 +317,7 @@ export const supabase = {
       }),
       match: async (criteria: any) => {
         try {
+          const { queryDocuments, deleteDocument } = await import('./firestore');
           // Find document by multiple criteria
           const conditions = Object.entries(criteria).map(([field, value]) => ({
             field, 
@@ -324,7 +325,7 @@ export const supabase = {
             value
           }));
           
-          const documents = await queryDocuments(table, conditions as FirebaseCondition[]);
+          const documents = await queryDocuments(table, conditions as any[]);
           
           if (documents && documents[0]) {
             const docId = documents[0].id;
@@ -341,6 +342,7 @@ export const supabase = {
     upsert: (values: any) => ({
       single: async () => {
         try {
+          const { getDocument, updateDocument, setDocument, createDocument } = await import('./firestore');
           if (values.id) {
             // Check if document exists
             const existing = await getDocument(table, values.id);
@@ -374,20 +376,15 @@ export const supabase = {
           return { data: { path: "" }, error };
         }
       },
-      getPublicUrl: (path: string) => {
+      getPublicUrl: async (path: string) => {
         try {
-          // Firebase doesn't automatically provide public URLs like Supabase
-          // We'll return a placeholder that can be awaited later
-          return { 
-            data: { 
-              publicUrl: `https://firebasestorage.googleapis.com/v0/b/default-bucket/o/${encodeURIComponent(path)}?alt=media` 
-            } 
-          };
+          const url = await getFileDownloadURL(path);
+          return { data: { publicUrl: url } };
         } catch (error) {
           return { data: { publicUrl: "" } };
         }
-      },
-    }),
+      }
+    })
   },
   rpc: (func: string, params: any) => {
     // This would need to be replaced with Firebase Cloud Functions calls
@@ -395,20 +392,5 @@ export const supabase = {
   },
 };
 
-// Helper function to get download URL for storage items (similar to Supabase getPublicUrl)
-export const getPublicUrl = async (bucket: string, path: string) => {
-  try {
-    const storageRef = ref(storage, `${bucket}/${path}`);
-    const url = await getFileDownloadURL(storageRef.fullPath);
-    return url;
-  } catch (error) {
-    console.error("Error getting public URL:", error);
-    return "";
-  }
-};
-
-// Helper to convert Firebase timestamp to ISO string (for consistent formatting)
-export const timestampToISOString = (timestamp: Timestamp | null | undefined) => {
-  if (!timestamp) return null;
-  return timestamp.toDate().toISOString();
-};
+// Export for backward compatibility (will be removed in future)
+export { firebaseClient as supabase };
