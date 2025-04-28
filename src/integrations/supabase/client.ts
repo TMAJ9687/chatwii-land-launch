@@ -16,6 +16,7 @@ export const supabase = {
       eq: (field: string, value: any) => ({
         single: async () => ({ data: null, error: null }),
         maybeSingle: async () => ({ data: null, error: null }),
+        range: async (from: number, to: number) => ({ data: [], error: null }),
         order: (column: string, options?: { ascending?: boolean }) => ({
           limit: (count: number) => ({
             range: async (from: number, to: number) => ({ data: [], error: null }),
@@ -37,25 +38,21 @@ export const supabase = {
       select: (columns: string) => ({
         single: async () => ({ data: null, error: null }),
       }),
-      // Changed: Return the Promise directly, not in a then method
       single: async () => ({ data: null, error: null }),
     }),
     update: (values: any) => ({
       eq: (field: string, value: any) => ({
-        // Changed: Make this an async function returning a Promise directly
         single: async () => ({ data: null, error: null }),
       }),
       match: async (criteria: any) => ({ data: null, error: null }),
     }),
     delete: () => ({
       eq: (field: string, value: any) => ({
-        // Changed: Make this an async function returning a Promise directly
         single: async () => ({ data: null, error: null }),
       }),
       match: async (criteria: any) => ({ data: null, error: null }),
     }),
     upsert: (values: any) => ({
-      // Changed: Make this an async function returning a Promise directly
       single: async () => ({ data: null, error: null }),
     }),
   }),

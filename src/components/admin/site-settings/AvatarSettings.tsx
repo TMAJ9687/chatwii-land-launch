@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -73,7 +72,6 @@ export const AvatarSettings = () => {
       avatars: nextAvatars,
     };
     
-    // Fixed: Use direct update without then chaining
     const { data, error } = await supabase
       .from("site_settings")
       .update({ settings: nextSettings })

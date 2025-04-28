@@ -196,7 +196,7 @@ const VipProfileSetupPage = () => {
           avatar_url: avatarUrl
         })
         .eq('id', currentUser.id)
-        .then();
+        .single();
       
       if (profileError) throw profileError;
       
@@ -207,7 +207,7 @@ const VipProfileSetupPage = () => {
           .from('user_interests')
           .delete()
           .eq('user_id', currentUser.id)
-          .then();
+          .single();
         
         // Then insert new interests
         for (const interest of selectedInterests) {
@@ -225,7 +225,7 @@ const VipProfileSetupPage = () => {
             interestId = existingInterest.id;
           } else {
             // Create new interest
-            const { data: newInterest, error } = await supabase
+            const { data: newInterest } = await supabase
               .from('interests')
               .insert({ name: interest })
               .select('id')
@@ -244,7 +244,7 @@ const VipProfileSetupPage = () => {
                 user_id: currentUser.id,
                 interest_id: interestId
               })
-              .then();
+              .single();
           }
         }
       }

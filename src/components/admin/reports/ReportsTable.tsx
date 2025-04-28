@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +41,6 @@ export const ReportsTable = () => {
   
   const deleteMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      // Fixed: Use direct delete without then chaining
       const { data, error } = await supabase
         .from("reports")
         .delete()
@@ -67,7 +65,6 @@ export const ReportsTable = () => {
   
   const resolveMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      // Fixed: Use direct update without then chaining
       const { data, error } = await supabase
         .from("reports")
         .update({ 
@@ -170,7 +167,6 @@ export const ReportsTable = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration as string] || 0).toISOString();
       
-      // Fixed: Use direct insert without then chaining
       const { error: banError } = await supabase
         .from('bans')
         .insert({
@@ -183,7 +179,6 @@ export const ReportsTable = () => {
       
       if (banError) throw banError;
       
-      // Fixed: Use direct update without then chaining
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ visibility: 'offline' })
@@ -194,7 +189,6 @@ export const ReportsTable = () => {
       
       toast.success(`User ${reportedUser.nickname} has been banned`);
       
-      // Fixed: Use direct update without then chaining
       const { error: resolveError } = await supabase
         .from('reports')
         .update({ 
