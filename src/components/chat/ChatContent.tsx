@@ -4,10 +4,12 @@ import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
-import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
 import { useChatConnection } from '@/hooks/chat/useChatConnection';
+import { Button } from '@/components/ui/button';
+import { RefreshCcw } from 'lucide-react';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -40,9 +42,10 @@ export const ChatContent: React.FC<ChatContentProps> = ({
 }) => {
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   
   // Ensure we maintain connection when a chat is selected
-  useChatConnection(!!selectedUserId); 
+  const { isConnected, reconnect } = useChatConnection(!!selectedUserId);
   
   // Check for Firebase index error in the error message
   useEffect(() => {
@@ -52,7 +55,15 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         setIndexUrl(urlMatch[0]);
       }
     }
+    
+    setLocalError(error);
   }, [error]);
+
+  // Handle reconnection attempts
+  const handleRetryConnection = useCallback(() => {
+    reconnect();
+    setLocalError(null);
+  }, [reconnect]);
 
   // Memoize the send handler to prevent unnecessary rerenders
   const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
@@ -61,6 +72,8 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     setIsSending(true);
     try {
       await onSendMessage(content, imageUrl);
+    } catch (e) {
+      setLocalError('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -72,14 +85,44 @@ export const ChatContent: React.FC<ChatContentProps> = ({
 
   return (
     <>
+      {/* Firebase Index Error */}
       {error && error.includes('index') && (
         <FirebaseIndexMessage indexUrl={indexUrl || undefined} />
       )}
       
-      {error && !error.includes('index') && (
+      {/* General Error */}
+      {localError && !localError.includes('index') && (
         <Alert variant="destructive" className="mx-4 mt-4">
           <AlertTitle>Error loading messages</AlertTitle>
-          <p>{error}</p>
+          <AlertDescription>
+            {localError}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2" 
+              onClick={handleRetryConnection}
+            >
+              <RefreshCcw className="h-4 w-4 mr-1" /> Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Connection Status Warning */}
+      {!isConnected && !localError && selectedUserId && (
+        <Alert variant="warning" className="mx-4 mt-4 bg-amber-50 border-amber-500">
+          <AlertTitle>Connection Status</AlertTitle>
+          <AlertDescription>
+            Connecting to message service...
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2" 
+              onClick={handleRetryConnection}
+            >
+              <RefreshCcw className="h-4 w-4 mr-1" /> Retry
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -110,7 +153,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         receiverId={selectedUserId}
         isVipUser={isVipUser}
         onTypingStatusChange={onTypingStatusChange}
-        disabled={isSending}
+        disabled={isSending || !isConnected}
       />
     </>
   );

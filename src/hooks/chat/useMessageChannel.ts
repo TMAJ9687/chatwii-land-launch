@@ -1,9 +1,10 @@
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments } from '@/lib/firebase';
+import { toast } from 'sonner';
 
 export const useMessageChannel = (
   currentUserId: string | null,
@@ -13,6 +14,7 @@ export const useMessageChannel = (
   const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
   const isListeningRef = useRef(false);
   const latestDataRef = useRef<any>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
 
   // Process raw message data with media and reactions
   const processMessages = useCallback(async (messagesData: any) => {
@@ -56,14 +58,46 @@ export const useMessageChannel = (
     }
   }, []);
 
+  // Immediate update of UI with new messages
+  const handleRealTimeUpdate = useCallback(async (data: any) => {
+    // Store the latest data
+    latestDataRef.current = data;
+    
+    if (!data) {
+      setMessages([]);
+      return;
+    }
+    
+    try {
+      // Process and update messages immediately
+      const processed = await processMessages(data);
+      setMessages(processed);
+      setConnectionStatus('connected');
+    } catch (error) {
+      console.error('Error handling real-time update:', error);
+      setConnectionStatus('disconnected');
+    }
+  }, [processMessages, setMessages]);
+
+  // Main effect for setting up message channel
   useEffect(() => {
     if (
       !currentUserId ||
       !selectedUserId ||
-      isMockUser(selectedUserId) ||
-      isListeningRef.current
+      isMockUser(selectedUserId)
     ) {
+      if (isListeningRef.current) {
+        isListeningRef.current = false;
+      }
       return;
+    }
+
+    // Set connection status to connecting
+    setConnectionStatus('connecting');
+
+    // Reset listening status when user changes
+    if (isListeningRef.current) {
+      isListeningRef.current = false;
     }
 
     // Mark that we're now listening to avoid duplicate listeners
@@ -74,20 +108,16 @@ export const useMessageChannel = (
     const channelName = `messages_${convId}`;
     const path = `messages/${convId}`;
 
+    console.log(`Setting up message channel for ${channelName}`);
+
     // Subscribe with immediate processing
-    listenToChannel(channelName, path, async (data) => {
-      // Store the latest data
-      latestDataRef.current = data;
-      
-      // Process and update messages immediately
-      const processed = await processMessages(data);
-      setMessages(processed);
-    });
+    const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
 
     // Cleanup on unmount or dependency change
     return () => {
+      console.log(`Cleaning up message channel ${channelName}`);
       isListeningRef.current = false;
-      cleanupChannel(channelName);
+      cleanup();
     };
   }, [
     currentUserId,
@@ -95,11 +125,12 @@ export const useMessageChannel = (
     getConversationId,
     listenToChannel,
     cleanupChannel,
-    processMessages,
-    setMessages
+    handleRealTimeUpdate
   ]);
 
   return {
-    latestData: latestDataRef.current
+    latestData: latestDataRef.current,
+    connectionStatus,
+    processMessages
   };
 };

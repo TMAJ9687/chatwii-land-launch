@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 import { useChannelManager } from './chat/useChannelManager';
+import { useChatConnection } from './chat/useChatConnection';
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -11,26 +12,32 @@ export const useChannelSetup = (
   fetchMessages: () => void
 ) => {
   const [isSettingUp, setIsSettingUp] = useState(false);
-  const [isListeningToMessages, setIsListeningToMessages] = useState(false);
-  const [isListeningToReactions, setIsListeningToReactions] = useState(false);
+  const [channelStatus, setChannelStatus] = useState({
+    messages: false,
+    reactions: false
+  });
   
+  // Track setup state with refs
   const setupAttemptRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
-  const currentUserIdRef = useRef<string | null>(currentUserId);
-  const selectedUserIdRef = useRef<string | null>(selectedUserId);
   const { cleanupAllChannels } = useChannelManager();
   
-  // Update refs when props change to avoid stale closures
-  useEffect(() => {
-    currentUserIdRef.current = currentUserId;
-    selectedUserIdRef.current = selectedUserId;
-  }, [currentUserId, selectedUserId]);
+  // Ensure we maintain connection whenever chat is open
+  const { isConnected } = useChatConnection(true);
   
-  // Call hooks directly - this ensures listeners are set up immediately
-  useMessageChannel(currentUserId, selectedUserId, setMessages);
+  // Call hooks to set up channels
+  const { connectionStatus: messageStatus } = useMessageChannel(currentUserId, selectedUserId, setMessages);
   useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
+  
+  // Update channel status based on connection status
+  useEffect(() => {
+    setChannelStatus(prev => ({
+      ...prev,
+      messages: messageStatus === 'connected'
+    }));
+  }, [messageStatus]);
 
-  // Setup effect for channel initialization/cleanup
+  // Setup effect for channel initialization
   useEffect(() => {
     // Only proceed if we have both user IDs
     if (!currentUserId || !selectedUserId) {
@@ -47,30 +54,27 @@ export const useChannelSetup = (
       previousUserIdRef.current = selectedUserId;
       setupAttemptRef.current = true;
       
-      // Set up immediately without debouncing
-      if (isSettingUp) {
-        console.log("Already setting up channels, continuing anyway");
-      }
-      
+      // Set up immediately
       setIsSettingUp(true);
       console.log("Setting up message and reaction channels immediately");
-      setIsListeningToMessages(true);
-      setIsListeningToReactions(true);
-      setIsSettingUp(false);
+      setChannelStatus({
+        messages: false,
+        reactions: false
+      });
+      
+      // Give a little time for setup to complete
+      setTimeout(() => {
+        setIsSettingUp(false);
+      }, 500);
     }
     
-    // Clean up on unmount or when user selection changes
-    return () => {
-      if (previousUserIdRef.current !== selectedUserId) {
-        console.log("Cleaning up channels due to user change");
-        // Don't actually call cleanup here to prevent premature disconnection
-        setIsListeningToMessages(false);
-        setIsListeningToReactions(false);
-      }
-    };
-  }, [currentUserId, selectedUserId]);
+    // Fetch messages initially to ensure we have data while channels connect
+    if (userIdChanged && !isSettingUp) {
+      fetchMessages();
+    }
+  }, [currentUserId, selectedUserId, fetchMessages, isSettingUp]);
 
-  // Only clean up everything when component actually unmounts
+  // Only clean up everything when component unmounts
   useEffect(() => {
     return () => {
       console.log("Component unmounting, cleaning up all channels");
@@ -81,8 +85,8 @@ export const useChannelSetup = (
   }, [cleanupAllChannels]);
 
   return { 
-    isListeningToMessages, 
-    isListeningToReactions, 
-    isSettingUp 
+    isConnected,
+    isSettingUp,
+    channelStatus
   };
 };
