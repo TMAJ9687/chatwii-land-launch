@@ -45,6 +45,12 @@ export const supabase = {
         single: async () => ({ data: null, error: null }),
       }),
       match: async (criteria: any) => ({ data: null, error: null }),
+      // Add this to fix the error in ReportsTable
+      single: async () => ({ data: null, error: null }),
+      // Add eq method directly on update to handle the case in ReportsTable
+      eq: (field: string, value: any) => ({
+        single: async () => ({ data: null, error: null }),
+      }),
     }),
     delete: () => ({
       eq: (field: string, value: any) => ({

@@ -196,7 +196,6 @@ export const ReportsTable = () => {
           resolved_at: new Date().toISOString()
         })
         .eq('reported_id', reportedUser.id)
-        .eq('status', 'pending')
         .single();
       
       if (resolveError) console.error("Error resolving reports:", resolveError);
