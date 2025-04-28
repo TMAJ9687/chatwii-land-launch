@@ -33,6 +33,7 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
   const { validateMessage } = useMessageValidation();
   const messageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Fix the properties being used from useImageUpload
   const { 
@@ -87,6 +88,11 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
     }, 1500);
   };
 
+  // Create a method to trigger the file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSend = async () => {
     if (disabled) return;
     
@@ -138,6 +144,15 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
 
   return (
     <div className="p-2 border-t flex flex-col gap-2">
+      {/* Hidden file input for attachment selection */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+        accept="image/*"
+      />
+      
       {previewUrl && (
         <ImagePreview 
           previewUrl={previewUrl} 
@@ -157,7 +172,7 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
       <div className="flex items-end gap-2">
         {!isRecording && !audioBlob && (
           <AttachmentButton 
-            onClick={handleFileSelect} 
+            onClick={triggerFileInput}
             disabled={disabled || !!audioBlob}
           />
         )}

@@ -4,12 +4,12 @@ import { Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface AttachmentButtonProps {
-  onClick: () => void; // Changed from onImageSelect
+  onClick: () => void;
   disabled?: boolean;
 }
 
 export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
-  onClick, // Changed from onImageSelect
+  onClick,
   disabled = false
 }) => {
   return (
