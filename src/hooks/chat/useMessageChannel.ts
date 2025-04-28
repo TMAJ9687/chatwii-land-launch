@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from 'react';
+
+import { useEffect, useCallback, useRef } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
@@ -10,6 +11,8 @@ export const useMessageChannel = (
   setMessages: React.Dispatch<React.SetStateAction<MessageWithMedia[]>>
 ) => {
   const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
+  const isListeningRef = useRef(false);
+  const latestDataRef = useRef<any>(null);
 
   // Process raw message data with media and reactions
   const processMessages = useCallback(async (messagesData: any) => {
@@ -57,24 +60,33 @@ export const useMessageChannel = (
     if (
       !currentUserId ||
       !selectedUserId ||
-      isMockUser(selectedUserId)
+      isMockUser(selectedUserId) ||
+      isListeningRef.current
     ) {
       return;
     }
+
+    // Mark that we're now listening to avoid duplicate listeners
+    isListeningRef.current = true;
 
     // Unique channel keys
     const convId = getConversationId(currentUserId, selectedUserId);
     const channelName = `messages_${convId}`;
     const path = `messages/${convId}`;
 
-    // Subscribe
+    // Subscribe with immediate processing
     listenToChannel(channelName, path, async (data) => {
+      // Store the latest data
+      latestDataRef.current = data;
+      
+      // Process and update messages immediately
       const processed = await processMessages(data);
       setMessages(processed);
     });
 
     // Cleanup on unmount or dependency change
     return () => {
+      isListeningRef.current = false;
       cleanupChannel(channelName);
     };
   }, [
@@ -86,4 +98,8 @@ export const useMessageChannel = (
     processMessages,
     setMessages
   ]);
+
+  return {
+    latestData: latestDataRef.current
+  };
 };

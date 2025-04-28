@@ -6,7 +6,6 @@ import { MessageActions } from './MessageActions';
 import { MessageContent } from './MessageContent';
 import { MessageMedia } from './MessageMedia';
 import { MessageReactions } from './MessageReactions';
-import { ReplyPreview } from './ReplyPreview';
 import { queryDocuments } from '@/lib/firebase';
 import { MessageBubbleWrapper } from './message/MessageBubbleWrapper';
 import { MessageVisibilityStatus } from './message/MessageVisibilityStatus';
@@ -66,10 +65,13 @@ export const MessageBubble = ({
     }
 
     let isMounted = true;
+    let fetchAborted = false;
 
     // Function to fetch reply message with timeout and error handling
     const fetchReplyMessage = async () => {
       try {
+        if (fetchAborted) return;
+        
         // Set timeout for query operations
         const replyMessagePromise = queryDocuments('messages', [
           { field: 'id', operator: '==', value: message.reply_to }
@@ -83,7 +85,8 @@ export const MessageBubble = ({
           )
         ]);
         
-        const replyMsg = replyMessages[0];
+        if (fetchAborted) return;
+        const replyMsg = replyMessages?.[0];
         if (!replyMsg || !isMounted) return;
 
         // Set timeout for media query operation
@@ -94,11 +97,11 @@ export const MessageBubble = ({
         const mediaRecords = await Promise.race([
           mediaQueryPromise, 
           new Promise<any[]>((resolve) => {
-            setTimeout(() => resolve([]), 2000); // Return empty array on timeout
+            setTimeout(() => resolve([]), 2000);
           })
         ]);
         
-        if (!isMounted) return;
+        if (!isMounted || fetchAborted) return;
 
         // Create full message object
         const fullReplyMessage: MessageWithMedia = {
@@ -128,22 +131,24 @@ export const MessageBubble = ({
       } catch (error) {
         if (isMounted) {
           console.error('Error or timeout fetching reply message:', error);
-          setReplyMessage(null);
         }
       }
     };
     
     fetchReplyMessage();
     
-    return () => { isMounted = false; };
+    return () => { 
+      isMounted = false;
+      fetchAborted = true;
+    };
   }, [message.reply_to]);
 
   return (
-    <MessageBubbleWrapper message={message} isCurrentUser={isCurrentUser}>
-      {message.reply_to && (
-        <ReplyPreview replyMessage={replyMessage} isCurrentUser={isCurrentUser} />
-      )}
-
+    <MessageBubbleWrapper 
+      message={message} 
+      replyMessage={replyMessage}
+      isCurrentUser={isCurrentUser}
+    >
       <MessageContent message={message} isCurrentUser={isCurrentUser} />
 
       <MessageMedia

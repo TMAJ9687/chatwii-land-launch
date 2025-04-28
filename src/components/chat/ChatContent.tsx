@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { EmptyStateView } from './EmptyStateView';
@@ -7,6 +7,7 @@ import { MessageWithMedia } from '@/types/message';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
+import { useChatConnection } from '@/hooks/chat/useChatConnection';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -40,6 +41,9 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   
+  // Ensure we maintain connection when a chat is selected
+  useChatConnection(!!selectedUserId); 
+  
   // Check for Firebase index error in the error message
   useEffect(() => {
     if (error && error.includes('index')) {
@@ -50,8 +54,8 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     }
   }, [error]);
 
-  // Wrap the onSendMessage handler to manage send state
-  const handleSendMessage = async (content: string, imageUrl?: string) => {
+  // Memoize the send handler to prevent unnecessary rerenders
+  const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
     if (!content && !imageUrl) return;
     
     setIsSending(true);
@@ -60,7 +64,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     } finally {
       setIsSending(false);
     }
-  };
+  }, [onSendMessage]);
 
   if (!selectedUserId) {
     return <EmptyStateView />;

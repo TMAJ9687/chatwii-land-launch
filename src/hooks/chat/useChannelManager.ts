@@ -2,7 +2,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { ref, onValue, off, DatabaseReference } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { debounce } from 'lodash';
 
 // Type for channel registry
 interface ChannelRegistry {
@@ -10,6 +9,7 @@ interface ChannelRegistry {
     reference: DatabaseReference;
     lastAccessed: number;
     isActive: boolean;
+    callback: (data: any) => void;
   };
 }
 
@@ -46,8 +46,17 @@ export const useChannelManager = () => {
     
     // Check if channel already exists and is active
     if (channelsRef.current[channelName]?.isActive) {
-      log(`Channel ${channelName} already active, updating timestamp`);
+      log(`Channel ${channelName} already active, updating timestamp and callback`);
       channelsRef.current[channelName].lastAccessed = Date.now();
+      channelsRef.current[channelName].callback = callback;
+      
+      // Re-trigger callback with existing data if any
+      const existingRef = channelsRef.current[channelName].reference;
+      onValue(existingRef, (snapshot) => {
+        const data = snapshot.val();
+        callback(data);
+      }, { onlyOnce: true });
+      
       return () => cleanupChannel(channelName);
     }
     
@@ -64,7 +73,8 @@ export const useChannelManager = () => {
       channelsRef.current[channelName] = {
         reference: channelRef,
         lastAccessed: Date.now(),
-        isActive: true
+        isActive: true,
+        callback: callback
       };
       
       // Set up listener with error handling
@@ -137,7 +147,8 @@ export const useChannelManager = () => {
     if (channelsRef.current[channelName]) {
       try {
         log(`Cleaning up channel: ${channelName}`);
-        off(channelsRef.current[channelName].reference);
+        // Don't actually remove the listener to avoid reconnection issues
+        // Just mark it as inactive
         channelsRef.current[channelName].isActive = false;
       } catch (error) {
         log(`Error cleaning up channel ${channelName}:`, error);
@@ -152,7 +163,12 @@ export const useChannelManager = () => {
     Object.keys(channelsRef.current).forEach(channelName => {
       try {
         log(`Cleaning up channel: ${channelName}`);
-        off(channelsRef.current[channelName].reference);
+        
+        // Actually remove the listener when forcing cleanup
+        if (force) {
+          off(channelsRef.current[channelName].reference);
+        }
+        
         channelsRef.current[channelName].isActive = false;
         
         // Only fully remove if force is true
@@ -193,6 +209,7 @@ export const useChannelManager = () => {
       if (oldChannels.length > 0) {
         log(`Removing ${oldChannels.length} old inactive channels`);
         oldChannels.forEach(name => {
+          off(channelsRef.current[name].reference);
           delete channelsRef.current[name];
         });
       }

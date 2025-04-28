@@ -30,10 +30,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const {
     isReplying,
     replyToMessageId,
-    setReplyContent,
     cancelReply,
     handleReplyToMessage,
-    replyContent,
   } = useMessageActions(currentUserId || "", isVipUser);
 
   const [replyToMessage, setReplyToMessage] = useState<MessageWithMedia | null>(null);

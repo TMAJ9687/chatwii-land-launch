@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 import { useChannelManager } from './chat/useChannelManager';
-import { debounce } from 'lodash';
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -27,46 +26,13 @@ export const useChannelSetup = (
     selectedUserIdRef.current = selectedUserId;
   }, [currentUserId, selectedUserId]);
   
-  // Call hooks directly without destructuring
+  // Call hooks directly - this ensures listeners are set up immediately
   useMessageChannel(currentUserId, selectedUserId, setMessages);
   useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
 
-  // Memoized setup function to prevent recreations on render
-  const performChannelSetup = useRef(
-    debounce((cId: string, sId: string) => {
-      if (isSettingUp) {
-        console.log("Already setting up channels, skipping");
-        return;
-      }
-      
-      setIsSettingUp(true);
-      
-      // First ensure cleanup is complete
-      console.log("Cleaning up all channels before setup");
-      cleanupAllChannels();
-      
-      // Use setTimeout to ensure cleanup is complete 
-      setTimeout(() => {
-        // Double-check user IDs haven't changed during the timeout
-        if (
-          currentUserIdRef.current === cId && 
-          selectedUserIdRef.current === sId
-        ) {
-          console.log("Setting up message and reaction channels");
-          // Indicate we're now listening
-          setIsListeningToMessages(true);
-          setIsListeningToReactions(true);
-        } else {
-          console.log("User selection changed during setup, canceling");
-        }
-        setIsSettingUp(false);
-      }, 300); // Reduced timeout from 500ms to 300ms for faster setup
-    }, 500) // Reduced debounce from 800ms to 500ms for better responsiveness
-  ).current;
-  
-  // Centralized setup and cleanup to prevent infinite loops
+  // Setup effect for channel initialization/cleanup
   useEffect(() => {
-    // Only proceed if we have both user IDs and they've changed
+    // Only proceed if we have both user IDs
     if (!currentUserId || !selectedUserId) {
       console.log("Missing user IDs, skipping channel setup");
       return;
@@ -81,32 +47,36 @@ export const useChannelSetup = (
       previousUserIdRef.current = selectedUserId;
       setupAttemptRef.current = true;
       
-      // Use the debounced setup to prevent multiple rapid setups
-      performChannelSetup(currentUserId, selectedUserId);
+      // Set up immediately without debouncing
+      if (isSettingUp) {
+        console.log("Already setting up channels, continuing anyway");
+      }
+      
+      setIsSettingUp(true);
+      console.log("Setting up message and reaction channels immediately");
+      setIsListeningToMessages(true);
+      setIsListeningToReactions(true);
+      setIsSettingUp(false);
     }
     
     // Clean up on unmount or when user selection changes
     return () => {
       if (previousUserIdRef.current !== selectedUserId) {
         console.log("Cleaning up channels due to user change");
+        // Don't actually call cleanup here to prevent premature disconnection
         setIsListeningToMessages(false);
         setIsListeningToReactions(false);
       }
     };
-  }, [
-    currentUserId, 
-    selectedUserId, 
-    performChannelSetup,
-    cleanupAllChannels
-  ]);
+  }, [currentUserId, selectedUserId]);
 
-  // Clean up function for component unmount
+  // Only clean up everything when component actually unmounts
   useEffect(() => {
     return () => {
       console.log("Component unmounting, cleaning up all channels");
       setupAttemptRef.current = false;
       previousUserIdRef.current = null;
-      cleanupAllChannels();
+      cleanupAllChannels(true); // Force cleanup only on unmount
     };
   }, [cleanupAllChannels]);
 
