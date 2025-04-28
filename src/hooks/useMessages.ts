@@ -46,13 +46,9 @@ export const useMessages = (
   const fetchMessages = useCallback(async (retryCount = 0) => {
     // Return early if already loading or if userIds are missing
     if (!selectedUserId || !currentUserId || isFetchingRef.current) {
-      console.log('Skipping fetch: missing IDs or fetch in progress', {
-        selectedUserId,
-        currentUserId,
-        isFetching: isFetchingRef.current
-      });
-      return;
-    }
+  return; // Silent return to avoid flooding logs
+}
+
     
     // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
