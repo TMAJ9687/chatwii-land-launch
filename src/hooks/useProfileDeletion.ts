@@ -15,7 +15,7 @@ import {
   writeBatch, 
   doc
 } from 'firebase/firestore';
-import { ref, listAll, deleteObject } from 'firebase/storage';
+import { ref, listAll, deleteObject, ListResult } from 'firebase/storage';
 import { toast } from 'sonner';
 
 export const useProfileDeletion = () => {
@@ -47,8 +47,8 @@ export const useProfileDeletion = () => {
               try {
                 const imagesListResult = await Promise.race([
                   listAll(imagesFolderRef),
-                  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]);
+                  new Promise<ListResult>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]) as ListResult;
                 
                 // Start deletion but don't await
                 imagesListResult.items.forEach(itemRef => {
@@ -63,8 +63,8 @@ export const useProfileDeletion = () => {
               try {
                 const audioListResult = await Promise.race([
                   listAll(audioFolderRef),
-                  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]);
+                  new Promise<ListResult>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]) as ListResult;
                 
                 // Start deletion but don't await
                 audioListResult.items.forEach(itemRef => {
