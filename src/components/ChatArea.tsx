@@ -21,6 +21,7 @@ interface ChatAreaProps {
   onMessagesRead?: () => void;
   isTyping?: boolean;
   isVipUser?: boolean;
+  isLoading?: boolean;
 }
 
 export const ChatArea = ({ 
@@ -30,7 +31,8 @@ export const ChatArea = ({
   onClose,
   onMessagesRead,
   isTyping = false,
-  isVipUser = false
+  isVipUser = false,
+  isLoading = false
 }: ChatAreaProps) => {
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
