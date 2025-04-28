@@ -1,8 +1,7 @@
-
-import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { getCurrentUser, createDocument } from '@/lib/firebase';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { getCurrentUser, createDocument } from "@/lib/firebase";
+import { toast } from "sonner";
 
 interface ReportUserPopupProps {
   isOpen: boolean;
@@ -14,29 +13,28 @@ interface ReportUserPopupProps {
 }
 
 const REPORT_REASONS = [
-  { id: 'underage', label: 'Under age (user is below 18)' },
-  { id: 'harassment', label: 'Harassment/Bullying (sending terrible texts)' },
-  { id: 'hate', label: 'Hate Speech/Discrimination (racism/sexism)' },
-  { id: 'spam', label: 'Spam/Scams (spamming the chat and phishing)' },
-  { id: 'impersonation', label: 'Impersonation (pretending to be someone they are not)' },
-  { id: 'explicit', label: 'Explicit/Inappropriate Content (sharing NSFW material)' },
-  { id: 'other', label: 'Other' }
+  { id: "underage", label: "Under age (user is below 18)" },
+  { id: "harassment", label: "Harassment/Bullying (sending terrible texts)" },
+  { id: "hate", label: "Hate Speech/Discrimination (racism/sexism)" },
+  { id: "spam", label: "Spam/Scams (spamming the chat and phishing)" },
+  { id: "impersonation", label: "Impersonation (pretending to be someone they are not)" },
+  { id: "explicit", label: "Explicit/Inappropriate Content (sharing NSFW material)" },
+  { id: "other", label: "Other" }
 ];
 
 export const ReportUserPopup = ({
   isOpen,
   onClose,
-  reportedUser
+  reportedUser,
 }: ReportUserPopupProps) => {
-  const [selectedReason, setSelectedReason] = useState<string>('');
-  const [otherReason, setOtherReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState<string>("");
+  const [otherReason, setOtherReason] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Reset form state on open/close or user change
   useEffect(() => {
     if (!isOpen) {
-      setSelectedReason('');
-      setOtherReason('');
+      setSelectedReason("");
+      setOtherReason("");
       setSubmitAttempted(false);
     }
   }, [isOpen, reportedUser?.id]);
@@ -44,23 +42,23 @@ export const ReportUserPopup = ({
   const reportMutation = useMutation({
     mutationFn: async ({ reason }: { reason: string }) => {
       const user = getCurrentUser();
-      if (!user || !user.uid) throw new Error('Not authenticated');
-      
+      if (!user || !user.uid) throw new Error("Not authenticated");
+
       const reportObject = {
         reporter_id: user.uid,
         reported_id: reportedUser.id,
         reason,
-        status: 'pending'
+        status: "pending"
       };
-      
-      await createDocument('reports', reportObject);
+
+      await createDocument("reports", reportObject);
     },
     onSuccess: () => {
-      toast.success('Report submitted successfully');
+      toast.success("Report submitted successfully");
       onClose();
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to submit report. Please try again later.');
+      toast.error(error.message || "Failed to submit report. Please try again later.");
       setSubmitAttempted(false);
     },
     onSettled: () => setSubmitAttempted(false)
@@ -70,42 +68,45 @@ export const ReportUserPopup = ({
     if (submitAttempted || reportMutation.isPending) return;
 
     if (!selectedReason) {
-      toast.error('Please select a reason');
+      toast.error("Please select a reason");
       return;
     }
 
-    const reason = selectedReason === 'other'
-      ? otherReason
-      : REPORT_REASONS.find(r => r.id === selectedReason)?.label || '';
-
-    if (selectedReason === 'other' && !otherReason.trim()) {
-      toast.error('Please provide a reason');
+    if (selectedReason === "other" && !otherReason.trim()) {
+      toast.error("Please provide a reason");
       return;
     }
+
+    const reason =
+      selectedReason === "other"
+        ? otherReason.trim()
+        : REPORT_REASONS.find(r => r.id === selectedReason)?.label || "";
 
     setSubmitAttempted(true);
     reportMutation.mutate({ reason });
   };
 
-  // No modal if not open!
   if (!isOpen) return null;
 
   return (
     <>
+      {/* Modal overlay */}
       <div
         style={{
           position: "fixed",
           inset: 0,
           background: "rgba(0,0,0,0.35)",
-          zIndex: 9998,
+          zIndex: 9998
         }}
         onClick={onClose}
         aria-label="Close Report Modal"
       />
+      {/* Modal box */}
       <div
         style={{
           position: "fixed",
-          top: "50%", left: "50%",
+          top: "50%",
+          left: "50%",
           transform: "translate(-50%, -50%)",
           background: "white",
           padding: "1.3rem 1rem 1rem 1rem",
@@ -114,7 +115,7 @@ export const ReportUserPopup = ({
           minWidth: "270px",
           maxWidth: "94vw",
           boxShadow: "0 8px 32px #0002",
-          fontFamily: "inherit",
+          fontFamily: "inherit"
         }}
         role="dialog"
         aria-modal="true"
@@ -137,14 +138,19 @@ export const ReportUserPopup = ({
             justifyContent: "center"
           }}
           aria-label="Close"
-        >✕</button>
-        <h2 style={{
-          margin: "0 0 13px 0",
-          fontSize: "1.09rem",
-          fontWeight: 600,
-          letterSpacing: 0.1,
-        }}>
-          Report <span style={{ color: "#FC8181", fontWeight: 600 }}>{reportedUser.nickname}</span>
+        >
+          ✕
+        </button>
+        <h2
+          style={{
+            margin: "0 0 13px 0",
+            fontSize: "1.09rem",
+            fontWeight: 600,
+            letterSpacing: 0.1
+          }}
+        >
+          Report{" "}
+          <span style={{ color: "#FC8181", fontWeight: 600 }}>{reportedUser.nickname}</span>
         </h2>
         <div style={{ marginBottom: 12 }}>
           <select
@@ -163,9 +169,11 @@ export const ReportUserPopup = ({
             disabled={reportMutation.isPending}
           >
             <option value="">Select a reason...</option>
-            {REPORT_REASONS.map(reason =>
-              <option value={reason.id} key={reason.id}>{reason.label}</option>
-            )}
+            {REPORT_REASONS.map(reason => (
+              <option value={reason.id} key={reason.id}>
+                {reason.label}
+              </option>
+            ))}
           </select>
           {selectedReason === "other" && (
             <textarea
