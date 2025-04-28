@@ -1,20 +1,32 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments } from '@/lib/firebase';
 
-// Improved message channel hook with proper memory management
+// Improved message channel hook with proper memory management and stability
 export const useMessageChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
   setMessages: React.Dispatch<React.SetStateAction<MessageWithMedia[]>>
 ) => {
   const [isListening, setIsListening] = useState(false);
+  
+  // Use refs for stable references across renders
+  const currentUserIdRef = useRef(currentUserId);
+  const selectedUserIdRef = useRef(selectedUserId);
+  const isListeningRef = useRef(isListening);
   const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
+  
+  // Update refs when dependencies change
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+    selectedUserIdRef.current = selectedUserId;
+    isListeningRef.current = isListening;
+  }, [currentUserId, selectedUserId, isListening]);
 
-  // Process raw message data with media and reactions
+  // Process raw message data with media and reactions - memoized
   const processMessages = useCallback(async (messagesData: any) => {
     if (!messagesData) return [];
 
@@ -28,56 +40,76 @@ export const useMessageChannel = (
     // Get all message IDs for batch querying
     const messageIds = messages.map((msg: any) => msg.id).filter(Boolean);
     
-    // Make a single batch query for all media instead of one per message
-    const mediaRecords = messageIds.length > 0 ? 
-      await queryDocuments('message_media', [
-        { field: 'message_id', operator: 'in', value: messageIds }
-      ]) : [];
+    // Skip if no valid IDs
+    if (messageIds.length === 0) {
+      return [];
+    }
+    
+    try {
+      // Make a single batch query for all media instead of one per message
+      const mediaRecords = messageIds.length > 0 ? 
+        await queryDocuments('message_media', [
+          { field: 'message_id', operator: 'in', value: messageIds }
+        ]) : [];
+        
+      // Make a single batch query for all reactions
+      const reactionRecords = messageIds.length > 0 ? 
+        await queryDocuments('message_reactions', [
+          { field: 'message_id', operator: 'in', value: messageIds }
+        ]) : [];
       
-    // Make a single batch query for all reactions
-    const reactionRecords = messageIds.length > 0 ? 
-      await queryDocuments('message_reactions', [
-        { field: 'message_id', operator: 'in', value: messageIds }
-      ]) : [];
-    
-    // Create lookup maps for efficient assignment
-    const mediaByMessageId = mediaRecords.reduce((acc: Record<string, any>, media: any) => {
-      if (media && media.message_id) {
-        acc[media.message_id] = media;
-      }
-      return acc;
-    }, {});
-    
-    const reactionsByMessageId = reactionRecords.reduce((acc: Record<string, any[]>, reaction: any) => {
-      if (reaction && reaction.message_id) {
-        if (!acc[reaction.message_id]) {
-          acc[reaction.message_id] = [];
+      // Create lookup maps for efficient assignment
+      const mediaByMessageId = mediaRecords.reduce((acc: Record<string, any>, media: any) => {
+        if (media && media.message_id) {
+          acc[media.message_id] = media;
         }
-        acc[reaction.message_id].push(reaction);
-      }
-      return acc;
-    }, {});
-    
-    // Process all messages with their media and reactions
-    const processedMessages = messages.map((msg: any) => ({
-      ...msg,
-      media: mediaByMessageId[msg.id] || null,
-      reactions: reactionsByMessageId[msg.id] || []
-    }));
-    
-    return processedMessages;
+        return acc;
+      }, {});
+      
+      const reactionsByMessageId = reactionRecords.reduce((acc: Record<string, any[]>, reaction: any) => {
+        if (reaction && reaction.message_id) {
+          if (!acc[reaction.message_id]) {
+            acc[reaction.message_id] = [];
+          }
+          acc[reaction.message_id].push(reaction);
+        }
+        return acc;
+      }, {});
+      
+      // Process all messages with their media and reactions
+      const processedMessages = messages.map((msg: any) => ({
+        ...msg,
+        media: mediaByMessageId[msg.id] || null,
+        reactions: reactionsByMessageId[msg.id] || []
+      }));
+      
+      return processedMessages;
+    } catch (error) {
+      console.error('Error processing messages:', error);
+      return [];
+    }
   }, []);
 
-  // Setup message channel
+  // Setup message channel - memoized with stable references
   const setupMessageChannel = useCallback(() => {
-    if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) {
+    const currentId = currentUserIdRef.current;
+    const selectedId = selectedUserIdRef.current;
+    
+    if (!currentId || !selectedId || isMockUser(selectedId)) {
+      return;
+    }
+
+    // Skip if already listening
+    if (isListeningRef.current) {
+      console.log('Already listening to message channel, skipping setup');
       return;
     }
 
     setIsListening(true);
+    isListeningRef.current = true;
     
     // Generate a consistent conversation ID
-    const conversationId = getConversationId(currentUserId, selectedUserId);
+    const conversationId = getConversationId(currentId, selectedId);
     const channelName = `messages_${conversationId}`;
     const path = `messages/${conversationId}`;
     
@@ -91,31 +123,33 @@ export const useMessageChannel = (
         setMessages([]);
       }
     });
-    
-    // Return cleanup function
-    return () => {
-      cleanupChannel(channelName);
-      setIsListening(false);
-    };
-  }, [currentUserId, selectedUserId, getConversationId, listenToChannel, cleanupChannel, processMessages, setMessages]);
+  }, [getConversationId, listenToChannel, processMessages, setMessages]);
 
-  // Clean up when user selection changes
+  // Cleanup handler with stable references
   const cleanupMessageChannel = useCallback(() => {
-    if (currentUserId && selectedUserId) {
-      const conversationId = getConversationId(currentUserId, selectedUserId);
+    const currentId = currentUserIdRef.current;
+    const selectedId = selectedUserIdRef.current;
+    
+    if (currentId && selectedId) {
+      const conversationId = getConversationId(currentId, selectedId);
       cleanupChannel(`messages_${conversationId}`);
     }
+    
     setIsListening(false);
-  }, [currentUserId, selectedUserId, cleanupChannel, getConversationId]);
+    isListeningRef.current = false;
+  }, [getConversationId, cleanupChannel]);
 
   // Set up and clean up the message channel on user selection change
   useEffect(() => {
     if (currentUserId && selectedUserId && !isMockUser(selectedUserId) && !isListening) {
-      const cleanup = setupMessageChannel();
-      return cleanup;
+      setupMessageChannel();
     }
     
-    return () => cleanupMessageChannel();
+    return () => {
+      if (isListening) {
+        cleanupMessageChannel();
+      }
+    };
   }, [currentUserId, selectedUserId, isListening, setupMessageChannel, cleanupMessageChannel]);
 
   return { setupMessageChannel, cleanupMessageChannel, isListening };

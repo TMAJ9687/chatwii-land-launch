@@ -23,18 +23,26 @@ let isSetup = false;
 let connectionMonitorRef: any = null;
 let activeListeners: Record<string, any> = {};
 
-// Safe monitor setup
+// Safe monitor setup with error handling
 export const setupConnectionMonitoring = () => {
   if (isSetup) return;
   
   try {
     const connectedRef = ref(realtimeDb, ".info/connected");
+    
+    // Use try-catch inside the onValue callback to prevent unhandled promise rejections
     connectionMonitorRef = onValue(connectedRef, (snap) => {
-      if (snap.val() === true) {
-        console.log("Connected to Firebase Realtime Database");
-      } else {
-        console.log("Disconnected from Firebase Realtime Database");
+      try {
+        if (snap.val() === true) {
+          console.log("Connected to Firebase Realtime Database");
+        } else {
+          console.log("Disconnected from Firebase Realtime Database");
+        }
+      } catch (error) {
+        console.error("Error in connection monitoring callback:", error);
       }
+    }, (error) => {
+      console.error("Error setting up connection monitoring:", error);
     });
     
     // Add connection recovery logic for network issues
@@ -53,7 +61,11 @@ setupConnectionMonitoring();
 // Handle online state
 function handleOnline() {
   console.log("Network connection restored, reconnecting to Firebase...");
-  goOnline(realtimeDb);
+  try {
+    goOnline(realtimeDb);
+  } catch (error) {
+    console.error("Error going online:", error);
+  }
 }
 
 // Handle offline state
@@ -79,7 +91,7 @@ export const removeListener = (path: string) => {
   }
 };
 
-// Properly close database connection
+// Properly close database connection with aggressive error handling and timeouts
 export const closeDbConnection = async () => {
   // Force close after timeout
   const forceCloseTimeout = setTimeout(() => {
@@ -93,7 +105,7 @@ export const closeDbConnection = async () => {
       console.warn("Error in force offline:", e);
     }
     isSetup = false;
-  }, 1000); // 1 second timeout
+  }, 750); // Shorter timeout (750ms) for more responsive logout
   
   try {
     // Try graceful cleanup first

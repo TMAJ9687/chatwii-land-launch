@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 import { useChannelManager } from './chat/useChannelManager';
@@ -14,7 +14,15 @@ export const useChannelSetup = (
   const [isSettingUp, setIsSettingUp] = useState(false);
   const setupAttemptRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(currentUserId);
+  const selectedUserIdRef = useRef<string | null>(selectedUserId);
   const { cleanupAllChannels } = useChannelManager();
+  
+  // Update refs when props change to avoid stale closures
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+    selectedUserIdRef.current = selectedUserId;
+  }, [currentUserId, selectedUserId]);
   
   const { 
     setupMessageChannel, 
@@ -28,8 +36,8 @@ export const useChannelSetup = (
     isListening: isListeningToReactions 
   } = useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
 
-  // Significantly increased debounce delay to prevent rapid setup/teardown cycles
-  const debouncedSetup = useRef(debounce((cId: string, sId: string) => {
+  // Memoized setup function to prevent recreations on render
+  const performChannelSetup = useCallback((cId: string, sId: string) => {
     if (isSettingUp) {
       console.log("Already setting up channels, skipping");
       return;
@@ -41,12 +49,12 @@ export const useChannelSetup = (
     console.log("Cleaning up all channels before setup");
     cleanupAllChannels();
     
-    // Larger delay to ensure cleanup is complete 
+    // Use setTimeout to ensure cleanup is complete 
     setTimeout(() => {
       // Double-check user IDs haven't changed during the timeout
       if (
-        currentUserId === cId && 
-        selectedUserId === sId && 
+        currentUserIdRef.current === cId && 
+        selectedUserIdRef.current === sId && 
         previousUserIdRef.current === sId
       ) {
         console.log("Setting up message channel");
@@ -58,7 +66,12 @@ export const useChannelSetup = (
       }
       setIsSettingUp(false);
     }, 500);
-  }, 800)).current; // Much longer debounce delay (800ms) to prevent spurious setups
+  }, [cleanupAllChannels, setupMessageChannel, setupReactionsListener]);
+  
+  // Create debounced setup once
+  const debouncedSetup = useRef(
+    debounce(performChannelSetup, 800)
+  ).current;
 
   // Centralized setup and cleanup to prevent infinite loops
   useEffect(() => {
@@ -92,11 +105,8 @@ export const useChannelSetup = (
   }, [
     currentUserId, 
     selectedUserId, 
-    setupMessageChannel, 
-    setupReactionsListener,
     cleanupMessageChannel, 
     cleanupReactionListener,
-    cleanupAllChannels,
     debouncedSetup
   ]);
 

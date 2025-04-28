@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments, updateDocument, subscribeToQuery } from '@/lib/firebase';
@@ -8,13 +8,28 @@ export const useGlobalMessages = (currentUserId: string | null) => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [newMessageReceived, setNewMessageReceived] = useState<boolean>(false);
   const [currentSelectedUserId, setCurrentSelectedUserId] = useState<string | null>(null);
+  
+  // Use refs to prevent dependency issues and infinite renders
+  const currentUserIdRef = useRef(currentUserId);
+  const currentSelectedUserIdRef = useRef(currentSelectedUserId);
+  
+  // Update refs when props change
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+  
+  useEffect(() => {
+    currentSelectedUserIdRef.current = currentSelectedUserId;
+  }, [currentSelectedUserId]);
 
-  // Function to fetch unread message count
-  const fetchUnreadCount = async () => {
-    if (!currentUserId) return;
+  // Memoize fetchUnreadCount to prevent infinite loops
+  const fetchUnreadCount = useCallback(async () => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    
     try {
       const unreadMessages = await queryDocuments('messages', [
-        { field: 'receiver_id', operator: '==', value: currentUserId },
+        { field: 'receiver_id', operator: '==', value: userId },
         { field: 'is_read', operator: '==', value: false }
       ]);
       
@@ -24,11 +39,12 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     } catch (error) {
       console.error('Error fetching unread count:', error);
     }
-  };
+  }, []);
 
-  // Mark messages as read when opening a chat
-  const markMessagesAsRead = async (senderId: string) => {
-    if (!currentUserId) return;
+  // Memoize markMessagesAsRead to prevent recreation on each render
+  const markMessagesAsRead = useCallback(async (senderId: string) => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
     
     // Skip database operations for mock user
     if (isMockUser(senderId)) {
@@ -40,7 +56,7 @@ export const useGlobalMessages = (currentUserId: string | null) => {
       // Get unread messages from this sender
       const unreadMessages = await queryDocuments('messages', [
         { field: 'sender_id', operator: '==', value: senderId },
-        { field: 'receiver_id', operator: '==', value: currentUserId },
+        { field: 'receiver_id', operator: '==', value: userId },
         { field: 'is_read', operator: '==', value: false }
       ]);
       
@@ -57,57 +73,67 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
-  };
+  }, [fetchUnreadCount]);
 
   // Set up global subscription for new messages using Firebase
   useEffect(() => {
     if (!currentUserId) return;
 
-    // Subscribe to any messages where the current user is the receiver
-    const unsubscribe = subscribeToQuery(
-      'messages',
-      [
-        { field: 'receiver_id', operator: '==', value: currentUserId },
-        { field: 'is_read', operator: '==', value: false }
-      ],
-      async (newMessages) => {
-        // Skip notifications for mock users
-        const realMessages = newMessages.filter(msg => !isMockUser(msg.sender_id));
-        if (realMessages.length === 0) return;
-        
-        // Process new messages
-        for (const message of realMessages) {
-          // Skip if we're already chatting with this sender
-          if (currentSelectedUserId === message.sender_id) continue;
+    let unsubscribe: (() => void) | null = null;
+    
+    const setupSubscription = async () => {
+      // Subscribe to any messages where the current user is the receiver
+      unsubscribe = subscribeToQuery(
+        'messages',
+        [
+          { field: 'receiver_id', operator: '==', value: currentUserId },
+          { field: 'is_read', operator: '==', value: false }
+        ],
+        async (newMessages) => {
+          // Skip notifications for mock users
+          const realMessages = newMessages.filter(msg => !isMockUser(msg.sender_id));
+          if (realMessages.length === 0) return;
           
-          // Get sender information
-          const senderProfiles = await queryDocuments('profiles', [
-            { field: 'id', operator: '==', value: message.sender_id }
-          ]);
-          
-          const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
-          
-          // Safely get the nickname with proper type checking
-          let senderName = 'Someone';
-          if (senderProfile && typeof senderProfile === 'object') {
-            // Explicitly check if the property exists and is a string
-            if ('nickname' in senderProfile && typeof senderProfile.nickname === 'string') {
-              senderName = senderProfile.nickname;
-            } else if ('nickname' in senderProfile) {
-              // Convert to string if it's not already a string
-              senderName = String(senderProfile.nickname);
+          // Process new messages
+          for (const message of realMessages) {
+            // Skip if we're already chatting with this sender
+            if (currentSelectedUserIdRef.current === message.sender_id) continue;
+            
+            // Get sender information
+            try {
+              const senderProfiles = await queryDocuments('profiles', [
+                { field: 'id', operator: '==', value: message.sender_id }
+              ]);
+              
+              const senderProfile = senderProfiles.length > 0 ? senderProfiles[0] : null;
+              
+              // Safely get the nickname with proper type checking
+              let senderName = 'Someone';
+              if (senderProfile && typeof senderProfile === 'object') {
+                // Explicitly check if the property exists and is a string
+                if ('nickname' in senderProfile && typeof senderProfile.nickname === 'string') {
+                  senderName = senderProfile.nickname;
+                } else if ('nickname' in senderProfile) {
+                  // Convert to string if it's not already a string
+                  senderName = String(senderProfile.nickname);
+                }
+              }
+              
+              // Show toast notification
+              toast(`New message from ${senderName}`);
+            } catch (error) {
+              console.error('Error processing message notification:', error);
             }
           }
           
-          // Show toast notification
-          toast(`New message from ${senderName}`);
+          setNewMessageReceived(true);
+          // Update the unread count
+          fetchUnreadCount();
         }
-        
-        setNewMessageReceived(true);
-        // Update the unread count
-        fetchUnreadCount();
-      }
-    );
+      );
+    };
+    
+    setupSubscription();
 
     // Initial fetch of unread count
     fetchUnreadCount();
@@ -117,12 +143,13 @@ export const useGlobalMessages = (currentUserId: string | null) => {
         unsubscribe();
       }
     };
-  }, [currentUserId, currentSelectedUserId]);
+  }, [currentUserId, fetchUnreadCount]); // Reduced dependencies to prevent infinite updates
 
   // Update the current selected user ID
-  const updateSelectedUserId = (userId: string | null) => {
+  const updateSelectedUserId = useCallback((userId: string | null) => {
     setCurrentSelectedUserId(userId);
-  };
+    currentSelectedUserIdRef.current = userId;
+  }, []);
 
   return { 
     unreadCount, 

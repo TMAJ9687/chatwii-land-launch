@@ -72,8 +72,8 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   // Helper function to provide better field-specific guidance
   const getButtonLabel = (): string => {
     if (isLoading) return "Saving...";
-    if (!gender) return "Select Gender";
-    if (!age) return "Select Age";
+    if (!gender) return "Select Gender (Required)";
+    if (!age) return "Select Age (Required)";
     return "Continue to Chat";
   };
 
@@ -90,9 +90,15 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
 
       <NicknameSection nickname={nickname} error={""} />
 
-      <GenderSelector gender={gender} onChange={setGender} />
+      <div className="space-y-1">
+        <GenderSelector gender={gender} onChange={setGender} />
+        <p className="text-xs text-gray-500 ml-1">Required</p>
+      </div>
 
-      <AgeSelector age={age} onChange={setAge} />
+      <div className="space-y-1">
+        <AgeSelector age={age} onChange={setAge} />
+        <p className="text-xs text-gray-500 ml-1">Required</p>
+      </div>
 
       <Button
         className={`w-full ${

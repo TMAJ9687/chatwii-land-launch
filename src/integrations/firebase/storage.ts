@@ -3,7 +3,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { storage } from "./client";
 import { toast } from "sonner";
 
-// Upload a file to Firebase Storage
+// Upload a file to Firebase Storage with CORS handling
 export const uploadFile = async (
   bucket: string,
   filePath: string,
@@ -18,30 +18,8 @@ export const uploadFile = async (
     const snapshot = await uploadBytes(storageRef, file, metadata);
     console.log('File uploaded successfully');
     
-    // Try multiple times to get download URL due to potential CORS issues
-    let downloadURL;
-    let attempts = 0;
-    const maxAttempts = 3;
-    
-    while (attempts < maxAttempts) {
-      try {
-        downloadURL = await getDownloadURL(snapshot.ref);
-        console.log('Download URL retrieved:', downloadURL);
-        break;
-      } catch (error: any) {
-        console.warn(`Attempt ${attempts + 1}: Failed to get download URL`, error);
-        attempts++;
-        if (attempts >= maxAttempts) {
-          throw error;
-        }
-        // Wait a bit before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    
-    if (!downloadURL) {
-      throw new Error("Could not retrieve download URL after multiple attempts");
-    }
+    // Get download URL with proper retry and error handling
+    const downloadURL = await getDownloadURLSafely(snapshot.ref);
     
     return {
       path: snapshot.ref.fullPath,
@@ -52,24 +30,9 @@ export const uploadFile = async (
     
     // Provide helpful error message for CORS issues
     if (error.message?.includes('CORS')) {
-      toast.error("CORS error: Please configure Firebase Storage CORS settings");
+      toast.error("Storage access error - check CORS settings");
       console.error(`
-        CORS error detected. To fix this issue:
-        1. Go to Firebase Console > Storage
-        2. Click on the Rules tab
-        3. Add CORS configuration in your firebase.json file:
-        {
-          "storage": {
-            "cors": [
-              {
-                "origin": ["*"],
-                "method": ["GET", "POST", "PUT", "DELETE"],
-                "maxAgeSeconds": 3600
-              }
-            ]
-          }
-        }
-        4. Run 'firebase deploy'
+        CORS error detected. Check Firebase Storage CORS settings in Firebase Console.
       `);
     } else {
       toast.error(`Upload failed: ${error.message || "Unknown error"}`);
@@ -79,12 +42,35 @@ export const uploadFile = async (
   }
 };
 
-// Get download URL for a file
+// Helper function to safely get download URL with retries
+async function getDownloadURLSafely(ref: any): Promise<string> {
+  const maxAttempts = 3;
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      // Add cache-busting parameter to avoid CORS issues
+      const url = await getDownloadURL(ref);
+      const cacheBuster = `?t=${Date.now()}`;
+      return url + cacheBuster;
+    } catch (error: any) {
+      console.warn(`Attempt ${attempt + 1}: Failed to get download URL`, error);
+      lastError = error;
+      
+      // Wait longer between each retry
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+  
+  throw lastError || new Error("Failed to get download URL after multiple attempts");
+}
+
+// Get download URL for a file with error handling
 export const getFileDownloadURL = async (path: string) => {
   try {
     console.log(`Getting download URL for ${path}`);
     const storageRef = ref(storage, path);
-    const url = await getDownloadURL(storageRef);
+    const url = await getDownloadURLSafely(storageRef);
     console.log('Download URL retrieved successfully');
     return url;
   } catch (error) {
@@ -93,7 +79,7 @@ export const getFileDownloadURL = async (path: string) => {
   }
 };
 
-// Delete a file from storage
+// Delete a file from storage with better error handling
 export const deleteFile = async (fullPath: string) => {
   try {
     console.log(`Deleting file at ${fullPath}`);
@@ -101,8 +87,13 @@ export const deleteFile = async (fullPath: string) => {
     await deleteObject(storageRef);
     console.log('File deleted successfully');
     return true;
-  } catch (error) {
+  } catch (error: any) {
+    // Don't throw for non-critical storage operations
+    if (error.code === 'storage/object-not-found') {
+      console.log('File already deleted or does not exist');
+      return true;
+    }
     console.error("Error deleting file:", error);
-    throw error;
+    return false; // Return false instead of throwing to avoid crashing on non-critical operations
   }
 };

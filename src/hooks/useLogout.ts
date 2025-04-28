@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { signOutUser } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -12,20 +12,34 @@ export const useLogout = (defaultRedirect = "/feedback") => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { deleteUserProfile } = useProfileDeletion();
 
+  // Hard force logout - for emergency situations
+  const forceLogout = useCallback(() => {
+    console.warn("FORCE LOGOUT: Clearing all state and redirecting");
+    
+    // Clear all related localStorage items
+    const keysToRemove = [
+      'firebase_user_id',
+      'firebase_user_role',
+      'firebase_user_provider',
+      'vip_registration_email',
+      'vip_registration_nickname'
+    ];
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Redirect immediately
+    window.location.replace(defaultRedirect);
+  }, [defaultRedirect]);
+
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
 
-    // Set a timeout to force logout if it takes too long
+    // Set a timeout to force logout if it takes too long - even shorter now
     const forceLogoutTimeout = setTimeout(() => {
       console.warn("Logout operation timed out - forcing logout");
-      localStorage.removeItem('firebase_user_id');
-      localStorage.removeItem('firebase_user_role');
-      localStorage.removeItem('firebase_user_provider');
-      localStorage.removeItem('vip_registration_email');
-      localStorage.removeItem('vip_registration_nickname');
-      window.location.replace(defaultRedirect);
-    }, 5000); // Force logout after 5 seconds if still processing
+      forceLogout();
+    }, 3000); // Force logout after 3 seconds if still processing (reduced from 5s)
 
     try {
       const userId = localStorage.getItem('firebase_user_id');
@@ -33,54 +47,47 @@ export const useLogout = (defaultRedirect = "/feedback") => {
       const provider = localStorage.getItem('firebase_user_provider');
       const shouldDeleteProfile = role === 'standard' || provider === 'anonymous';
 
-      // Run all cleanup operations in parallel where possible
-      const promises = [];
-      
-      // First, remove user presence to stop realtime updates
-      if (userId) {
-        promises.push(
-          removeUserPresence(userId).catch(error => {
-            console.warn('Failed to remove presence:', error);
-            return null; // Allow operation to continue
-          })
-        );
-      }
-
-      // Then clean up user profile if needed, but don't wait if it fails
+      // Start non-blocking profile deletion if needed
       if (userId && shouldDeleteProfile) {
-        // Don't wait for profile deletion to complete, just start it
-        deleteUserProfile(userId).catch(error => {
-          console.warn('Profile deletion error - continuing with logout:', error);
-        });
+        // Don't wait or block the main logout flow - completely detached operation
+        setTimeout(() => {
+          deleteUserProfile(userId).catch(error => {
+            console.warn('Async profile deletion error:', error);
+          });
+        }, 0);
       }
-
-      // Wait for presence removal (with timeout)
-      await Promise.all(
-        promises.map(promise => 
-          Promise.race([
-            promise, 
-            new Promise(resolve => setTimeout(resolve, 1000))
-          ])
-        )
-      );
       
-      // Close all Firebase database connections first
+      // Only wait for fast operations with short timeouts
       try {
-        await closeDbConnection();
+        // Close all Firebase database connections first with timeout
+        await Promise.race([
+          closeDbConnection(),
+          new Promise(resolve => setTimeout(resolve, 1000)) // 1s max
+        ]);
+        
+        // Remove presence with timeout
+        if (userId) {
+          await Promise.race([
+            removeUserPresence(userId),
+            new Promise(resolve => setTimeout(resolve, 1000)) // 1s max
+          ]);
+        }
       } catch (error) {
-        console.warn("Error closing database connections:", error);
+        console.warn("Non-critical logout operation timed out:", error);
       }
 
       // Sign out the user
       try {
-        await signOutUser();
+        await Promise.race([
+          signOutUser(),
+          new Promise(resolve => setTimeout(resolve, 1500)) // 1.5s max
+        ]);
       } catch (error) {
-        console.warn("Error signing out:", error);
+        console.warn("Error or timeout signing out:", error);
       }
 
       // Clean up localStorage immediately
-      ['vip_registration_email', 'vip_registration_nickname', 'firebase_user_id', 'firebase_user_role', 'firebase_user_provider']
-        .forEach(key => localStorage.removeItem(key));
+      keysToRemove.forEach(key => localStorage.removeItem(key));
 
       // Clear the force logout timeout since we're done
       clearTimeout(forceLogoutTimeout);
@@ -91,12 +98,8 @@ export const useLogout = (defaultRedirect = "/feedback") => {
       console.error('Logout error:', error);
       toast.error("An error occurred during logout. Redirecting...");
       
-      // Even with errors, clean up and redirect
-      ['vip_registration_email', 'vip_registration_nickname', 'firebase_user_id', 'firebase_user_role', 'firebase_user_provider']
-        .forEach(key => localStorage.removeItem(key));
-        
-      clearTimeout(forceLogoutTimeout);
-      window.location.replace('/');
+      // Force logout anyway
+      forceLogout();
     } finally {
       setIsLoggingOut(false);
     }
