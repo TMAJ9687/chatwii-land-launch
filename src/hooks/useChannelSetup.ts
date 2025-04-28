@@ -2,7 +2,6 @@
 import { useEffect } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
-import { useChannelManagement } from '@/hooks/chat/useChannelManagement';
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -10,8 +9,7 @@ export const useChannelSetup = (
   setMessages: React.Dispatch<React.SetStateAction<any[]>>,
   fetchMessages: () => void
 ) => {
-  const { cleanupChannels } = useChannelManagement();
-  const { setupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
+  const { setupMessageChannel, cleanupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
   const { setupReactionsListener, cleanupReactionListener } = useReactionsChannel(
     currentUserId, 
     selectedUserId, 
@@ -19,7 +17,7 @@ export const useChannelSetup = (
   );
 
   useEffect(() => {
-    // Only set up channels when we have both user IDs
+    // Only set up listeners when we have both user IDs
     if (!currentUserId || !selectedUserId) {
       return;
     }
@@ -29,13 +27,13 @@ export const useChannelSetup = (
     // Initialize message channel 
     const messageChannel = setupMessageChannel();
     
-    // Initialize reactions listener using Firebase
+    // Initialize reactions listener
     setupReactionsListener();
     
     // Clean up function
     return () => {
       console.log('Cleaning up channels and listeners');
-      cleanupChannels();
+      cleanupMessageChannel();
       cleanupReactionListener();
     };
   }, [
@@ -43,7 +41,7 @@ export const useChannelSetup = (
     selectedUserId, 
     setupMessageChannel, 
     setupReactionsListener, 
-    cleanupChannels, 
+    cleanupMessageChannel, 
     cleanupReactionListener
   ]);
 };
