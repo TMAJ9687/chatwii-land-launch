@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, onValue, off, goOnline } from 'firebase/database';
@@ -16,12 +15,18 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
   const presenceRefObj = useRef<any>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoReconnectRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Clean up any existing retry timers
   const cleanupRetryTimers = useCallback(() => {
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
+    }
+    
+    if (autoReconnectRef.current) {
+      clearInterval(autoReconnectRef.current);
+      autoReconnectRef.current = null;
     }
   }, []);
 
@@ -72,6 +77,16 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
           setConnectionError(null);
           retryCountRef.current = 0;
           cleanupRetryTimers();
+          
+          // Start an auto-reconnect ping every 30 seconds to keep the connection alive
+          if (!autoReconnectRef.current) {
+            autoReconnectRef.current = setInterval(() => {
+              if (shouldConnect && !isConnectedRef.current) {
+                console.log("Auto-reconnect ping");
+                goOnline(realtimeDb);
+              }
+            }, 30000);
+          }
         } else if (shouldConnect) {
           // Only attempt retry if we should be connected
           scheduleReconnect();

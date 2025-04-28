@@ -9,7 +9,8 @@ import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
 import { useChatConnection } from '@/hooks/chat/useChatConnection';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -43,6 +44,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [lastReconnectAttempt, setLastReconnectAttempt] = useState<number>(0);
   
   // Ensure we maintain connection when a chat is selected
   const { isConnected, reconnect } = useChatConnection(!!selectedUserId);
@@ -59,11 +61,20 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     setLocalError(error);
   }, [error]);
 
-  // Handle reconnection attempts
+  // Handle reconnection attempts with throttling
   const handleRetryConnection = useCallback(() => {
+    const now = Date.now();
+    // Prevent multiple retries within 5 seconds
+    if (now - lastReconnectAttempt < 5000) {
+      toast.info("Please wait before retrying again");
+      return;
+    }
+    
+    setLastReconnectAttempt(now);
     reconnect();
+    toast.info("Attempting to reconnect...");
     setLocalError(null);
-  }, [reconnect]);
+  }, [reconnect, lastReconnectAttempt]);
 
   // Memoize the send handler to prevent unnecessary rerenders
   const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
@@ -93,13 +104,13 @@ export const ChatContent: React.FC<ChatContentProps> = ({
       {/* General Error */}
       {localError && !localError.includes('index') && (
         <Alert variant="destructive" className="mx-4 mt-4">
+          <AlertTriangle className="h-4 w-4 mr-2" />
           <AlertTitle>Error loading messages</AlertTitle>
-          <AlertDescription>
-            {localError}
+          <AlertDescription className="flex items-center justify-between">
+            <span>{localError}</span>
             <Button 
               variant="outline" 
               size="sm" 
-              className="ml-2" 
               onClick={handleRetryConnection}
             >
               <RefreshCcw className="h-4 w-4 mr-1" /> Retry
@@ -111,20 +122,27 @@ export const ChatContent: React.FC<ChatContentProps> = ({
       {/* Connection Status Warning */}
       {!isConnected && !localError && selectedUserId && (
         <Alert variant="default" className="mx-4 mt-4 bg-amber-50 border-amber-500">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <WifiOff className="h-4 w-4 text-amber-500 mr-2" />
           <AlertTitle>Connection Status</AlertTitle>
-          <AlertDescription>
-            Connecting to message service...
+          <AlertDescription className="flex items-center justify-between">
+            <span>Connecting to message service...</span>
             <Button 
               variant="outline" 
               size="sm" 
-              className="ml-2" 
               onClick={handleRetryConnection}
             >
               <RefreshCcw className="h-4 w-4 mr-1" /> Retry
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+      
+      {/* Connected Status */}
+      {isConnected && !localError && !isLoading && (
+        <div className="mx-4 mt-1 flex items-center text-xs text-green-600 justify-end">
+          <Wifi className="h-3 w-3 mr-1" /> 
+          <span>Connected</span>
+        </div>
       )}
 
       <ChatArea
