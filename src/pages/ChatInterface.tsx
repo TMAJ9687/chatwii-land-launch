@@ -18,11 +18,8 @@ import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { UserListSidebar } from '@/components/chat/UserListSidebar';
-import { FirebaseDebugPanel } from '@/utils/debugUtils';
-import { memo } from 'react';
 
-// Memoize ChatInterfaceContent to prevent unnecessary re-renders
-const ChatInterfaceContent = memo(() => {
+const ChatInterfaceContent = () => {
   const { 
     selectedUserId, 
     selectedUserNickname,
@@ -71,7 +68,7 @@ const ChatInterfaceContent = memo(() => {
     handleDeleteConversation,
   } = useConversation(currentUserId, selectedUserId, currentUserRole, isVipUser);
 
-  const { isTyping, broadcastTypingStatus } = useTypingIndicator(
+  const { isTyping, setIsTyping, broadcastTypingStatus } = useTypingIndicator(
     currentUserId,
     selectedUserId,
     isVipUser
@@ -86,7 +83,7 @@ const ChatInterfaceContent = memo(() => {
   }, [currentUserId, checkRulesAccepted]);
 
   const handleTypingStatusChange = (isTyping: boolean) => {
-    broadcastTypingStatus(isTyping);
+    setIsTyping(isTyping);
   };
 
   // Update handleUserSelect to match the expected signature in UserList component
@@ -184,15 +181,9 @@ const ChatInterfaceContent = memo(() => {
           nickname: selectedUserNickname
         }}
       />
-
-      {/* Include the debug panel in development */}
-      {process.env.NODE_ENV === 'development' && <FirebaseDebugPanel />}
     </ChatLayout>
   );
-});
-
-// Add display name for better debugging
-ChatInterfaceContent.displayName = 'ChatInterfaceContent';
+};
 
 const ChatInterface = () => {
   return (

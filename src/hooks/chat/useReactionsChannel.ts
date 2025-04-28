@@ -1,38 +1,58 @@
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useRef } from 'react';
+import { realtimeDb } from '@/integrations/firebase/client';
+import { ref, onValue, off } from 'firebase/database';
 import { isMockUser } from '@/utils/mockUsers';
-import { useFirebaseListener } from '@/hooks/useFirebaseListener';
 
 export const useReactionsChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
   fetchMessages: () => void
 ) => {
-  // Generate a stable conversation path
-  const reactionPath = useMemo(() => {
+  const reactionListenerRef = useRef<any>(null);
+
+  // Cleanup function to remove any existing listeners
+  const cleanupReactionListener = useCallback(() => {
+    if (reactionListenerRef.current) {
+      off(reactionListenerRef.current);
+      reactionListenerRef.current = null;
+      console.log('Cleaned up reaction listener');
+    }
+  }, []);
+
+  // Setup Firebase realtime listener
+  const setupReactionsListener = useCallback(() => {
     if (!currentUserId || !selectedUserId) return null;
-    return `message_reactions/${currentUserId}_${selectedUserId}`;
-  }, [currentUserId, selectedUserId]);
-
-  // Handler for reaction updates
-  const handleReactionUpdate = useCallback((data: any) => {
-    // Skip mock user updates
-    if (selectedUserId && isMockUser(selectedUserId)) return;
     
-    // Only refresh messages when reactions change
-    fetchMessages();
-  }, [selectedUserId, fetchMessages]);
-
-  // Set up listener with our new hook
-  const { isListening } = useFirebaseListener(
-    reactionPath,
-    handleReactionUpdate,
-    (error) => console.error('Reaction listener error:', error),
-    !!currentUserId && !!selectedUserId,
-    'reaction-channel'
-  );
+    // Clean up any existing listener first
+    cleanupReactionListener();
+    
+    try {
+      // Create a reference to the specific conversation's reactions
+      const conversationPath = `message_reactions/${currentUserId}_${selectedUserId}`;
+      const reactionsRef = ref(realtimeDb, conversationPath);
+      reactionListenerRef.current = reactionsRef;
+      
+      // Set up the value listener
+      onValue(reactionsRef, (snapshot) => {
+        // Skip mock user updates
+        if (isMockUser(selectedUserId)) return;
+        
+        // Only refresh messages when reactions change
+        fetchMessages();
+      }, (error) => {
+        console.error('Error listening to reactions:', error);
+      });
+      
+      return reactionsRef;
+    } catch (error) {
+      console.error('Failed to setup reactions listener:', error);
+      return null;
+    }
+  }, [currentUserId, selectedUserId, fetchMessages, cleanupReactionListener]);
 
   return { 
-    isListening
+    setupReactionsListener,
+    cleanupReactionListener
   };
 };

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { MessageActions } from './MessageActions';
@@ -20,7 +20,7 @@ interface MessageBubbleProps {
   toggleImageReveal: (messageId: string) => void;
 }
 
-export const MessageBubble = memo(({
+export const MessageBubble = ({
   message,
   currentUserId,
   isVipUser = false,
@@ -159,7 +159,4 @@ export const MessageBubble = memo(({
       </div>
     </div>
   );
-});
-
-// Add display name for better debugging
-MessageBubble.displayName = 'MessageBubble';
+};

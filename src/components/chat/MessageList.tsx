@@ -1,5 +1,5 @@
 
-import { useRef, useEffect, memo } from 'react';
+import { useRef, useEffect } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
@@ -14,7 +14,7 @@ interface MessageListProps {
   isVipUser?: boolean;
 }
 
-export const MessageList = memo(({ 
+export const MessageList = ({ 
   messages, 
   currentUserId, 
   onImageClick,
@@ -54,7 +54,4 @@ export const MessageList = memo(({
       <div ref={messagesEndRef} />
     </div>
   );
-});
-
-// Add display name for better debugging
-MessageList.displayName = 'MessageList';
+};
