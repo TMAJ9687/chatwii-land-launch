@@ -34,7 +34,7 @@ export const ChatArea = ({
 }: ChatAreaProps) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<string>>(new Set());
-  const { checkIfUserIsBlocked } = useBlockedUsers();
+  const { blockedUsers, canInteractWithUser } = useBlockedUsers();
   const [isBlocked, setIsBlocked] = useState(false);
   
   // Track component own identity for diagnostic purposes
@@ -44,13 +44,9 @@ export const ChatArea = ({
     if (!selectedUser || !selectedUser.id) return;
     
     // Check if selected user is blocked
-    const checkBlocked = async () => {
-      const blocked = await checkIfUserIsBlocked(selectedUser.id);
-      setIsBlocked(blocked);
-    };
+    setIsBlocked(!canInteractWithUser(selectedUser.id));
     
-    checkBlocked();
-  }, [selectedUser, checkIfUserIsBlocked]);
+  }, [selectedUser, canInteractWithUser]);
 
   useEffect(() => {
     // Read all messages from the selected user when chat opens
@@ -130,7 +126,6 @@ export const ChatArea = ({
       {selectedImage && (
         <ImageModal 
           imageUrl={selectedImage} 
-          isOpen={!!selectedImage} 
           onClose={() => setSelectedImage(null)} 
         />
       )}
