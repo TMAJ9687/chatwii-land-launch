@@ -22,8 +22,8 @@ export const uploadFile = async (
 };
 
 // Get download URL for a file
-export const getFileDownloadURL = async (fullPath: string) => {
-  const storageRef = ref(storage, fullPath);
+export const getFileDownloadURL = async (path: string) => {
+  const storageRef = ref(storage, path);
   return await getDownloadURL(storageRef);
 };
 

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -5,7 +6,8 @@ import { X } from "lucide-react";
 import { 
   db, storage, 
   uploadFile,
-  getFileDownloadURL
+  getFileDownloadURL,
+  deleteFile
 } from "@/lib/firebase";
 import { 
   doc, getDoc, setDoc, updateDoc,
@@ -29,7 +31,9 @@ const DEFAULT_AVATARS: SettingsAvatars = {
 
 const getPublicUrl = async (path: string) => {
   try {
-    const url = await getFileDownloadURL(ref(storage, path));
+    // Fix: Pass storageRef.fullPath instead of the reference itself
+    const storageRef = ref(storage, path);
+    const url = await getFileDownloadURL(storageRef.fullPath);
     return url;
   } catch (error) {
     console.error("Error getting URL:", error);
@@ -41,7 +45,7 @@ const getFilename = (file: File, prefix: string) =>
   `${prefix}_${Date.now()}_${Math.round(Math.random() * 1e6)}.${file.name.split(".").pop()}`;
 
 export const AvatarSettings = () => {
-  const [settings, setSettings] = useState<{avatars?: SettingsAvatars}>({});
+  const [settings, setSettings] = useState<{avatars: SettingsAvatars}>({avatars: DEFAULT_AVATARS});
   const [avatars, setAvatars] = useState<SettingsAvatars>(DEFAULT_AVATARS);
   const [loading, setLoading] = useState(true);
   const [upLoading, setUpLoading] = useState(false);
@@ -63,11 +67,15 @@ export const AvatarSettings = () => {
         
         let settingsData = {avatars: DEFAULT_AVATARS};
         if (settingsSnapshot.exists()) {
-          settingsData = settingsSnapshot.data() as {avatars?: SettingsAvatars} || {avatars: DEFAULT_AVATARS};
+          // Fix: Ensure avatars property is always defined
+          const data = settingsSnapshot.data();
+          settingsData = {
+            avatars: data.avatars ? data.avatars as SettingsAvatars : DEFAULT_AVATARS
+          };
         }
         
         // Extract avatar settings or use defaults
-        const avatarsObj = settingsData.avatars || { ...DEFAULT_AVATARS };
+        const avatarsObj = settingsData.avatars;
         
         // Ensure shape
         setAvatars({
@@ -92,7 +100,6 @@ export const AvatarSettings = () => {
   // Save avatars to settings in Firestore
   const saveAvatars = async (nextAvatars: SettingsAvatars) => {
     const nextSettings = {
-      ...settings,
       avatars: nextAvatars,
     };
     
