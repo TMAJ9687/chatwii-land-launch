@@ -12,24 +12,25 @@ export const useLogout = (defaultRedirect = "/feedback") => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { deleteUserProfile } = useProfileDeletion();
 
+  // Define shared keys to remove at the hook level so both functions can access it
+  const keysToRemove = [
+    'firebase_user_id',
+    'firebase_user_role',
+    'firebase_user_provider',
+    'vip_registration_email',
+    'vip_registration_nickname'
+  ];
+
   // Hard force logout - for emergency situations
   const forceLogout = useCallback(() => {
     console.warn("FORCE LOGOUT: Clearing all state and redirecting");
     
     // Clear all related localStorage items
-    const keysToRemove = [
-      'firebase_user_id',
-      'firebase_user_role',
-      'firebase_user_provider',
-      'vip_registration_email',
-      'vip_registration_nickname'
-    ];
-    
     keysToRemove.forEach(key => localStorage.removeItem(key));
     
     // Redirect immediately
     window.location.replace(defaultRedirect);
-  }, [defaultRedirect]);
+  }, [defaultRedirect, keysToRemove]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
