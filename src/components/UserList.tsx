@@ -1,4 +1,3 @@
-
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
@@ -6,7 +5,7 @@ import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
 import { useState, useMemo, useEffect } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserListProps {
   users: any[];
@@ -20,7 +19,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [userInterests, setUserInterests] = useState<Record<string, string[]>>({});
 
-  // Fetch interests for all users
   useEffect(() => {
     if (users.length === 0) return;
 
@@ -28,7 +26,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
       try {
         const userIds = users.map(user => user.user_id);
         
-        // Get all interests from user_interests table for these users
         const { data, error } = await supabase
           .from('user_interests')
           .select(`
@@ -43,7 +40,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
           return;
         }
         
-        // Group interests by user
         const interestsByUser: Record<string, string[]> = {};
         
         data.forEach(item => {
@@ -67,7 +63,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     fetchInterests();
   }, [users]);
 
-  // Filter out current user and apply user filters
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => !user.is_current_user)
@@ -120,7 +115,6 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
   };
 
   const handleUserSelection = (userId: string) => {
-    // Safety check to prevent self-selection
     const user = users.find(u => u.user_id === userId);
     if (user && !user.is_current_user) {
       onUserSelect(userId);

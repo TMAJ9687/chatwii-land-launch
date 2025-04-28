@@ -1,6 +1,5 @@
-
 import { useRef, useCallback, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useChannelManagement = () => {
   const channelsRef = useRef<Record<string, any>>({});
