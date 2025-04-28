@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -59,13 +58,11 @@ const VipProfileSetupPage = () => {
       setCurrentUser(session.user);
       
       // Check if profile already exists
-      const response = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
-      
-      const { data: profile, error } = response;
       
       if (profile) {
         // If profile exists, populate fields
@@ -76,12 +73,11 @@ const VipProfileSetupPage = () => {
         setSelectedCountry(profile.country || detectedCountry || '');
         
         // Fetch user interests
-        const userInterestsResponse = await supabase
+        const { data: userInterests } = await supabase
           .from('user_interests')
           .select('interests(name)')
-          .eq('user_id', session.user.id);
-        
-        const { data: userInterests } = userInterestsResponse;
+          .eq('user_id', session.user.id)
+          .range(0, 100);
         
         if (userInterests && userInterests.length > 0) {
           const interests = userInterests.map((i: any) => i.interests?.name).filter(Boolean);

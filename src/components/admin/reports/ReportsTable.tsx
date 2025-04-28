@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,12 +42,14 @@ export const ReportsTable = () => {
   
   const deleteMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      const response = await supabase
+      // Fixed: Use direct delete without then chaining
+      const { data, error } = await supabase
         .from("reports")
         .delete()
-        .eq("id", reportId);
+        .eq("id", reportId)
+        .single();
         
-      if (response.error) throw response.error;
+      if (error) throw error;
       return reportId;
     },
     onSuccess: (reportId) => {
@@ -64,15 +67,17 @@ export const ReportsTable = () => {
   
   const resolveMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      const response = await supabase
+      // Fixed: Use direct update without then chaining
+      const { data, error } = await supabase
         .from("reports")
         .update({ 
           status: "resolved",
           resolved_at: new Date().toISOString()
         })
-        .eq("id", reportId);
+        .eq("id", reportId)
+        .single();
         
-      if (response.error) throw response.error;
+      if (error) throw error;
       return reportId;
     },
     onSuccess: (reportId) => {
@@ -165,6 +170,7 @@ export const ReportsTable = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration as string] || 0).toISOString();
       
+      // Fixed: Use direct insert without then chaining
       const { error: banError } = await supabase
         .from('bans')
         .insert({
@@ -173,20 +179,22 @@ export const ReportsTable = () => {
           admin_id: user.id,
           expires_at: expiresAt,
         })
-        .then();
+        .single();
       
       if (banError) throw banError;
       
+      // Fixed: Use direct update without then chaining
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ visibility: 'offline' })
         .eq('id', reportedUser.id)
-        .then();
+        .single();
       
       if (updateError) throw updateError;
       
       toast.success(`User ${reportedUser.nickname} has been banned`);
       
+      // Fixed: Use direct update without then chaining
       const { error: resolveError } = await supabase
         .from('reports')
         .update({ 
@@ -195,7 +203,7 @@ export const ReportsTable = () => {
         })
         .eq('reported_id', reportedUser.id)
         .eq('status', 'pending')
-        .then();
+        .single();
       
       if (resolveError) console.error("Error resolving reports:", resolveError);
       

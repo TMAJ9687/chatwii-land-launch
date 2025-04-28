@@ -37,22 +37,26 @@ export const supabase = {
       select: (columns: string) => ({
         single: async () => ({ data: null, error: null }),
       }),
-      then: () => Promise.resolve({ data: null, error: null }),
+      // Changed: Return the Promise directly, not in a then method
+      single: async () => ({ data: null, error: null }),
     }),
     update: (values: any) => ({
       eq: (field: string, value: any) => ({
-        then: () => Promise.resolve({ data: null, error: null })
+        // Changed: Make this an async function returning a Promise directly
+        single: async () => ({ data: null, error: null }),
       }),
-      match: (criteria: any) => Promise.resolve({ error: null }),
+      match: async (criteria: any) => ({ data: null, error: null }),
     }),
     delete: () => ({
       eq: (field: string, value: any) => ({
-        then: () => Promise.resolve({ data: null, error: null })
+        // Changed: Make this an async function returning a Promise directly
+        single: async () => ({ data: null, error: null }),
       }),
-      match: (criteria: any) => Promise.resolve({ error: null }),
+      match: async (criteria: any) => ({ data: null, error: null }),
     }),
     upsert: (values: any) => ({
-      then: () => Promise.resolve({ data: null, error: null })
+      // Changed: Make this an async function returning a Promise directly
+      single: async () => ({ data: null, error: null }),
     }),
   }),
   storage: {
