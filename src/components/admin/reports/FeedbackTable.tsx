@@ -1,18 +1,17 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/sonner";
-import { 
-  Table, TableHeader, TableRow, TableHead, 
-  TableBody, TableCell 
+import {
+  Table, TableHeader, TableRow, TableHead,
+  TableBody, TableCell
 } from "@/components/ui/table";
 import { Star, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { 
-  AlertDialog, AlertDialogAction, AlertDialogCancel, 
-  AlertDialogContent, AlertDialogDescription, 
-  AlertDialogFooter, AlertDialogHeader, 
-  AlertDialogTitle, AlertDialogTrigger 
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 
 type Feedback = {
@@ -24,8 +23,8 @@ type Feedback = {
   user_nickname?: string;
 };
 
-// Mock feedback data
-const MOCK_FEEDBACK = [
+// Placeholder/mock feedback
+const MOCK_FEEDBACK: Feedback[] = [
   {
     id: 1,
     user_id: "user1",
@@ -45,55 +44,55 @@ const MOCK_FEEDBACK = [
 ];
 
 export const FeedbackTable = () => {
-  const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [feedbackList, setFeedbackList] = useState<Feedback[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
-    // Mock fetching feedback
+    // Replace this with your API call to fetch feedback
     setTimeout(() => {
-      setFeedback(MOCK_FEEDBACK);
-      setLoading(false);
+      setFeedbackList(MOCK_FEEDBACK);
+      setIsLoading(false);
     }, 1000);
   }, []);
 
   const handleDelete = async (feedbackId: number) => {
     setDeletingId(feedbackId);
     try {
-      // Mock deletion
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Remove from state
-      setFeedback(prev => prev.filter(item => item.id !== feedbackId));
+      // Replace with your API delete logic
+      await new Promise(res => setTimeout(res, 800));
+      setFeedbackList(prev => prev.filter(item => item.id !== feedbackId));
       toast.success('Feedback deleted successfully');
-    } catch (error) {
-      console.error('Error deleting feedback:', error);
+    } catch (err) {
+      console.error('Error deleting feedback:', err);
       toast.error('Failed to delete feedback');
     } finally {
       setDeletingId(null);
     }
   };
-  
+
   const renderStars = (rating: number | null) => {
     if (rating === null) return "No rating";
-    
     return (
       <div className="flex items-center">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <Star 
-            key={index}
-            className={`h-4 w-4 ${index < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Star
+            key={i}
+            className={`h-4 w-4 ${i < (rating ?? 0)
+              ? "text-yellow-400 fill-yellow-400"
+              : "text-gray-300"
+            }`}
           />
         ))}
         <span className="ml-2 text-sm">{rating}/5</span>
       </div>
     );
   };
-  
-  if (loading) {
+
+  if (isLoading) {
     return <div className="flex justify-center p-8">Loading feedback...</div>;
   }
-  
+
   return (
     <div>
       <div className="rounded-md border">
@@ -108,14 +107,14 @@ export const FeedbackTable = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {feedback.length === 0 ? (
+            {feedbackList.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8">
                   No feedback submitted yet
                 </TableCell>
               </TableRow>
             ) : (
-              feedback.map((item) => (
+              feedbackList.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.user_nickname || "Anonymous"}</TableCell>
                   <TableCell>{renderStars(item.rating)}</TableCell>
@@ -145,7 +144,7 @@ export const FeedbackTable = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction 
+                          <AlertDialogAction
                             onClick={() => handleDelete(item.id)}
                             disabled={deletingId === item.id}
                           >
@@ -155,7 +154,7 @@ export const FeedbackTable = () => {
                                 Deleting...
                               </>
                             ) : (
-                              'Delete'
+                              "Delete"
                             )}
                           </AlertDialogAction>
                         </AlertDialogFooter>
