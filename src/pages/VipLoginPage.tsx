@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
+import { signInWithEmail } from "@/lib/firebase";
 
 const VipLoginPage = () => {
   const navigate = useNavigate();
@@ -69,10 +70,8 @@ const VipLoginPage = () => {
     setIsSubmitting(true);
     
     try {
-      // Mock login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Successful login
+      // Using Firebase authentication
+      await signInWithEmail(formData.email, formData.password);
       toast.success("Login successful!");
       
       // Navigate to profile setup page for VIP users instead of chat

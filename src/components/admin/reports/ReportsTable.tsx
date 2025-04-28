@@ -1,6 +1,6 @@
+
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { 
   Table, TableHeader, TableRow, TableHead, 
@@ -17,9 +17,14 @@ import {
 import { CheckCircle, Trash2, Ban, Loader2 } from "lucide-react";
 import { BanUserModal } from "@/components/admin/modals/BanUserModal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { 
+  collection, query, where, orderBy, getDocs,
+  doc, deleteDoc, updateDoc, addDoc, serverTimestamp
+} from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 
 type Report = {
-  id: number;
+  id: number | string;
   reporter_id: string;
   reported_id: string;
   reason: string | null;
@@ -34,20 +39,15 @@ type Report = {
 export const ReportsTable = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reportToDelete, setReportToDelete] = useState<number | null>(null);
+  const [reportToDelete, setReportToDelete] = useState<number | string | null>(null);
   const [reportedUser, setReportedUser] = useState<{ id: string, nickname: string } | null>(null);
   const [showBanModal, setShowBanModal] = useState(false);
   const queryClient = useQueryClient();
   
   const deleteMutation = useMutation({
-    mutationFn: async (reportId: number) => {
-      const { data, error } = await supabase
-        .from("reports")
-        .delete()
-        .eq("id", reportId)
-        .single();
-        
-      if (error) throw error;
+    mutationFn: async (reportId: number | string) => {
+      const reportRef = doc(db, "reports", reportId.toString());
+      await deleteDoc(reportRef);
       return reportId;
     },
     onSuccess: (reportId) => {
@@ -64,17 +64,12 @@ export const ReportsTable = () => {
   });
   
   const resolveMutation = useMutation({
-    mutationFn: async (reportId: number) => {
-      const { data, error } = await supabase
-        .from("reports")
-        .update({ 
-          status: "resolved",
-          resolved_at: new Date().toISOString()
-        })
-        .eq("id", reportId)
-        .single();
-        
-      if (error) throw error;
+    mutationFn: async (reportId: number | string) => {
+      const reportRef = doc(db, "reports", reportId.toString());
+      await updateDoc(reportRef, {
+        status: "resolved",
+        resolved_at: new Date().toISOString()
+      });
       return reportId;
     },
     onSuccess: (reportId) => {
@@ -95,44 +90,60 @@ export const ReportsTable = () => {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("reports")
-        .select(`
-          id, reporter_id, reported_id, reason, suggest_ban, 
-          created_at, status, resolved_at
-        `)
-        .order("created_at", { ascending: false })
-        .range(0, 100);
+      // Get reports from Firestore
+      const reportsRef = collection(db, "reports");
+      const reportsQuery = query(
+        reportsRef,
+        orderBy("created_at", "desc")
+      );
       
-      if (error) throw error;
+      const reportsSnapshot = await getDocs(reportsQuery);
       
-      if (data) {
+      if (!reportsSnapshot.empty) {
+        // Collect all user IDs we need to look up
         const userIds = new Set<string>();
-        data.forEach(report => {
-          userIds.add(report.reporter_id);
-          userIds.add(report.reported_id);
-        });
+        const reportData: any[] = [];
         
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, nickname")
-          .in("id", Array.from(userIds))
-          .range(0, 100);
+        reportsSnapshot.forEach(doc => {
+          const data = doc.data();
+          reportData.push({
+            id: doc.id,
+            ...data
+          });
           
-        if (profilesError) throw profilesError;
-        
-        const nicknameMap = new Map<string, string>();
-        profiles?.forEach(profile => {
-          nicknameMap.set(profile.id, profile.nickname);
+          if (data.reporter_id) userIds.add(data.reporter_id);
+          if (data.reported_id) userIds.add(data.reported_id);
         });
         
-        const reportsWithNicknames = data.map(report => ({
+        // Fetch profiles for all users
+        const profilesMap = new Map<string, any>();
+        
+        if (userIds.size > 0) {
+          const profilesRef = collection(db, "profiles");
+          const profilesQuery = query(
+            profilesRef,
+            where("id", "in", Array.from(userIds))
+          );
+          
+          const profilesSnapshot = await getDocs(profilesQuery);
+          profilesSnapshot.forEach(doc => {
+            const profileData = doc.data();
+            if (profileData.id) {
+              profilesMap.set(profileData.id, profileData);
+            }
+          });
+        }
+        
+        // Combine report data with profile data
+        const reportsWithNicknames = reportData.map(report => ({
           ...report,
-          reporter_nickname: nicknameMap.get(report.reporter_id) || "Unknown User",
-          reported_nickname: nicknameMap.get(report.reported_id) || "Unknown User",
+          reporter_nickname: profilesMap.get(report.reporter_id)?.nickname || "Unknown User",
+          reported_nickname: profilesMap.get(report.reported_id)?.nickname || "Unknown User",
         }));
         
         setReports(reportsWithNicknames);
+      } else {
+        setReports([]);
       }
     } catch (error) {
       console.error("Error fetching reports:", error);
@@ -153,9 +164,9 @@ export const ReportsTable = () => {
     if (!reportedUser) return;
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const currentUser = auth.currentUser;
       
-      if (!user) {
+      if (!currentUser) {
         toast.error("Authentication error");
         return;
       }
@@ -167,41 +178,48 @@ export const ReportsTable = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration as string] || 0).toISOString();
       
-      const { error: banError } = await supabase
-        .from('bans')
-        .insert({
-          user_id: reportedUser.id,
-          reason,
-          admin_id: user.id,
-          expires_at: expiresAt,
-        })
-        .single();
+      // Add ban to Firestore
+      const bansRef = collection(db, "bans");
+      await addDoc(bansRef, {
+        user_id: reportedUser.id,
+        reason,
+        admin_id: currentUser.id,
+        expires_at: expiresAt,
+        created_at: serverTimestamp()
+      });
       
-      if (banError) throw banError;
-      
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ visibility: 'offline' })
-        .eq('id', reportedUser.id)
-        .single();
-      
-      if (updateError) throw updateError;
+      // Update profile visibility
+      const profileRef = doc(db, "profiles", reportedUser.id);
+      await updateDoc(profileRef, {
+        visibility: 'offline'
+      });
       
       toast.success(`User ${reportedUser.nickname} has been banned`);
       
-      const { error: resolveError } = await supabase
-        .from('reports')
-        .update({ 
-          status: "resolved",
-          resolved_at: new Date().toISOString()
-        })
-        .eq('reported_id', reportedUser.id)
-        .single();
+      // Resolve reports for this user
+      const reportsRef = collection(db, "reports");
+      const reportQuery = query(
+        reportsRef,
+        where("reported_id", "==", reportedUser.id),
+        where("status", "==", "pending")
+      );
       
-      if (resolveError) console.error("Error resolving reports:", resolveError);
+      const reportSnapshot = await getDocs(reportQuery);
+      const updatePromises: Promise<void>[] = [];
       
+      reportSnapshot.forEach(doc => {
+        updatePromises.push(
+          updateDoc(doc.ref, {
+            status: "resolved",
+            resolved_at: new Date().toISOString()
+          })
+        );
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Refresh reports list
       fetchReports();
-      
     } catch (error) {
       console.error("Ban user error:", error);
       toast.error("Failed to ban user");

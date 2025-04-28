@@ -1,8 +1,18 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { X } from "lucide-react";
+import { 
+  db, storage, 
+  uploadFile,
+  getFileDownloadURL
+} from "@/lib/firebase";
+import { 
+  doc, getDoc, setDoc, updateDoc,
+  collection, where, query, getDocs 
+} from "firebase/firestore";
+import { ref, uploadBytes, deleteObject } from "firebase/storage";
 
 interface SettingsAvatars {
   vip_male: string[];
@@ -18,9 +28,14 @@ const DEFAULT_AVATARS: SettingsAvatars = {
   standard_female: null,
 };
 
-const getPublicUrl = (path: string) => {
-  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-  return data ? data.publicUrl : "";
+const getPublicUrl = async (path: string) => {
+  try {
+    const url = await getFileDownloadURL(ref(storage, path));
+    return url;
+  } catch (error) {
+    console.error("Error getting URL:", error);
+    return "";
+  }
 };
 
 const getFilename = (file: File, prefix: string) =>
@@ -42,76 +57,116 @@ export const AvatarSettings = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .maybeSingle();
+      try {
+        // Get site settings from Firestore
+        const settingsRef = doc(db, "site_settings", "avatars");
+        const settingsSnapshot = await getDoc(settingsRef);
         
-      let obj = {};
-      if (data?.settings && typeof data.settings === "object") obj = data.settings;
-      const avatarsObj = obj["avatars"] ?? { ...DEFAULT_AVATARS };
-
-      // Ensure shape
-      setAvatars({
-        vip_male: Array.isArray(avatarsObj.vip_male) ? avatarsObj.vip_male : [],
-        vip_female: Array.isArray(avatarsObj.vip_female) ? avatarsObj.vip_female : [],
-        standard_male: avatarsObj.standard_male ?? null,
-        standard_female: avatarsObj.standard_female ?? null,
-      });
-      setSettings(obj);
-      setLoading(false);
+        let settingsData = {};
+        if (settingsSnapshot.exists()) {
+          settingsData = settingsSnapshot.data() || {};
+        }
+        
+        // Extract avatar settings or use defaults
+        const avatarsObj = settingsData.avatars || { ...DEFAULT_AVATARS };
+        
+        // Ensure shape
+        setAvatars({
+          vip_male: Array.isArray(avatarsObj.vip_male) ? avatarsObj.vip_male : [],
+          vip_female: Array.isArray(avatarsObj.vip_female) ? avatarsObj.vip_female : [],
+          standard_male: avatarsObj.standard_male ?? null,
+          standard_female: avatarsObj.standard_female ?? null,
+        });
+        
+        setSettings(settingsData);
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+        toast.error("Failed to load avatar settings");
+      } finally {
+        setLoading(false);
+      }
     };
+    
     fetchSettings();
   }, []);
 
-  // Save avatars to settings JSONB in supabase
+  // Save avatars to settings in Firestore
   const saveAvatars = async (nextAvatars: SettingsAvatars) => {
     const nextSettings = {
       ...settings,
       avatars: nextAvatars,
     };
     
-    const { data, error } = await supabase
-      .from("site_settings")
-      .update({ settings: nextSettings })
-      .eq("id", 1)
-      .single();
+    try {
+      // Update settings in Firestore
+      const settingsRef = doc(db, "site_settings", "avatars");
+      await setDoc(settingsRef, nextSettings, { merge: true });
       
-    if (error) {
+      setAvatars(nextAvatars);
+      setSettings(nextSettings);
+      toast.success("Avatars updated");
+      return true;
+    } catch (error) {
+      console.error("Error saving avatars:", error);
       toast.error("Failed to update avatars settings");
       return false;
     }
-    setAvatars(nextAvatars);
-    setSettings(nextSettings);
-    toast.success("Avatars updated");
-    return true;
   };
 
   const handleVipAvatarUpload = async (role: "vip_male" | "vip_female", files: FileList | null) => {
     if (!files || !files[0]) return;
     setUpLoading(true);
-    const file = files[0];
-    const fname = getFilename(file, role);
-    const { error } = await supabase.storage.from("avatars").upload(fname, file);
-    if (error) {
+    
+    try {
+      const file = files[0];
+      const fname = getFilename(file, role);
+      const path = `avatars/${fname}`;
+      
+      // Upload to Firebase Storage
+      const uploadResult = await uploadFile("avatars", fname, file);
+      
+      // Get public URL
+      const url = uploadResult.url;
+      
+      const nextAvatars = {
+        ...avatars,
+        [role]: [ ...(avatars[role] as string[]), url ],
+      };
+      
+      await saveAvatars(nextAvatars);
+    } catch (error) {
+      console.error("Upload error:", error);
       toast.error("Upload failed");
+    } finally {
       setUpLoading(false);
-      return;
     }
-    const url = getPublicUrl(fname);
-    const nextAvatars = {
-      ...avatars,
-      [role]: [ ...(avatars[role] as string[]), url ],
-    };
-    await saveAvatars(nextAvatars);
-    setUpLoading(false);
   };
 
   const handleVipAvatarDelete = async (role: "vip_male" | "vip_female", url: string) => {
-    const nextArr = (avatars[role] as string[]).filter(av => av !== url);
-    const nextAvatars = { ...avatars, [role]: nextArr };
-    await saveAvatars(nextAvatars);
+    try {
+      // Try to extract the path from the URL to delete from storage
+      // This assumes the URL contains the path in a specific format
+      const urlPath = url.split('/o/')[1]?.split('?')[0];
+      
+      if (urlPath) {
+        try {
+          // Try to delete the file from storage
+          // This may fail if the URL format doesn't match what we expect
+          const storageRef = ref(storage, decodeURIComponent(urlPath));
+          await deleteObject(storageRef);
+        } catch (storageError) {
+          console.warn("Could not delete from storage:", storageError);
+          // Continue even if storage delete fails
+        }
+      }
+      
+      const nextArr = (avatars[role] as string[]).filter(av => av !== url);
+      const nextAvatars = { ...avatars, [role]: nextArr };
+      await saveAvatars(nextAvatars);
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete avatar");
+    }
   };
 
   const handleStdAvatarUpload = async (
@@ -120,23 +175,54 @@ export const AvatarSettings = () => {
   ) => {
     if (!files || !files[0]) return;
     setUpLoading(true);
-    const file = files[0];
-    const fname = getFilename(file, role);
-    const { error } = await supabase.storage.from("avatars").upload(fname, file);
-    if (error) {
+    
+    try {
+      const file = files[0];
+      const fname = getFilename(file, role);
+      const path = `avatars/${fname}`;
+      
+      // Upload to Firebase Storage
+      const uploadResult = await uploadFile("avatars", fname, file);
+      
+      // Get public URL
+      const url = uploadResult.url;
+      
+      const nextAvatars = { ...avatars, [role]: url };
+      await saveAvatars(nextAvatars);
+    } catch (error) {
+      console.error("Upload error:", error);
       toast.error("Upload failed");
+    } finally {
       setUpLoading(false);
-      return;
     }
-    const url = getPublicUrl(fname);
-    const nextAvatars = { ...avatars, [role]: url };
-    await saveAvatars(nextAvatars);
-    setUpLoading(false);
   };
 
   const handleStdAvatarRemove = async (role: "standard_male" | "standard_female") => {
-    const nextAvatars = { ...avatars, [role]: null };
-    await saveAvatars(nextAvatars);
+    try {
+      const currentUrl = avatars[role];
+      
+      if (currentUrl) {
+        // Try to extract the path from the URL to delete from storage
+        const urlPath = currentUrl.split('/o/')[1]?.split('?')[0];
+        
+        if (urlPath) {
+          try {
+            // Try to delete the file from storage
+            const storageRef = ref(storage, decodeURIComponent(urlPath));
+            await deleteObject(storageRef);
+          } catch (storageError) {
+            console.warn("Could not delete from storage:", storageError);
+            // Continue even if storage delete fails
+          }
+        }
+      }
+      
+      const nextAvatars = { ...avatars, [role]: null };
+      await saveAvatars(nextAvatars);
+    } catch (error) {
+      console.error("Remove error:", error);
+      toast.error("Failed to remove avatar");
+    }
   };
 
   return (

@@ -22,7 +22,7 @@ import VipSuccessPage from "./pages/VipSuccessPage";
 import VipCancelPage from "./pages/VipCancelPage";
 
 import AdminLoginPage from "./pages/AdminLoginPage";
-import { auth, db } from "./lib/firebase";
+import { auth, db } from "./lib/firebase"; // Now all imports come from Firebase
 import { doc, getDoc } from 'firebase/firestore';
 
 import { Elements } from "@stripe/react-stripe-js";

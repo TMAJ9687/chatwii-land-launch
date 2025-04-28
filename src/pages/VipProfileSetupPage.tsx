@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useDetectCountry } from "@/hooks/useDetectCountry";
 import { ArrowRight, Check } from "lucide-react";
 import { COUNTRIES } from "@/constants/countries";
@@ -21,6 +21,10 @@ import {
   CardContent 
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { auth, db, storage } from '@/lib/firebase';
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { ref, getDownloadURL } from 'firebase/storage';
+import { supabase } from '@/integrations/firebase/firebase-adapter'; // Keep for compatibility
 
 const ageOptions = Array.from({ length: 63 }, (_, i) => 18 + i);
 const INTERESTS = [
@@ -50,38 +54,53 @@ const VipProfileSetupPage = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const user = auth.currentUser;
+      
+      if (!user) {
         navigate('/vip/login');
         return;
       }
-      setCurrentUser(session.user);
+      
+      setCurrentUser(user);
       
       // Check if profile already exists
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      const profileRef = doc(db, 'profiles', user.uid);
+      const profileSnapshot = await getDoc(profileRef);
       
-      if (profile) {
+      if (profileSnapshot.exists()) {
+        const profileData = profileSnapshot.data();
+        
         // If profile exists, populate fields
-        setNickname(profile.nickname || '');
-        setGender(profile.gender || '');
-        setAge(profile.age?.toString() || '');
-        setAvatarUrl(profile.avatar_url || '');
-        setSelectedCountry(profile.country || detectedCountry || '');
+        setNickname(profileData.nickname || '');
+        setGender(profileData.gender || '');
+        setAge(profileData.age?.toString() || '');
+        setAvatarUrl(profileData.avatar_url || '');
+        setSelectedCountry(profileData.country || detectedCountry || '');
         
         // Fetch user interests
-        const { data: userInterests } = await supabase
-          .from('user_interests')
-          .select('interests(name)')
-          .eq('user_id', session.user.id)
-          .range(0, 100);
+        const userInterestsRef = collection(db, 'user_interests');
+        const userInterestsQuery = query(userInterestsRef, where('user_id', '==', user.uid));
+        const userInterestsSnapshot = await getDocs(userInterestsQuery);
         
-        if (userInterests && userInterests.length > 0) {
-          const interests = userInterests.map((i: any) => i.interests?.name).filter(Boolean);
-          setSelectedInterests(interests);
+        const interestIds: string[] = [];
+        userInterestsSnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.interest_id) interestIds.push(data.interest_id);
+        });
+        
+        if (interestIds.length > 0) {
+          // Get interest names from IDs
+          const interestsRef = collection(db, 'interests');
+          const interestsQuery = query(interestsRef, where('id', 'in', interestIds));
+          const interestsSnapshot = await getDocs(interestsQuery);
+          
+          const interestNames: string[] = [];
+          interestsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.name) interestNames.push(data.name);
+          });
+          
+          setSelectedInterests(interestNames);
         }
       } else {
         // No profile - redirect to registration
@@ -108,30 +127,22 @@ const VipProfileSetupPage = () => {
     const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
     
     try {
-      const { data } = await supabase
-        .from("site_settings")
-        .select("settings")
-        .eq("id", 1)
-        .single();
+      // Get avatar settings from Firestore
+      const settingsRef = doc(db, "site_settings", "avatars");
+      const settingsSnapshot = await getDoc(settingsRef);
+      
+      if (settingsSnapshot.exists()) {
+        const settingsData = settingsSnapshot.data();
         
-      if (data?.settings) {
-        // Check if settings is a string (it should be an object)
-        const settingsData = typeof data.settings === 'string' 
-          ? JSON.parse(data.settings) 
-          : data.settings;
-        
-        // Now check for avatars property in the parsed settings
         if (settingsData && 
             settingsData.avatars && 
             Array.isArray(settingsData.avatars[genderKey])) {
           setVipAvatars(settingsData.avatars[genderKey]);
         } else {
-          // If no avatars found or not in expected format, set empty array
           console.log('No avatar data found in expected format:', settingsData);
           setVipAvatars([]);
         }
       } else {
-        // If no settings data found at all, set empty array
         console.log('No settings data found');
         setVipAvatars([]);
       }
@@ -184,68 +195,61 @@ const VipProfileSetupPage = () => {
       return;
     }
     
+    if (!currentUser) {
+      toast.error("No authenticated user");
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
       // Update profile with all information
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          gender,
-          age: parseInt(age),
-          country: selectedCountry,
-          avatar_url: avatarUrl
-        })
-        .eq('id', currentUser.id)
-        .single();
-      
-      if (profileError) throw profileError;
+      const profileRef = doc(db, 'profiles', currentUser.uid);
+      await updateDoc(profileRef, {
+        gender,
+        age: parseInt(age),
+        country: selectedCountry,
+        avatar_url: avatarUrl
+      });
       
       // Update user interests
       if (selectedInterests.length > 0) {
         // First, delete existing interests
-        await supabase
-          .from('user_interests')
-          .delete()
-          .eq('user_id', currentUser.id)
-          .single();
+        const userInterestsRef = collection(db, 'user_interests');
+        const userInterestsQuery = query(userInterestsRef, where('user_id', '==', currentUser.uid));
+        const userInterestsSnapshot = await getDocs(userInterestsQuery);
+        
+        const deletePromises: Promise<void>[] = [];
+        userInterestsSnapshot.forEach(doc => {
+          deletePromises.push(doc.ref.delete());
+        });
+        
+        await Promise.all(deletePromises);
         
         // Then insert new interests
         for (const interest of selectedInterests) {
           // Get or create interest
-          let interestId;
+          let interestId: string;
           
           // Check if interest exists
-          const { data: existingInterest } = await supabase
-            .from('interests')
-            .select('id')
-            .eq('name', interest)
-            .maybeSingle();
-            
-          if (existingInterest) {
-            interestId = existingInterest.id;
+          const interestsRef = collection(db, 'interests');
+          const interestsQuery = query(interestsRef, where('name', '==', interest));
+          const interestsSnapshot = await getDocs(interestsQuery);
+          
+          if (!interestsSnapshot.empty) {
+            interestId = interestsSnapshot.docs[0].id;
           } else {
             // Create new interest
-            const { data: newInterest } = await supabase
-              .from('interests')
-              .insert({ name: interest })
-              .select('id')
-              .single();
-              
-            if (newInterest) {
-              interestId = newInterest.id;
-            }
+            const newInterestRef = await addDoc(collection(db, 'interests'), {
+              name: interest
+            });
+            interestId = newInterestRef.id;
           }
           
-          if (interestId) {
-            // Insert user interest
-            await supabase
-              .from('user_interests')
-              .insert({
-                user_id: currentUser.id,
-                interest_id: interestId
-              })
-              .single();
-          }
+          // Insert user interest
+          await addDoc(collection(db, 'user_interests'), {
+            user_id: currentUser.uid,
+            interest_id: interestId
+          });
         }
       }
       
