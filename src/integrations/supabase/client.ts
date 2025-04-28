@@ -12,34 +12,40 @@ export const supabase = {
     updateUser: async () => ({ error: null })
   },
   from: (table: string) => ({
-    select: () => ({
-      eq: () => ({
+    select: (columns?: string) => ({
+      eq: (field: string, value: any) => ({
         single: async () => ({ data: null, error: null }),
         maybeSingle: async () => ({ data: null, error: null }),
-        order: () => ({
-          limit: () => ({
-            range: async () => ({ data: [], error: null }),
+        order: (column: string, options?: { ascending?: boolean }) => ({
+          limit: (count: number) => ({
+            range: async (from: number, to: number) => ({ data: [], error: null }),
           }),
         }),
       }),
-      order: () => ({
-        range: async () => ({ data: [], error: null }),
-        limit: async () => ({ data: [], error: null }),
+      order: (column: string, options?: { ascending?: boolean }) => ({
+        range: async (from: number, to: number) => ({ data: [], error: null }),
+        limit: async (count: number) => ({ data: [], error: null }),
       }),
-      in: () => ({
-        range: async () => ({ data: [], error: null }),
+      in: (field: string, values: any[]) => ({
+        range: async (from: number, to: number) => ({ data: [], error: null }),
       }),
-      range: async () => ({ data: [], error: null }),
+      range: async (from: number, to: number) => ({ data: [], error: null }),
     }),
-    insert: async () => ({ error: null }),
-    update: async () => ({ error: null }),
-    delete: async () => ({ error: null }),
-    upsert: async () => ({ error: null }),
+    insert: async (values: any, options?: any) => ({ error: null }),
+    update: (values: any) => ({
+      eq: async (field: string, value: any) => ({ error: null }),
+      match: async (criteria: any) => ({ error: null }),
+    }),
+    delete: () => ({
+      eq: async (field: string, value: any) => ({ error: null }),
+      match: async (criteria: any) => ({ error: null }),
+    }),
+    upsert: async (values: any) => ({ error: null }),
   }),
   storage: {
     from: (bucket: string) => ({
-      upload: async () => ({ data: { path: "" }, error: null }),
-      getPublicUrl: () => ({ data: { publicUrl: "" } }),
+      upload: async (path: string, file: any) => ({ data: { path: "" }, error: null }),
+      getPublicUrl: (path: string) => ({ data: { publicUrl: "" } }),
     }),
   },
   rpc: (func: string, params: any) => ({ data: null, error: null }),
