@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
@@ -8,6 +9,7 @@ import { MessageList } from './chat/MessageList';
 import { WarningBanner } from './chat/WarningBanner';
 import { isMockUser } from '@/utils/mockUsers';
 import { FirebaseIndexMessage } from './chat/FirebaseIndexMessage';
+import { Loader2 } from 'lucide-react';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -37,6 +39,7 @@ export const ChatArea = ({
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<string>>(new Set());
   const [indexError, setIndexError] = useState<string | null>(null);
+  const [markingAsRead, setMarkingAsRead] = useState(false);
   const { blockedUsers, blockUser, canInteractWithUser } = useBlockedUsers();
   const isMockVipUser = isMockUser(selectedUser.id);
   
@@ -68,6 +71,7 @@ export const ChatArea = ({
       
       if (currentUserId && selectedUser.id) {
         try {
+          setMarkingAsRead(true);
           console.log('Marking messages as read from', selectedUser.id);
           const unreadMessages = await queryDocuments('messages', [
             { field: 'sender_id', operator: '==', value: selectedUser.id },
@@ -103,6 +107,8 @@ export const ChatArea = ({
             setTimeout(markMessagesAsRead, 1000 * retryCount);
             return;
           }
+        } finally {
+          setMarkingAsRead(false);
         }
       }
     };
@@ -143,21 +149,30 @@ export const ChatArea = ({
         <FirebaseIndexMessage />
       )}
       
-      {messages.length === 0 && !isLoading && (
+      {isLoading && (
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+          <p className="text-muted-foreground">Loading messages...</p>
+        </div>
+      )}
+      
+      {!isLoading && messages.length === 0 && (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <p>No messages yet. Start the conversation!</p>
         </div>
       )}
       
-      <MessageList
-        messages={messages}
-        currentUserId={currentUserId}
-        onImageClick={(url) => setFullScreenImage(url)}
-        revealedImages={revealedImages}
-        toggleImageReveal={toggleImageReveal}
-        isTyping={isTyping}
-        isVipUser={isVipUser}
-      />
+      {!isLoading && messages.length > 0 && (
+        <MessageList
+          messages={messages}
+          currentUserId={currentUserId}
+          onImageClick={(url) => setFullScreenImage(url)}
+          revealedImages={revealedImages}
+          toggleImageReveal={toggleImageReveal}
+          isTyping={isTyping}
+          isVipUser={isVipUser}
+        />
+      )}
 
       <ReportUserPopup
         isOpen={showReportPopup}

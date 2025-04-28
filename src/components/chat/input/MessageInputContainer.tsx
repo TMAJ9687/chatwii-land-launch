@@ -1,20 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Smile } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { debounce } from 'lodash';
-import EmojiPicker from 'emoji-picker-react';
-import { toast } from 'sonner';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
-import { useVoiceMessage } from '@/hooks/useVoiceMessage';
-import { useImageMessage } from '@/hooks/useImageMessage';
-import { useMessageInput } from '@/hooks/useMessageInput';
-import { ImagePreview } from '../ImagePreview';
-import { VoicePreview } from '../VoicePreview';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { TextInput } from './TextInput';
 import { SendButton } from './SendButton';
 import { AttachmentButton } from './AttachmentButton';
 import { VoiceRecorderButton } from './VoiceRecorderButton';
+import { ActionButtons } from './ActionButtons';
+import { useImageUpload } from '@/hooks/useImageUpload';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
+import { ImagePreview } from '../ImagePreview';
+import { VoicePreview } from '../VoicePreview';
+import { useMessageValidation } from '@/hooks/useMessageValidation';
 import { isMockUser } from '@/utils/mockUsers';
 
 interface MessageInputContainerProps {
@@ -23,224 +18,179 @@ interface MessageInputContainerProps {
   receiverId: string;
   isVipUser?: boolean;
   onTypingStatusChange?: (isTyping: boolean) => void;
+  disabled?: boolean;
 }
 
-export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({ 
-  onSendMessage, 
-  currentUserId, 
+export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
+  onSendMessage,
+  currentUserId,
   receiverId,
   isVipUser = false,
-  onTypingStatusChange 
+  onTypingStatusChange,
+  disabled = false
 }) => {
-  const [uploadingMessage, setUploadingMessage] = useState(false);
-  const { canInteractWithUser } = useBlockedUsers();
-  const canSendToUser = canInteractWithUser(receiverId);
-  const isMockVipUser = isMockUser(receiverId);
-  
-  const [hasReachedImageLimit, setHasReachedImageLimit] = useState(false);
-  const dailyImageLimit = 10;
+  const [message, setMessage] = useState('');
+  const { validateMessage } = useMessageValidation();
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { 
+    selectedImage, 
+    imagePreview, 
+    handleImageSelect, 
+    cancelImageSelection, 
+    uploadSelectedImage 
+  } = useImageUpload(currentUserId);
 
-  const {
-    message,
-    setMessage,
-    charLimit,
-    inputRef,
-    handleKeyPress,
-    handleEmojiClick
-  } = useMessageInput({ onSendMessage });
-
-  const {
+  const { 
     isRecording,
     audioBlob,
-    recordingError,
-    localAudioUrl,
-    showVoicePreview,
-    audioUploading,
-    handleRecordToggle,
-    handleSendVoice,
-    handleCancelVoice
-  } = useVoiceMessage(currentUserId, canSendToUser && !isMockVipUser);
+    audioUrl,
+    startRecording,
+    stopRecording,
+    resetRecording,
+    uploadVoiceMessage
+  } = useVoiceRecorder(currentUserId);
 
-  const {
-    fileInputRef,
-    selectedFile,
-    previewUrl,
-    imageUploading,
-    handleFileSelect,
-    clearFileSelection,
-    triggerFileInput,
-    handleImageUpload
-  } = useImageMessage(
-    currentUserId, 
-    canSendToUser && !isMockVipUser,
-    hasReachedImageLimit,
-    isVipUser,
-    dailyImageLimit
-  );
-
-  const debouncedTypingStatus = useCallback(
-    debounce((isTyping: boolean) => {
-      if (onTypingStatusChange) {
-        onTypingStatusChange(isTyping);
-      }
-    }, 300),
-    [onTypingStatusChange]
-  );
-
-  useEffect(() => {
-    if (isVipUser && message.length > 0) {
-      debouncedTypingStatus(true);
+  const handleTypingStatus = (isTyping: boolean) => {
+    if (onTypingStatusChange) {
+      onTypingStatusChange(isTyping);
     }
-    
-    return () => {
-      debouncedTypingStatus.cancel();
-    };
-  }, [message, isVipUser, debouncedTypingStatus]);
+  };
 
   useEffect(() => {
     return () => {
-      if (isVipUser && onTypingStatusChange) {
-        onTypingStatusChange(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [isVipUser, onTypingStatusChange]);
+  }, []);
 
-  const handleSendMessage = async () => {
-    if (isMockVipUser) {
-      toast.error("This is a demo VIP user. You cannot send messages to this account.");
-      return;
+  const handleInputChange = (value: string) => {
+    setMessage(value);
+    
+    // Notify that the user is typing
+    handleTypingStatus(value.length > 0);
+    
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
     }
     
-    if (!canSendToUser) {
-      toast.error("You cannot send messages to this user");
-      return;
-    }
+    // Set timeout to indicate typing stopped after 1.5 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      handleTypingStatus(false);
+    }, 1500);
+  };
+
+  const handleSend = async () => {
+    if (disabled) return;
     
-    if (message.trim()) {
-      onSendMessage(message.trim());
-      setMessage('');
-      if (onTypingStatusChange) {
-        onTypingStatusChange(false);
-      }
-      return;
-    }
-    
-    if (selectedFile) {
-      setUploadingMessage(true);
+    if (audioBlob) {
       try {
-        const imageUrl = await handleImageUpload();
+        const voiceUrl = await uploadVoiceMessage();
+        if (voiceUrl) {
+          onSendMessage('', voiceUrl);
+          resetRecording();
+          handleTypingStatus(false);
+        }
+      } catch (error) {
+        console.error('Error uploading voice message:', error);
+      }
+      return;
+    }
+
+    if (selectedImage) {
+      try {
+        const imageUrl = await uploadSelectedImage();
         if (imageUrl) {
-          onSendMessage("", imageUrl);
-          if (onTypingStatusChange) {
-            onTypingStatusChange(false);
-          }
+          onSendMessage(message, imageUrl);
+          setMessage('');
+          cancelImageSelection();
+          handleTypingStatus(false);
         }
       } catch (error) {
         console.error('Error uploading image:', error);
-        toast.error('Failed to upload image');
-      } finally {
-        setUploadingMessage(false);
+      }
+      return;
+    }
+
+    if (message.trim()) {
+      const { isValid } = validateMessage(message);
+      if (isValid) {
+        onSendMessage(message);
+        setMessage('');
+        handleTypingStatus(false);
       }
     }
   };
 
-  const handleSendVoiceMessage = async () => {
-    if (isMockVipUser) {
-      toast.error("This is a demo VIP user. You cannot send messages to this account.");
-      return;
-    }
-    
-    setUploadingMessage(true);
-    try {
-      const voiceUrl = await handleSendVoice();
-      if (voiceUrl) {
-        onSendMessage('[Voice message]', voiceUrl);
-        handleCancelVoice();
-        if (onTypingStatusChange) {
-          onTypingStatusChange(false);
-        }
-      }
-    } finally {
-      setUploadingMessage(false);
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && !disabled) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
   return (
-    <div className="p-4 border-t border-border flex gap-2 items-center bg-background relative">
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-
-      {previewUrl && <ImagePreview previewUrl={previewUrl} onCancel={clearFileSelection} />}
-
-      {showVoicePreview && audioBlob && localAudioUrl && (
-        <VoicePreview 
-          audioUrl={localAudioUrl}
-          onSend={handleSendVoiceMessage}
-          onCancel={handleCancelVoice}
-          disabled={audioUploading || uploadingMessage}
+    <div className="p-2 border-t flex flex-col gap-2">
+      {imagePreview && (
+        <ImagePreview 
+          imageUrl={imagePreview} 
+          onCancel={cancelImageSelection} 
         />
       )}
-
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full"
-            disabled={!canSendToUser || isRecording}
-          >
-            <Smile className="h-5 w-5" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-full p-0" sideOffset={5} align="start">
-          <EmojiPicker onEmojiClick={handleEmojiClick} />
-        </PopoverContent>
-      </Popover>
-
-      <TextInput
-        message={message}
-        charLimit={charLimit}
-        onChange={setMessage}
-        onKeyPress={handleKeyPress}
-        disabled={
-          imageUploading || 
-          uploadingMessage || 
-          isRecording || 
-          !canSendToUser
-        }
-        inputRef={inputRef}
-      />
-
-      <AttachmentButton
-        onClick={triggerFileInput}
-        disabled={!canSendToUser || isRecording}
-      />
-
-      <VoiceRecorderButton
-        isRecording={isRecording}
-        onClick={handleRecordToggle}
-        disabled={!canSendToUser}
-      />
-
-      <SendButton
-        onClick={handleSendMessage}
-        disabled={
-          (!message.trim() && !selectedFile) || 
-          message.length > charLimit || 
-          imageUploading || 
-          uploadingMessage || 
-          isRecording
-        }
-      />
-
-      {recordingError && (
-        <span className="text-destructive text-xs ml-2">{recordingError}</span>
+      
+      {audioUrl && !isRecording && (
+        <VoicePreview 
+          audioUrl={audioUrl} 
+          onCancel={resetRecording} 
+        />
       )}
+      
+      <div className="flex items-end gap-2">
+        {!isRecording && !audioBlob && (
+          <AttachmentButton 
+            onImageSelect={handleImageSelect} 
+            disabled={disabled || !!audioBlob}
+          />
+        )}
+        
+        <TextInput 
+          value={message}
+          onChange={handleInputChange}
+          onKeyPress={handleKeyPress}
+          placeholder="Type a message..."
+          disabled={isRecording || disabled}
+          ref={messageInputRef}
+        />
+        
+        {!isRecording && !audioBlob && (
+          <SendButton 
+            onClick={handleSend} 
+            disabled={disabled || (!message.trim() && !selectedImage)}
+          />
+        )}
+        
+        {!isRecording && !audioBlob && !selectedImage && !message.trim() && (
+          <VoiceRecorderButton
+            isRecording={isRecording}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            disabled={disabled}
+          />
+        )}
+        
+        {isRecording && (
+          <ActionButtons 
+            onStop={stopRecording} 
+            onCancel={() => {
+              resetRecording();
+              handleTypingStatus(false);
+            }}
+            disabled={disabled}
+          />
+        )}
+      </div>
     </div>
   );
 };

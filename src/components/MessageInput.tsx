@@ -15,10 +15,11 @@ interface MessageInputProps {
   receiverId: string;
   isVipUser?: boolean;
   onTypingStatusChange?: (isTyping: boolean) => void;
+  disabled?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = (props) => {
-  const { currentUserId, receiverId, isVipUser = false } = props;
+  const { currentUserId, receiverId, isVipUser = false, disabled = false } = props;
   const isMockVipUser = isMockUser(receiverId);
   
   const { 
@@ -86,7 +87,7 @@ export const MessageInput: React.FC<MessageInputProps> = (props) => {
   }, [replyToMessageId]);
 
   const handleSendReply = (content: string) => {
-    if (!replyToMessageId || !content.trim()) return;
+    if (!replyToMessageId || !content.trim() || disabled) return;
     
     handleReplyToMessage(replyToMessageId, content);
     if (props.onTypingStatusChange) {
@@ -105,6 +106,7 @@ export const MessageInput: React.FC<MessageInputProps> = (props) => {
           originalMessage={replyToMessage}
           onSendReply={handleSendReply}
           onCancel={cancelReply}
+          disabled={disabled}
         />
       )}
     

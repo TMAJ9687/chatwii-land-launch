@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
+import { Loader2 } from 'lucide-react';
 
 interface ChatContentProps {
   selectedUserId: string | null;
@@ -37,9 +38,10 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   error = null,
 }) => {
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState<boolean>(false);
   
   // Check for Firebase index error in the error message
-  React.useEffect(() => {
+  useEffect(() => {
     if (error && error.includes('index')) {
       const urlMatch = error.match(/https:\/\/console\.firebase\.google\.com[^\s"]*/);
       if (urlMatch) {
@@ -47,6 +49,18 @@ export const ChatContent: React.FC<ChatContentProps> = ({
       }
     }
   }, [error]);
+
+  // Wrap the onSendMessage handler to manage send state
+  const handleSendMessage = async (content: string, imageUrl?: string) => {
+    if (!content && !imageUrl) return;
+    
+    setIsSending(true);
+    try {
+      await onSendMessage(content, imageUrl);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   if (!selectedUserId) {
     return <EmptyStateView />;
@@ -79,14 +93,21 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         isLoading={isLoading}
       />
 
+      {isSending && (
+        <div className="bg-muted/50 py-1 px-4 flex items-center justify-center">
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          <span className="text-sm">Sending message...</span>
+        </div>
+      )}
+
       <MessageInput
-        onSendMessage={onSendMessage}
+        onSendMessage={handleSendMessage}
         currentUserId={currentUserId}
         receiverId={selectedUserId}
         isVipUser={isVipUser}
         onTypingStatusChange={onTypingStatusChange}
+        disabled={isSending}
       />
     </>
   );
 };
-

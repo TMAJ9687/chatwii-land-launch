@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+
+import { useEffect, useRef } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 
@@ -14,15 +15,29 @@ export const useChannelSetup = (
   const { setupReactionsListener, cleanupReactionListener } = useReactionsChannel(
     currentUserId, selectedUserId, fetchMessages
   );
+  
+  const prevSelectedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Only set up new channels if user ID has changed
     if (!currentUserId || !selectedUserId) return;
-    setupMessageChannel();
-    setupReactionsListener();
+    
+    // Clean up previous connections if they exist and user ID has changed
+    if (prevSelectedUserIdRef.current !== selectedUserId) {
+      cleanupMessageChannel();
+      cleanupReactionListener();
+      
+      // Set up new connections
+      setupMessageChannel();
+      setupReactionsListener();
+      
+      // Update the ref
+      prevSelectedUserIdRef.current = selectedUserId;
+    }
 
     return () => {
       cleanupMessageChannel();
       cleanupReactionListener();
     };
-  }, [currentUserId, selectedUserId]); // ONLY depend on user IDs!
+  }, [currentUserId, selectedUserId]); 
 };
