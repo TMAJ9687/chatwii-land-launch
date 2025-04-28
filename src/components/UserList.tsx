@@ -1,10 +1,9 @@
-
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserListItem } from "@/components/UserListItem";
 import { FilterPopup } from "@/components/FilterPopup";
 import { FilterState, DEFAULT_FILTERS } from "@/types/filters";
-import { useState, useMemo, useEffect } from "react";
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -16,75 +15,68 @@ interface UserListProps {
 }
 
 export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps) => {
-  const { blockedUsers, unblockUser, fetchBlockedUsers } = useBlockedUsers();
+  const { blockedUsers, unblockUser } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [userInterests, setUserInterests] = useState<Record<string, string[]>>({});
 
+  // Fetch user interests from Firestore for each user (one query per user, may optimize in the future)
   useEffect(() => {
-    if (users.length === 0) return;
+    if (!users.length) return;
+
+    let isMounted = true;
 
     const fetchInterests = async () => {
+      const interestsByUser: Record<string, string[]> = {};
       try {
-        const userIds = users.map(user => user.user_id);
-        const interestsByUser: Record<string, string[]> = {};
-        
-        // Fetch interests for all users from Firebase
-        for (const userId of userIds) {
+        await Promise.all(users.map(async user => {
           const interestsRef = collection(db, 'user_interests');
-          const interestsQuery = query(
-            interestsRef,
-            where('user_id', '==', userId)
-          );
-          
-          const interestsSnapshot = await getDocs(interestsQuery);
-          const userInterestList: string[] = [];
-          
-          interestsSnapshot.forEach(doc => {
+          const q = query(interestsRef, where('user_id', '==', user.user_id));
+          const snapshot = await getDocs(q);
+          const interests: string[] = [];
+          snapshot.forEach(doc => {
             const data = doc.data();
-            if (data.interest_name) {
-              userInterestList.push(data.interest_name);
-            }
+            if (data.interest_name) interests.push(data.interest_name);
           });
-          
-          interestsByUser[userId] = userInterestList;
-        }
-        
-        setUserInterests(interestsByUser);
+          interestsByUser[user.user_id] = interests;
+        }));
+        if (isMounted) setUserInterests(interestsByUser);
       } catch (err) {
-        console.error('Error processing interests:', err);
+        console.error("Error fetching interests:", err);
+        if (isMounted) setUserInterests({});
       }
     };
-    
+
     fetchInterests();
+    return () => { isMounted = false; };
   }, [users]);
 
+  // Filter users based on selected filters
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => !user.is_current_user)
       .filter(user => {
-        if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender as any)) {
-          return false;
-        }
-        if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) {
-          return false;
-        }
-        if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) {
-          return false;
-        }
+        if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender)) return false;
+        if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) return false;
+        if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) return false;
         return true;
       });
   }, [users, filters]);
 
+  // Active filters badge
   const hasActiveFilters = useMemo(() => {
-    return filters.selectedGenders.length > 0 ||
+    return (
+      filters.selectedGenders.length > 0 ||
       filters.selectedCountries.length > 0 ||
       filters.ageRange.min !== DEFAULT_FILTERS.ageRange.min ||
-      filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max;
+      filters.ageRange.max !== DEFAULT_FILTERS.ageRange.max
+    );
   }, [filters]);
 
+  // Sort users for display
   const sortedUsers = useMemo(() => {
     return [...filteredUsers].sort((a, b) => {
+      // VIP users first, then bots, then by country, then by nickname
       if ((a.role === 'vip' || a.vip_status) && !(b.role === 'vip' || b.vip_status)) return -1;
       if (!(a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) return 1;
       if ((a.role === 'vip' || a.vip_status) && (b.role === 'vip' || b.vip_status)) {
@@ -99,30 +91,32 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
     });
   }, [filteredUsers]);
 
-  const handleFilterChange = (newFilters: Partial<FilterState>) => {
+  // Handlers
+  const handleFilterChange = useCallback((newFilters: Partial<FilterState>) => {
     setFilters(prev => ({
       ...prev,
       ...newFilters
     }));
-  };
+  }, []);
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
-  };
+  }, []);
 
-  const handleUserSelection = (userId: string) => {
+  const handleUserSelection = useCallback((userId: string) => {
     const user = users.find(u => u.user_id === userId);
     if (user && !user.is_current_user) {
       onUserSelect(userId);
     }
-  };
+  }, [users, onUserSelect]);
 
-  const handleUnblockUser = async (userId: string) => {
+  const handleUnblockUser = useCallback(async (userId: string) => {
     if (unblockUser) {
       await unblockUser(userId, localStorage.getItem('userId'));
     }
-  };
+  }, [unblockUser]);
 
+  // Render
   return (
     <div className="h-full flex flex-col">
       <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
@@ -135,6 +129,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
             className="rounded-full relative"
+            aria-label="Show filters"
           >
             <Filter className="h-5 w-5" />
             {hasActiveFilters && (
@@ -152,7 +147,7 @@ export const UserList = ({ users, onUserSelect, selectedUserId }: UserListProps)
         </div>
       </div>
       <div className="overflow-y-auto flex-1">
-        {sortedUsers.map((user) => (
+        {sortedUsers.map(user => (
           <UserListItem
             key={user.user_id}
             name={user.nickname}
