@@ -1,26 +1,24 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/sonner";
-import { 
-  Table, TableHeader, TableRow, TableHead, 
-  TableBody, TableCell 
+import {
+  Table, TableHeader, TableRow, TableHead,
+  TableBody, TableCell
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  AlertDialog, AlertDialogAction, AlertDialogCancel, 
-  AlertDialogContent, AlertDialogDescription, 
-  AlertDialogFooter, AlertDialogHeader, 
-  AlertDialogTitle, AlertDialogTrigger 
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { CheckCircle, Trash2, Ban, Loader2 } from "lucide-react";
 import { BanUserModal } from "@/components/admin/modals/BanUserModal";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
+import { useMutation } from "@tanstack/react-query";
+import {
   collection, query, where, orderBy, getDocs,
   doc, deleteDoc, updateDoc, addDoc, serverTimestamp,
-  WhereFilterOp
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 
@@ -43,8 +41,8 @@ export const ReportsTable = () => {
   const [reportToDelete, setReportToDelete] = useState<number | string | null>(null);
   const [reportedUser, setReportedUser] = useState<{ id: string, nickname: string } | null>(null);
   const [showBanModal, setShowBanModal] = useState(false);
-  const queryClient = useQueryClient();
-  
+
+  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (reportId: number | string) => {
       const reportRef = doc(db, "reports", reportId.toString());
@@ -63,7 +61,8 @@ export const ReportsTable = () => {
       });
     }
   });
-  
+
+  // Resolve mutation
   const resolveMutation = useMutation({
     mutationFn: async (reportId: number | string) => {
       const reportRef = doc(db, "reports", reportId.toString());
@@ -74,10 +73,10 @@ export const ReportsTable = () => {
       return reportId;
     },
     onSuccess: (reportId) => {
-      setReports(prev => 
-        prev.map(report => 
-          report.id === reportId 
-            ? { ...report, status: "resolved", resolved_at: new Date().toISOString() } 
+      setReports(prev =>
+        prev.map(report =>
+          report.id === reportId
+            ? { ...report, status: "resolved", resolved_at: new Date().toISOString() }
             : report
         )
       );
@@ -87,61 +86,52 @@ export const ReportsTable = () => {
       toast.error("Failed to resolve report");
     }
   });
-  
+
+  // Fetch reports from Firestore
   const fetchReports = async () => {
     setLoading(true);
     try {
-      // Get reports from Firestore
       const reportsRef = collection(db, "reports");
       const reportsQuery = query(
         reportsRef,
         orderBy("created_at", "desc")
       );
-      
       const reportsSnapshot = await getDocs(reportsQuery);
-      
+
       if (!reportsSnapshot.empty) {
-        // Collect all user IDs we need to look up
+        // Collect all user IDs to look up
         const userIds = new Set<string>();
         const reportData: any[] = [];
-        
-        reportsSnapshot.forEach(doc => {
-          const data = doc.data();
-          reportData.push({
-            id: doc.id,
-            ...data
-          });
-          
+        reportsSnapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          reportData.push({ id: docSnap.id, ...data });
           if (data.reporter_id) userIds.add(data.reporter_id);
           if (data.reported_id) userIds.add(data.reported_id);
         });
-        
-        // Fetch profiles for all users
+
+        // Fetch user profiles
         const profilesMap = new Map<string, any>();
-        
         if (userIds.size > 0) {
           const profilesRef = collection(db, "profiles");
-          const profilesQuery = query(
-            profilesRef,
-            where("id", "in", Array.from(userIds))
-          );
-          
-          const profilesSnapshot = await getDocs(profilesQuery);
-          profilesSnapshot.forEach(doc => {
-            const profileData = doc.data();
-            if (profileData.id) {
-              profilesMap.set(profileData.id, profileData);
-            }
-          });
+          // Chunk into groups of 10 (Firestore "in" query limitation)
+          const userIdArr = Array.from(userIds);
+          for (let i = 0; i < userIdArr.length; i += 10) {
+            const chunk = userIdArr.slice(i, i + 10);
+            const profilesQuery = query(profilesRef, where("id", "in", chunk));
+            const profilesSnapshot = await getDocs(profilesQuery);
+            profilesSnapshot.forEach(docSnap => {
+              const profileData = docSnap.data();
+              if (profileData.id) profilesMap.set(profileData.id, profileData);
+            });
+          }
         }
-        
-        // Combine report data with profile data
+
+        // Merge nicknames
         const reportsWithNicknames = reportData.map(report => ({
           ...report,
           reporter_nickname: profilesMap.get(report.reporter_id)?.nickname || "Unknown User",
           reported_nickname: profilesMap.get(report.reported_id)?.nickname || "Unknown User",
         }));
-        
         setReports(reportsWithNicknames);
       } else {
         setReports([]);
@@ -155,71 +145,64 @@ export const ReportsTable = () => {
       setLoading(false);
     }
   };
-  
+
   const handleBanUser = (userId: string, nickname: string) => {
     setReportedUser({ id: userId, nickname });
     setShowBanModal(true);
   };
-  
+
   const handleBanConfirm = async (reason: string, duration: string) => {
     if (!reportedUser) return;
-    
     try {
       const currentUser = auth.currentUser;
-      
       if (!currentUser) {
         toast.error("Authentication error");
         return;
       }
-      
-      const expiresAt = duration === 'permanent' ? null : 
-        new Date(Date.now() + {
-          '1day': 24 * 60 * 60 * 1000,
-          '1week': 7 * 24 * 60 * 60 * 1000,
-          '1month': 30 * 24 * 60 * 60 * 1000,
-        }[duration as string] || 0).toISOString();
-      
-      // Add ban to Firestore
+      const durationMs: { [key: string]: number } = {
+        "1day": 24 * 60 * 60 * 1000,
+        "1week": 7 * 24 * 60 * 60 * 1000,
+        "1month": 30 * 24 * 60 * 60 * 1000
+      };
+      const expiresAt = duration === 'permanent'
+        ? null
+        : new Date(Date.now() + (durationMs[duration] || 0)).toISOString();
+
+      // Add ban record
       const bansRef = collection(db, "bans");
       await addDoc(bansRef, {
         user_id: reportedUser.id,
         reason,
-        admin_id: currentUser.uid, // Using uid instead of id
+        admin_id: currentUser.uid,
         expires_at: expiresAt,
         created_at: serverTimestamp()
       });
-      
-      // Update profile visibility
+
+      // Update user profile visibility
       const profileRef = doc(db, "profiles", reportedUser.id);
-      await updateDoc(profileRef, {
-        visibility: 'offline'
-      });
-      
+      await updateDoc(profileRef, { visibility: 'offline' });
+
       toast.success(`User ${reportedUser.nickname} has been banned`);
-      
-      // Resolve reports for this user
+
+      // Mark reports for this user as resolved
       const reportsRef = collection(db, "reports");
       const reportQuery = query(
         reportsRef,
         where("reported_id", "==", reportedUser.id),
         where("status", "==", "pending")
       );
-      
       const reportSnapshot = await getDocs(reportQuery);
       const updatePromises: Promise<void>[] = [];
-      
-      reportSnapshot.forEach(doc => {
+      reportSnapshot.forEach(docSnap => {
         updatePromises.push(
-          updateDoc(doc.ref, {
+          updateDoc(docSnap.ref, {
             status: "resolved",
             resolved_at: new Date().toISOString()
           })
         );
       });
-      
       await Promise.all(updatePromises);
-      
-      // Refresh reports list
+
       fetchReports();
     } catch (error) {
       console.error("Ban user error:", error);
@@ -229,15 +212,16 @@ export const ReportsTable = () => {
       setReportedUser(null);
     }
   };
-  
+
   useEffect(() => {
     fetchReports();
+    // eslint-disable-next-line
   }, []);
-  
+
   if (loading) {
     return <div className="flex justify-center p-8">Loading reports...</div>;
   }
-  
+
   return (
     <div>
       <div className="rounded-md border">
@@ -279,7 +263,7 @@ export const ReportsTable = () => {
                     {format(new Date(report.created_at), "MMM d, yyyy")}
                   </TableCell>
                   <TableCell>
-                    <Badge 
+                    <Badge
                       variant={report.status === "resolved" ? "outline" : "secondary"}
                     >
                       {report.status}
@@ -302,7 +286,7 @@ export const ReportsTable = () => {
                           )}
                         </Button>
                       )}
-                      
+
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -323,13 +307,13 @@ export const ReportsTable = () => {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={() => deleteMutation.mutate(report.id)}>
-                              {deleteMutation.isPending && deleteMutation.variables === report.id ? 
+                              {deleteMutation.isPending && deleteMutation.variables === report.id ?
                                 'Deleting...' : 'Delete'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -346,9 +330,9 @@ export const ReportsTable = () => {
           </TableBody>
         </Table>
       </div>
-      
+
       {reportedUser && (
-        <BanUserModal 
+        <BanUserModal
           isOpen={showBanModal}
           onClose={() => setShowBanModal(false)}
           onConfirm={handleBanConfirm}
