@@ -37,22 +37,22 @@ export const supabase = {
       select: (columns: string) => ({
         single: async () => ({ data: null, error: null }),
       }),
-      then: async () => ({ data: null, error: null }),
+      then: () => Promise.resolve({ data: null, error: null }),
     }),
     update: (values: any) => ({
       eq: (field: string, value: any) => ({
-        then: async () => ({ data: null, error: null })
+        then: () => Promise.resolve({ data: null, error: null })
       }),
-      match: async (criteria: any) => ({ error: null }),
+      match: (criteria: any) => Promise.resolve({ error: null }),
     }),
     delete: () => ({
       eq: (field: string, value: any) => ({
-        then: async () => ({ data: null, error: null })
+        then: () => Promise.resolve({ data: null, error: null })
       }),
-      match: async (criteria: any) => ({ error: null }),
+      match: (criteria: any) => Promise.resolve({ error: null }),
     }),
     upsert: (values: any) => ({
-      then: async () => ({ data: null, error: null })
+      then: () => Promise.resolve({ data: null, error: null })
     }),
   }),
   storage: {

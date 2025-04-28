@@ -41,13 +41,12 @@ export const ReportsTable = () => {
   
   const deleteMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      const { error } = await supabase
+      const response = await supabase
         .from("reports")
         .delete()
-        .eq("id", reportId)
-        .then();
+        .eq("id", reportId);
         
-      if (error) throw error;
+      if (response.error) throw response.error;
       return reportId;
     },
     onSuccess: (reportId) => {
@@ -65,16 +64,15 @@ export const ReportsTable = () => {
   
   const resolveMutation = useMutation({
     mutationFn: async (reportId: number) => {
-      const { error } = await supabase
+      const response = await supabase
         .from("reports")
         .update({ 
           status: "resolved",
           resolved_at: new Date().toISOString()
         })
-        .eq("id", reportId)
-        .then();
+        .eq("id", reportId);
         
-      if (error) throw error;
+      if (response.error) throw response.error;
       return reportId;
     },
     onSuccess: (reportId) => {

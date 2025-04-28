@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -43,11 +42,13 @@ export const AvatarSettings = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const response = await supabase
         .from("site_settings")
         .select("settings")
         .eq("id", 1)
         .maybeSingle();
+        
+      const { data, error } = response;
       let obj = {};
       if (data?.settings && typeof data.settings === "object") obj = data.settings;
       const avatarsObj = obj["avatars"] ?? { ...DEFAULT_AVATARS };
@@ -71,10 +72,12 @@ export const AvatarSettings = () => {
       ...settings,
       avatars: nextAvatars,
     };
-    const { error } = await supabase
+    const response = await supabase
       .from("site_settings")
       .update({ settings: nextSettings })
       .eq("id", 1);
+      
+    const { error } = response;
     if (error) {
       toast.error("Failed to update avatars settings");
       return false;
