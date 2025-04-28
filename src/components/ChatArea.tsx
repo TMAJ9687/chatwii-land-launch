@@ -8,6 +8,7 @@ import { updateDocument, queryDocuments } from '@/lib/firebase';
 import { MessageList } from './chat/MessageList';
 import { WarningBanner } from './chat/WarningBanner';
 import { isMockUser } from '@/utils/mockUsers';
+import { FirebaseIndexMessage } from './chat/FirebaseIndexMessage';
 
 interface ChatAreaProps {
   messages: MessageWithMedia[];
@@ -34,6 +35,7 @@ export const ChatArea = ({
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [revealedImages, setRevealedImages] = useState<Set<string>>(new Set());
+  const [indexError, setIndexError] = useState<string | null>(null);
   const { blockedUsers, blockUser, canInteractWithUser } = useBlockedUsers();
   const isMockVipUser = isMockUser(selectedUser.id);
   
@@ -42,12 +44,11 @@ export const ChatArea = ({
     if (savedRevealedImages) {
       try {
         const parsedImages = JSON.parse(savedRevealedImages);
-        // Ensure we're working with an array of numbers
-        const numericIds = parsedImages.map((id: any) => {
-          const numId = parseInt(id, 10);
-          return isNaN(numId) ? null : numId;
-        }).filter(Boolean);
-        setRevealedImages(new Set(numericIds));
+        // Ensure we're working with an array of strings
+        const validIds = parsedImages
+          .filter((id: any) => id && typeof id === 'string')
+          .map((id: any) => String(id));
+        setRevealedImages(new Set(validIds));
       } catch (e) {
         console.error('Error parsing revealed images from storage:', e);
         setRevealedImages(new Set());
@@ -68,6 +69,7 @@ export const ChatArea = ({
       
       if (currentUserId && selectedUser.id) {
         try {
+          console.log('Marking messages as read from', selectedUser.id);
           // Query unread messages from this sender
           const unreadMessages = await queryDocuments('messages', [
             { field: 'sender_id', operator: '==', value: selectedUser.id },
@@ -75,22 +77,35 @@ export const ChatArea = ({
             { field: 'is_read', operator: '==', value: false }
           ]);
           
+          console.log(`Found ${unreadMessages.length} unread messages to mark as read`);
+          
           // Update each message
-          const updatePromises = unreadMessages.map(msg => 
-            updateDocument('messages', msg.id, { is_read: true })
-          );
+          const updatePromises = unreadMessages.map(msg => {
+            if (!msg || !msg.id) {
+              console.warn('Invalid message, skipping:', msg);
+              return Promise.resolve();
+            }
+            console.log('Marking message as read:', msg.id);
+            return updateDocument('messages', msg.id, { is_read: true });
+          });
           
           await Promise.all(updatePromises);
+          console.log('All messages marked as read');
           
           if (onMessagesRead) onMessagesRead();
-        } catch (error) {
+        } catch (error: any) {
+          console.error('Error marking messages as read:', error);
+          
+          if (error.message?.includes('index')) {
+            setIndexError(error.message);
+          }
+          
           if (retryCount < maxRetries) {
             retryCount++;
             console.log(`Retrying markMessagesAsRead (attempt ${retryCount})`);
             setTimeout(markMessagesAsRead, 1000 * retryCount);
             return;
           }
-          console.error('Error marking messages as read:', error);
         }
       }
     };
@@ -125,6 +140,16 @@ export const ChatArea = ({
     <div className="flex-1 flex flex-col overflow-hidden">
       {isMockVipUser && (
         <WarningBanner message="This is a demo VIP user. You can see messages but cannot interact with this account." />
+      )}
+      
+      {indexError && (
+        <FirebaseIndexMessage />
+      )}
+      
+      {messages.length === 0 && !isLoading && (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <p>No messages yet. Start the conversation!</p>
+        </div>
       )}
       
       <MessageList

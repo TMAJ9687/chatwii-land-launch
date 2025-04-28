@@ -59,8 +59,8 @@ const ChatInterfaceContent = () => {
     messages, 
     setMessages,
     fetchMessages,
-    isLoading,
-    resetState
+    isLoading: messagesLoading,
+    error: messagesError
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
 
   const {
@@ -137,6 +137,8 @@ const ChatInterfaceContent = () => {
             isVipUser={isVipUser}
             isTyping={isTyping}
             onTypingStatusChange={handleTypingStatusChange}
+            isLoading={messagesLoading}
+            error={messagesError}
           />
         </main>
       </div>

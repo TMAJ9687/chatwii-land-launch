@@ -8,6 +8,7 @@ import { useBot } from '@/hooks/useBot';
 import { createDocument, queryDocuments } from '@/lib/firebase';
 import { isMockUser } from '@/utils/mockUsers';
 import { MessageWithMedia } from '@/types/message';
+import { v4 as uuidv4 } from 'uuid';
 
 export const useConversation = (
   currentUserId: string | null,
@@ -39,6 +40,7 @@ export const useConversation = (
 
   useEffect(() => {
     if (selectedUserId && currentUserId && !isLoading) {
+      console.log('New user selected, fetching messages:', selectedUserId);
       setHasSelectedNewUser(true);
       
       resetState();
@@ -58,6 +60,7 @@ export const useConversation = (
 
   useEffect(() => {
     if (messagesError && !hasSelectedNewUser) {
+      console.error('Message error:', messagesError);
       toast.error(messagesError);
     }
   }, [messagesError, hasSelectedNewUser]);
@@ -83,8 +86,10 @@ export const useConversation = (
     }
 
     try {
+      console.log('Sending message:', {content, hasImage: !!imageUrl});
+      
       // Generate a temporary ID for optimistic UI update
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${uuidv4()}`;
       
       const optimisticMessage: MessageWithMedia = {
         id: tempId,
@@ -94,7 +99,7 @@ export const useConversation = (
         created_at: new Date().toISOString(),
         is_read: false,
         media: imageUrl ? {
-          id: `temp-media-${Date.now()}`,
+          id: `temp-media-${uuidv4()}`,
           message_id: tempId,
           user_id: currentUserId,
           file_url: imageUrl,
@@ -106,6 +111,7 @@ export const useConversation = (
 
       // Update UI optimistically
       setMessages(current => [...current, optimisticMessage]);
+      console.log('Added optimistic message to UI');
 
       // Get recipient profile
       const recipientProfiles = await queryDocuments('profiles', [
@@ -114,13 +120,17 @@ export const useConversation = (
       const recipientProfile = recipientProfiles.length > 0 ? recipientProfiles[0] : null;
 
       // Create the message in Firestore
+      console.log('Creating message in Firestore');
       const messageId = await createDocument('messages', {
         content: content || (imageUrl ? '[Image]' : ''),
         sender_id: currentUserId,
         receiver_id: selectedUserId,
         is_read: false,
+        created_at: new Date().toISOString(), // Explicitly set created_at as string
         participants: [currentUserId, selectedUserId]
       });
+      
+      console.log('Message created with ID:', messageId);
 
       // If it's a bot user, trigger a response
       if (recipientProfile?.role === 'bot' && content) {
@@ -129,22 +139,31 @@ export const useConversation = (
 
       // Create media record if image URL is provided
       if (imageUrl && messageId) {
+        console.log('Creating media record for message:', messageId);
         await createDocument('message_media', {
           message_id: messageId,
           user_id: currentUserId,
           file_url: imageUrl,
-          media_type: imageUrl.includes('voice') ? 'voice' : 'image'
+          media_type: imageUrl.includes('voice') ? 'voice' : 'image',
+          created_at: new Date().toISOString() // Explicitly set created_at as string
         });
+        console.log('Media record created');
       }
 
       // Update the global unread count
       fetchUnreadCount();
 
       // Remove the optimistic message and fetch updated messages
+      console.log('Fetching fresh messages to replace optimistic update');
       fetchMessages();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in handleSendMessage:', error);
       toast.error("An error occurred while sending your message");
+      
+      // Show more specific error for CORS or storage issues
+      if (error.message?.includes('CORS') || error.message?.includes('storage')) {
+        toast.error("Media upload failed. Please check Firebase Storage configuration.");
+      }
     }
   }, [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount, fetchMessages]);
 

@@ -42,6 +42,7 @@ export const useImageUpload = (currentUserId: string | null) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const hasLimitChecked = useRef<boolean>(false);
 
   // Get allowed mime types and size limits from site settings
@@ -175,6 +176,8 @@ export const useImageUpload = (currentUserId: string | null) => {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError(null);
+    
     if (!e.target.files || e.target.files.length === 0) {
       return;
     }
@@ -192,6 +195,7 @@ export const useImageUpload = (currentUserId: string | null) => {
 
   const uploadImage = async (): Promise<string | null> => {
     if (!selectedFile || !currentUserId) return null;
+    setUploadError(null);
     
     try {
       setIsUploading(true);
@@ -207,16 +211,61 @@ export const useImageUpload = (currentUserId: string | null) => {
         throw new Error('File type not allowed');
       }
       
-      // Upload the file
-      const filePath = `uploads/${currentUserId}/${uuidv4()}-${selectedFile.name}`;
-      await uploadFile('uploads', filePath, selectedFile);
+      console.log('Uploading image:', {
+        userId: currentUserId,
+        fileType: selectedFile.type,
+        fileSize: Math.round(selectedFile.size / 1024) + 'KB'
+      });
       
-      // Get the download URL
-      const downloadUrl = await getFileDownloadURL(filePath);
+      // Upload the file with retry logic
+      const maxRetries = 3;
+      let attempts = 0;
+      let lastError: any = null;
       
-      return downloadUrl;
+      while (attempts < maxRetries) {
+        try {
+          const fileName = `${uuidv4()}-${selectedFile.name}`;
+          const filePath = `uploads/${currentUserId}/${fileName}`;
+          console.log(`Upload attempt ${attempts + 1} for ${filePath}`);
+          
+          const result = await uploadFile('uploads', filePath, selectedFile);
+          console.log('Upload successful:', result);
+          return result.url;
+        } catch (error: any) {
+          lastError = error;
+          console.error(`Upload attempt ${attempts + 1} failed:`, error);
+          
+          // If it's a CORS error, don't retry since it likely won't succeed
+          if (error.message?.includes('CORS')) {
+            break;
+          }
+          
+          attempts++;
+          if (attempts >= maxRetries) {
+            break;
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+        }
+      }
+      
+      // If we reached here, all attempts failed
+      if (lastError?.message?.includes('CORS')) {
+        console.error('CORS error encountered. Check Firebase Storage CORS settings');
+        setUploadError('CORS error - Please check Firebase configuration');
+        toast.error(
+          'Image upload failed due to CORS restriction. The Firebase Storage CORS settings need to be updated.'
+        );
+      } else {
+        setUploadError(lastError?.message || 'Unknown upload error');
+        toast.error('Failed to upload image. Please try again.');
+      }
+      
+      return null;
     } catch (error: any) {
       console.error('Error uploading image:', error);
+      setUploadError(error.message || 'Unknown error');
       toast.error(error.message || 'Failed to upload image');
       return null;
     } finally {
@@ -227,12 +276,14 @@ export const useImageUpload = (currentUserId: string | null) => {
   const clearFileSelection = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
+    setUploadError(null);
   };
   
   return {
     selectedFile,
     previewUrl,
     isUploading,
+    uploadError,
     handleFileSelect,
     uploadImage,
     clearFileSelection,

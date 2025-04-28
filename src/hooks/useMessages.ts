@@ -60,11 +60,22 @@ export const useMessages = (
 
   const fetchMessages = useCallback(async (retryCount = 0) => {
     // Return early if already loading, if userIds are missing, or if fetch is in progress
-    if (!selectedUserId || !currentUserId || isFetchingRef.current) return;
+    if (!selectedUserId || !currentUserId || isFetchingRef.current) {
+      console.log('Skipping fetch: missing IDs or fetch in progress', {
+        selectedUserId,
+        currentUserId,
+        isFetching: isFetchingRef.current
+      });
+      return;
+    }
     
     // Check if enough time has passed since last fetch
     const now = Date.now();
     if (now - lastFetchTimeRef.current < FETCH_COOLDOWN) {
+      console.log('Skipping fetch: cooldown period', {
+        timeSinceLastFetch: now - lastFetchTimeRef.current,
+        cooldown: FETCH_COOLDOWN
+      });
       return;
     }
     
@@ -93,72 +104,63 @@ export const useMessages = (
         reactions: msg.reactions || []  // Ensure reactions array exists
       }));
 
+      console.log('Setting mock messages:', completeMessages);
       setMessages(completeMessages);
       setIsLoading(false);
       setError(null);
       return;
     }
     
+    console.log('Fetching messages between users:', {currentUserId, selectedUserId});
     isFetchingRef.current = true;
     setIsLoading(true);
     lastFetchTimeRef.current = Date.now();
     
     try {
-      // Try to use a simpler query first that doesn't require complex indexing
-      let messagesData;
+      // Use a single simple query approach that doesn't require complex indexing
+      const fromCurrentUser = await queryDocuments('messages', [
+        { field: 'sender_id', operator: '==', value: currentUserId },
+        { field: 'receiver_id', operator: '==', value: selectedUserId }
+      ]);
       
-      try {
-        // First attempt: Use a simpler query that doesn't require the complex index
-        messagesData = await queryDocuments('messages', [
-          { field: 'sender_id', operator: '==', value: currentUserId },
-          { field: 'receiver_id', operator: '==', value: selectedUserId }
-        ], 'created_at', 'asc');
-        
-        // Then fetch messages in the other direction
-        const reverseMessages = await queryDocuments('messages', [
-          { field: 'sender_id', operator: '==', value: selectedUserId },
-          { field: 'receiver_id', operator: '==', value: currentUserId }
-        ], 'created_at', 'asc');
-        
-        // Combine both sets of messages
-        messagesData = [...messagesData, ...reverseMessages];
-        
-      } catch (indexError) {
-        console.warn("Simple query approach failed, trying alternative query", indexError);
-        
-        // Fallback to query that might need an index - this will help users know they need to create the index
-        messagesData = await queryDocuments('messages', [
-          { field: 'deleted_at', operator: '==', value: null },
-          { field: 'participants', operator: 'array-contains', value: currentUserId }
-        ], 'created_at', 'asc');
-      }
+      console.log('Messages from current user:', fromCurrentUser.length);
       
-      // Filter messages between current user and selected user
-      const filteredMessages = messagesData.filter(msg => {
-        if (typeof msg !== 'object' || !msg) return false;
-        
-        // Safely access properties
-        const senderId = msg?.sender_id;
-        const receiverId = msg?.receiver_id;
-        
-        if (!senderId || !receiverId) return false;
-        
-        return (senderId === currentUserId && receiverId === selectedUserId) || 
-               (senderId === selectedUserId && receiverId === currentUserId);
-      });
+      const fromSelectedUser = await queryDocuments('messages', [
+        { field: 'sender_id', operator: '==', value: selectedUserId },
+        { field: 'receiver_id', operator: '==', value: currentUserId }
+      ]);
+      
+      console.log('Messages from selected user:', fromSelectedUser.length);
+      
+      // Combine both sets of messages
+      const allMessages = [...fromCurrentUser, ...fromSelectedUser];
+      
+      console.log('Combined raw messages:', allMessages.length);
       
       // Format messages to match MessageWithMedia type
       const formattedMessages: MessageWithMedia[] = [];
       
-      for (const message of filteredMessages) {
-        if (typeof message !== 'object' || !message) continue;
+      for (const message of allMessages) {
+        if (!message || typeof message !== 'object') {
+          console.warn('Invalid message object skipped:', message);
+          continue;
+        }
+        
+        console.log('Processing message:', message.id);
         
         // Convert Firebase timestamp to ISO string if it exists
         let createdAt = message.created_at;
-        if (createdAt && typeof createdAt !== 'string') {
-          if (createdAt instanceof Timestamp || (createdAt as any).seconds) {
+        if (createdAt) {
+          if (createdAt instanceof Timestamp) {
+            createdAt = new Date(createdAt.toMillis()).toISOString();
+          } else if (typeof createdAt === 'object' && 'seconds' in createdAt) {
             createdAt = new Date((createdAt as any).seconds * 1000).toISOString();
+          } else if (createdAt instanceof Date) {
+            createdAt = createdAt.toISOString();
           }
+        } else {
+          createdAt = new Date().toISOString();
+          console.warn('Message missing created_at, using current time:', message.id);
         }
         
         const messageWithMedia: MessageWithMedia = {
@@ -166,40 +168,46 @@ export const useMessages = (
           content: message.content || '',
           sender_id: message.sender_id || '',
           receiver_id: message.receiver_id || '',
-          is_read: message.is_read || false,
-          created_at: createdAt || new Date().toISOString(),
+          is_read: Boolean(message.is_read),
+          created_at: createdAt,
           updated_at: message.updated_at,
           deleted_at: message.deleted_at,
           translated_content: message.translated_content,
           language_code: message.language_code,
           reply_to: message.reply_to,
           media: null,
-          // Initialize reactions as an empty array
           reactions: [],
-          participants: message.participants || [message.sender_id, message.receiver_id]
+          participants: message.participants || [message.sender_id, message.receiver_id].filter(Boolean)
         };
         
         formattedMessages.push(messageWithMedia);
       }
       
+      console.log('Messages formatted:', formattedMessages.length);
+      
       // Get media for each message
       const messagesWithMedia = await Promise.all(
         formattedMessages.map(async (message) => {
+          console.log('Fetching media for message:', message.id);
+          
           // Fetch media for this message
           const mediaRecords = await queryDocuments('message_media', [
             { field: 'message_id', operator: '==', value: message.id }
           ]);
           
-          if (mediaRecords.length > 0 && typeof mediaRecords[0] === 'object' && mediaRecords[0]) {
+          if (mediaRecords.length > 0) {
+            console.log('Media found for message:', message.id);
             const mediaRecord = mediaRecords[0];
-            message.media = {
-              id: mediaRecord.id || '',
-              message_id: mediaRecord.message_id || '',
-              user_id: mediaRecord.user_id || '',
-              file_url: mediaRecord.file_url || '',
-              media_type: mediaRecord.media_type as 'image' | 'voice' | 'video' || 'image',
-              created_at: mediaRecord.created_at || new Date().toISOString()
-            };
+            if (mediaRecord && typeof mediaRecord === 'object') {
+              message.media = {
+                id: mediaRecord.id || '',
+                message_id: mediaRecord.message_id || '',
+                user_id: mediaRecord.user_id || '',
+                file_url: mediaRecord.file_url || '',
+                media_type: mediaRecord.media_type as 'image' | 'voice' | 'video' || 'image',
+                created_at: mediaRecord.created_at || new Date().toISOString()
+              };
+            }
           }
           
           // Fetch reactions for this message
@@ -210,7 +218,7 @@ export const useMessages = (
           // Ensure reaction records are valid before mapping
           if (Array.isArray(reactionRecords)) {
             message.reactions = reactionRecords
-              .filter(reaction => typeof reaction === 'object' && reaction)
+              .filter(reaction => reaction && typeof reaction === 'object')
               .map(reaction => ({
                 id: reaction.id || '',
                 message_id: reaction.message_id || '',
@@ -231,6 +239,7 @@ export const useMessages = (
         return dateA - dateB;
       });
       
+      console.log('Final sorted messages:', sortedMessages.length);
       setMessages(sortedMessages);
       setError(null);
       
@@ -255,6 +264,7 @@ export const useMessages = (
       // Implement retry logic
       if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
+          console.log(`Retrying fetch messages (attempt ${retryCount + 1})`);
           fetchMessages(retryCount + 1);
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
         return;
