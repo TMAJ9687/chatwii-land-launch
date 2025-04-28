@@ -96,13 +96,6 @@ const VipProfileSetupPage = () => {
     checkAuth();
   }, [navigate, detectedCountry, selectedCountry]);
   
-  // Load avatars when gender changes
-  useEffect(() => {
-    if (gender) {
-      loadVipAvatars(gender);
-    }
-  }, [gender]);
-  
   const loadVipAvatars = async (gender: string) => {
     // Default to male avatars if gender is not specified
     const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
@@ -241,7 +234,8 @@ const VipProfileSetupPage = () => {
               .insert({
                 user_id: currentUser.id,
                 interest_id: interestId
-              });
+              })
+              .then();
           }
         }
       }

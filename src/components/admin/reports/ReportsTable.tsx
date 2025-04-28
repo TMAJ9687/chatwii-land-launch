@@ -180,7 +180,8 @@ export const ReportsTable = () => {
           reason,
           admin_id: user.id,
           expires_at: expiresAt,
-        });
+        })
+        .then();
       
       if (banError) throw banError;
       

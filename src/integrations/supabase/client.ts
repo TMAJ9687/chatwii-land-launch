@@ -1,5 +1,4 @@
 
-
 // This is a mock implementation to replace Supabase
 
 export const supabase = {
@@ -25,14 +24,21 @@ export const supabase = {
       }),
       order: (column: string, options?: { ascending?: boolean }) => ({
         range: async (from: number, to: number) => ({ data: [], error: null }),
-        limit: async (count: number) => ({ data: [], error: null }),
+        limit: (count: number) => ({
+          range: async (from: number, to: number) => ({ data: [], error: null }),
+        }),
       }),
       in: (field: string, values: any[]) => ({
         range: async (from: number, to: number) => ({ data: [], error: null }),
       }),
       range: async (from: number, to: number) => ({ data: [], error: null }),
     }),
-    insert: async (values: any, options?: any) => ({ error: null }),
+    insert: (values: any, options?: any) => ({
+      select: (columns: string) => ({
+        single: async () => ({ data: null, error: null }),
+      }),
+      then: async () => ({ error: null }),
+    }),
     update: (values: any) => ({
       eq: async (field: string, value: any) => ({ error: null }),
       match: async (criteria: any) => ({ error: null }),
@@ -51,4 +57,3 @@ export const supabase = {
   },
   rpc: (func: string, params: any) => ({ data: null, error: null }),
 };
-
