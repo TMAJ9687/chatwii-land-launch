@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,7 +44,8 @@ export const ReportsTable = () => {
       const { error } = await supabase
         .from("reports")
         .delete()
-        .eq("id", reportId);
+        .eq("id", reportId)
+        .then();
         
       if (error) throw error;
       return reportId;
@@ -71,7 +71,8 @@ export const ReportsTable = () => {
           status: "resolved",
           resolved_at: new Date().toISOString()
         })
-        .eq("id", reportId);
+        .eq("id", reportId)
+        .then();
         
       if (error) throw error;
       return reportId;
@@ -94,7 +95,6 @@ export const ReportsTable = () => {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      // Fetch reports and join with profiles table to get nicknames
       const { data, error } = await supabase
         .from("reports")
         .select(`
@@ -107,14 +107,12 @@ export const ReportsTable = () => {
       if (error) throw error;
       
       if (data) {
-        // Get unique user IDs to fetch nicknames
         const userIds = new Set<string>();
         data.forEach(report => {
           userIds.add(report.reporter_id);
           userIds.add(report.reported_id);
         });
         
-        // Fetch profile information for all users
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, nickname")
@@ -123,13 +121,11 @@ export const ReportsTable = () => {
           
         if (profilesError) throw profilesError;
         
-        // Create a map of user IDs to nicknames
         const nicknameMap = new Map<string, string>();
         profiles?.forEach(profile => {
           nicknameMap.set(profile.id, profile.nickname);
         });
         
-        // Combine reports with profile information
         const reportsWithNicknames = data.map(report => ({
           ...report,
           reporter_nickname: nicknameMap.get(report.reporter_id) || "Unknown User",
@@ -164,7 +160,6 @@ export const ReportsTable = () => {
         return;
       }
       
-      // Set expiration date based on duration
       const expiresAt = duration === 'permanent' ? null : 
         new Date(Date.now() + {
           '1day': 24 * 60 * 60 * 1000,
@@ -172,7 +167,6 @@ export const ReportsTable = () => {
           '1month': 30 * 24 * 60 * 60 * 1000,
         }[duration as string] || 0).toISOString();
       
-      // Create ban record
       const { error: banError } = await supabase
         .from('bans')
         .insert({
@@ -185,17 +179,16 @@ export const ReportsTable = () => {
       
       if (banError) throw banError;
       
-      // Set user offline
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ visibility: 'offline' })
-        .eq('id', reportedUser.id);
+        .eq('id', reportedUser.id)
+        .then();
       
       if (updateError) throw updateError;
       
       toast.success(`User ${reportedUser.nickname} has been banned`);
       
-      // Update any reports for this user to resolved
       const { error: resolveError } = await supabase
         .from('reports')
         .update({ 
@@ -203,11 +196,11 @@ export const ReportsTable = () => {
           resolved_at: new Date().toISOString()
         })
         .eq('reported_id', reportedUser.id)
-        .eq('status', 'pending');
+        .eq('status', 'pending')
+        .then();
       
       if (resolveError) console.error("Error resolving reports:", resolveError);
       
-      // Refresh the reports list
       fetchReports();
       
     } catch (error) {

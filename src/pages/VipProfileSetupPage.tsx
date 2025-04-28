@@ -96,6 +96,12 @@ const VipProfileSetupPage = () => {
     checkAuth();
   }, [navigate, detectedCountry, selectedCountry]);
   
+  useEffect(() => {
+    if (gender) {
+      loadVipAvatars(gender);
+    }
+  }, [gender]);
+  
   const loadVipAvatars = async (gender: string) => {
     // Default to male avatars if gender is not specified
     const genderKey = gender?.toLowerCase() === 'female' ? 'vip_female' : 'vip_male';
@@ -188,7 +194,8 @@ const VipProfileSetupPage = () => {
           country: selectedCountry,
           avatar_url: avatarUrl
         })
-        .eq('id', currentUser.id);
+        .eq('id', currentUser.id)
+        .then();
       
       if (profileError) throw profileError;
       
@@ -198,7 +205,8 @@ const VipProfileSetupPage = () => {
         await supabase
           .from('user_interests')
           .delete()
-          .eq('user_id', currentUser.id);
+          .eq('user_id', currentUser.id)
+          .then();
         
         // Then insert new interests
         for (const interest of selectedInterests) {

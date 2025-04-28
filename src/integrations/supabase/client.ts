@@ -37,17 +37,23 @@ export const supabase = {
       select: (columns: string) => ({
         single: async () => ({ data: null, error: null }),
       }),
-      then: async () => ({ error: null }),
+      then: async () => ({ data: null, error: null }),
     }),
     update: (values: any) => ({
-      eq: async (field: string, value: any) => ({ error: null }),
+      eq: (field: string, value: any) => ({
+        then: async () => ({ data: null, error: null })
+      }),
       match: async (criteria: any) => ({ error: null }),
     }),
     delete: () => ({
-      eq: async (field: string, value: any) => ({ error: null }),
+      eq: (field: string, value: any) => ({
+        then: async () => ({ data: null, error: null })
+      }),
       match: async (criteria: any) => ({ error: null }),
     }),
-    upsert: async (values: any) => ({ error: null }),
+    upsert: (values: any) => ({
+      then: async () => ({ data: null, error: null })
+    }),
   }),
   storage: {
     from: (bucket: string) => ({
