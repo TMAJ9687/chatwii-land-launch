@@ -52,3 +52,4 @@ window.addEventListener('offline', () => {
 export const closeDbConnection = () => {
   goOffline(realtimeDb);
 };
+

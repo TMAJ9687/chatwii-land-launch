@@ -10,3 +10,18 @@ export const firebaseConfig = {
   measurementId: "G-C1ERTKEMKQ",
   databaseURL: "https://chatwiilovable-7ae1d-default-rtdb.europe-west1.firebasedatabase.app"
 };
+
+// Realtime Database Rules - Copy these to your Firebase Console
+export const realtimeDatabaseRules = {
+  "rules": {
+    "presence": {
+      "$uid": {
+        ".read": true,
+        ".write": "$uid === auth.uid"
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+};
+

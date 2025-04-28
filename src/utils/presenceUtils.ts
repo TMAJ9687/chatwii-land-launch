@@ -77,7 +77,6 @@ export const updateUserStatusToAway = async (userId: string) => {
   const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
   
   try {
-    // Use update to only modify specified fields without overwriting other data
     await update(userPresenceRef, {
       status: 'away',
       last_seen: serverTimestamp()
@@ -96,7 +95,6 @@ export const updateUserStatusToOnline = async (userId: string) => {
   const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
   
   try {
-    // Use update to only modify specified fields without overwriting other data
     await update(userPresenceRef, {
       status: 'online',
       last_seen: serverTimestamp()
@@ -105,3 +103,4 @@ export const updateUserStatusToOnline = async (userId: string) => {
     console.error('Failed to update user status to online:', error);
   }
 };
+
