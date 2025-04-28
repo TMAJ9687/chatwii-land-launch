@@ -1,66 +1,43 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signOutUser } from "@/lib/firebase";
 import { toast } from "sonner";
 import { useProfileDeletion } from "./useProfileDeletion";
+import { removeUserPresence } from '@/utils/presenceUtils';
 
-export const useLogout = (defaultRedirect: string = "/feedback") => {
+export const useLogout = (defaultRedirect = "/feedback") => {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { deleteUserProfile } = useProfileDeletion();
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
-    
     setIsLoggingOut(true);
+
     try {
-      // Get current user ID before logout
       const userId = localStorage.getItem('firebase_user_id');
-      let redirectPath = '/';
-      let shouldDeleteProfile = false;
+      const role = localStorage.getItem('firebase_user_role') || 'standard';
+      const provider = localStorage.getItem('firebase_user_provider');
+      const shouldDeleteProfile = role === 'standard' || provider === 'anonymous';
 
-      if (userId) {
-        // Get role from localStorage
-        const role = localStorage.getItem('firebase_user_role') || 'standard';
-        
-        if (role !== 'vip' && role !== 'admin') {
-          redirectPath = defaultRedirect;
-          shouldDeleteProfile = role === 'standard' || 
-                              localStorage.getItem('firebase_user_provider') === 'anonymous';
-        }
+      const cleanupTasks = [signOutUser()];
 
-        // Delete profile for standard and anonymous users only
-        if (shouldDeleteProfile) {
-          const result = await deleteUserProfile(userId);
-          if (!result.success) {
-            console.error('Profile deletion error:', result.error);
-            toast.error('Failed to clean up profile on logout.');
-          }
-        }
+      if (userId && shouldDeleteProfile) {
+        cleanupTasks.push(Promise.race([
+          deleteUserProfile(userId),
+          new Promise((_, reject) => setTimeout(() => reject('Profile deletion timeout'), 5000))
+        ]));
+        cleanupTasks.push(removeUserPresence(userId));
       }
 
-      // Sign out from Firebase
-      await signOutUser();
+      await Promise.allSettled(cleanupTasks);
 
-      // Clear local storage (VIP registration data still needs to be cleared)
-      localStorage.removeItem('vip_registration_email');
-      localStorage.removeItem('vip_registration_nickname');
-      localStorage.removeItem('firebase_user_id');
-      localStorage.removeItem('firebase_user_role');
-      localStorage.removeItem('firebase_user_provider');
-      
-      // Clear all for non-VIP users
-      if (shouldDeleteProfile) {
-        window.localStorage.clear();
-      }
+      ['vip_registration_email', 'vip_registration_nickname', 'firebase_user_id', 'firebase_user_role', 'firebase_user_provider']
+        .forEach(localStorage.removeItem);
 
-      // Reload to clean up any hanging state in memory
-      setTimeout(() => {
-        window.location.replace(redirectPath);
-      }, 100);
+      setTimeout(() => window.location.replace(defaultRedirect), 100);
     } catch (error) {
-      console.error('Logout process failed:', error);
+      console.error('Logout error:', error);
       toast.error("An unexpected error occurred during logout");
       window.location.replace('/');
     } finally {
@@ -68,8 +45,5 @@ export const useLogout = (defaultRedirect: string = "/feedback") => {
     }
   };
 
-  return {
-    handleLogout,
-    isLoggingOut
-  };
+  return { handleLogout, isLoggingOut };
 };
