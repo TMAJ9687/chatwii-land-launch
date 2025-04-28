@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,29 +20,25 @@ interface FilterPopupProps {
   onClickOutside: () => void;
 }
 
-export const FilterPopup = ({ 
-  filters, 
-  onFilterChange, 
+export const FilterPopup: React.FC<FilterPopupProps> = ({
+  filters,
+  onFilterChange,
   onClearFilters,
-  onClickOutside 
-}: FilterPopupProps) => {
+  onClickOutside
+}) => {
   const popupRef = useRef<HTMLDivElement>(null);
-
-  // NEW: ref to track if a radix Select is open
-  const selectPortalRoot = document?.body;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // If click target is inside a Select dropdown, do not close popup
       const popupContains = popupRef.current && popupRef.current.contains(event.target as Node);
-      // Check for radix-select-content class (added by shadcn/radix select popper)
       const targetElem = event.target as HTMLElement;
-      const isRadixDropdown = targetElem?.closest('.radix-select-content,.radix-select-viewport,[data-radix-popper-content-wrapper]');
+      const isRadixDropdown = !!targetElem?.closest(
+        '.radix-select-content,.radix-select-viewport,[data-radix-popper-content-wrapper]'
+      );
       if (!popupContains && !isRadixDropdown) {
         onClickOutside();
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClickOutside]);
@@ -56,11 +51,12 @@ export const FilterPopup = ({
   };
 
   const handleAgeChange = (type: 'min' | 'max', value: string) => {
-    const numValue = Math.min(Math.max(parseInt(value) || 18, 18), 80);
+    // Keep age within bounds (18–80)
+    const parsed = Math.max(18, Math.min(80, parseInt(value) || 18));
     onFilterChange({
       ageRange: {
         ...filters.ageRange,
-        [type]: numValue
+        [type]: parsed
       }
     });
   };
@@ -75,8 +71,14 @@ export const FilterPopup = ({
     onFilterChange({ selectedCountries });
   };
 
+  // Options for the selects (ensuring no duplicates)
+  const availableFirstCountries = COUNTRIES;
+  const availableSecondCountries = COUNTRIES.filter(
+    c => c !== filters.selectedCountries[0]
+  );
+
   return (
-    <div 
+    <div
       ref={popupRef}
       className="absolute right-0 top-12 w-64 bg-background border rounded-lg shadow-lg p-4 z-50"
     >
@@ -84,12 +86,12 @@ export const FilterPopup = ({
       <div className="space-y-2 mb-4">
         <Label>Gender</Label>
         <div className="flex gap-4">
-          {['Male', 'Female'].map((gender) => (
+          {(['Male', 'Female'] as Gender[]).map((gender) => (
             <div key={gender} className="flex items-center space-x-2">
               <Checkbox
                 id={`gender-${gender}`}
-                checked={filters.selectedGenders.includes(gender as Gender)}
-                onCheckedChange={() => handleGenderChange(gender as Gender)}
+                checked={filters.selectedGenders.includes(gender)}
+                onCheckedChange={() => handleGenderChange(gender)}
               />
               <Label htmlFor={`gender-${gender}`}>{gender}</Label>
             </div>
@@ -132,7 +134,7 @@ export const FilterPopup = ({
             <SelectValue placeholder="Select country" />
           </SelectTrigger>
           <SelectContent className="radix-select-content z-[99] bg-background">
-            {COUNTRIES.map((country) => (
+            {availableFirstCountries.map((country) => (
               <SelectItem key={country} value={country}>
                 {country}
               </SelectItem>
@@ -148,7 +150,7 @@ export const FilterPopup = ({
               <SelectValue placeholder="Select another country" />
             </SelectTrigger>
             <SelectContent className="radix-select-content z-[99] bg-background">
-              {COUNTRIES.filter(c => c !== filters.selectedCountries[0]).map((country) => (
+              {availableSecondCountries.map((country) => (
                 <SelectItem key={country} value={country}>
                   {country}
                 </SelectItem>
@@ -159,8 +161,8 @@ export const FilterPopup = ({
       </div>
 
       {/* Clear Filters Button */}
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         onClick={onClearFilters}
         className="w-full"
       >
