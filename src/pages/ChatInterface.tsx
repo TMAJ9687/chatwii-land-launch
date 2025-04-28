@@ -74,6 +74,7 @@ const ChatInterfaceContent = () => {
     isVipUser
   );
 
+  // Simply call the hook without destructuring now
   useChannelSetup(currentUserId, selectedUserId, setMessages, fetchMessages);
 
   useEffect(() => {
