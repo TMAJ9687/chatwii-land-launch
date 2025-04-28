@@ -9,39 +9,22 @@ export const useChannelSetup = (
   setMessages: React.Dispatch<React.SetStateAction<any[]>>,
   fetchMessages: () => void
 ) => {
-  const { setupMessageChannel, cleanupMessageChannel } = useMessageChannel(currentUserId, selectedUserId, setMessages);
-  const { setupReactionsListener, cleanupReactionListener } = useReactionsChannel(
+  const { isListening: messageChannelActive } = useMessageChannel(currentUserId, selectedUserId, setMessages);
+  const { isListening: reactionsChannelActive } = useReactionsChannel(
     currentUserId, 
     selectedUserId, 
     fetchMessages
   );
 
   useEffect(() => {
-    // Only set up listeners when we have both user IDs
-    if (!currentUserId || !selectedUserId) {
-      return;
+    // Only logging for debugging purposes
+    if (currentUserId && selectedUserId) {
+      console.log(`Channel setup: Messages ${messageChannelActive ? 'active' : 'inactive'}, Reactions ${reactionsChannelActive ? 'active' : 'inactive'}`);
     }
+  }, [currentUserId, selectedUserId, messageChannelActive, reactionsChannelActive]);
 
-    console.log(`Setting up channels for conversation: ${currentUserId} -> ${selectedUserId}`);
-    
-    // Initialize message channel 
-    const messageChannel = setupMessageChannel();
-    
-    // Initialize reactions listener
-    setupReactionsListener();
-    
-    // Clean up function
-    return () => {
-      console.log('Cleaning up channels and listeners');
-      cleanupMessageChannel();
-      cleanupReactionListener();
-    };
-  }, [
-    currentUserId, 
-    selectedUserId, 
-    setupMessageChannel, 
-    setupReactionsListener, 
-    cleanupMessageChannel, 
-    cleanupReactionListener
-  ]);
+  return {
+    messageChannelActive,
+    reactionsChannelActive
+  };
 };

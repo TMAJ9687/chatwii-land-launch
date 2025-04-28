@@ -1,27 +1,18 @@
 
 import { useRef, useCallback, useEffect } from 'react';
-import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, onValue, off } from 'firebase/database';
+import { firebaseListener } from '@/services/FirebaseListenerService';
 
 export const useChannelManagement = () => {
-  const channelsRef = useRef<Record<string, any>>({});
+  const componentId = useRef<string>(`channel-${Math.random().toString(36).substring(2, 9)}`);
+  const channelsRef = useRef<Record<string, string>>({});
   const isMountedRef = useRef(true);
   
   // Clean up on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      // Clean up all channels when component unmounts
-      Object.entries(channelsRef.current).forEach(([name, channel]) => {
-        if (channel) {
-          console.log(`Auto cleaning up channel on unmount: ${name}`);
-          try {
-            off(channel);
-          } catch (e) {
-            console.error(`Error removing channel ${name}:`, e);
-          }
-        }
-      });
+      // Clean up all listeners for this component
+      firebaseListener.removeListenersByOwner(componentId.current);
       channelsRef.current = {};
     };
   }, []);
@@ -29,15 +20,10 @@ export const useChannelManagement = () => {
   const cleanupChannels = useCallback(() => {
     if (!isMountedRef.current) return;
     
-    Object.entries(channelsRef.current).forEach(([name, channel]) => {
-      if (channel) {
-        console.log(`Cleaning up channel: ${name}`);
-        try {
-          off(channel);
-        } catch (e) {
-          console.error(`Error removing channel ${name}:`, e);
-        }
-        delete channelsRef.current[name];
+    Object.values(channelsRef.current).forEach((listenerId) => {
+      if (listenerId) {
+        firebaseListener.removeListener(listenerId);
+        delete channelsRef.current[listenerId];
       }
     });
   }, []);
@@ -45,37 +31,34 @@ export const useChannelManagement = () => {
   const removeChannel = useCallback((channelName: string) => {
     if (!isMountedRef.current) return;
     
-    if (channelsRef.current[channelName]) {
-      console.log(`Removing specific channel: ${channelName}`);
-      try {
-        off(channelsRef.current[channelName]);
-      } catch (e) {
-        console.error(`Error removing channel ${channelName}:`, e);
-      }
+    const listenerId = channelsRef.current[channelName];
+    if (listenerId) {
+      firebaseListener.removeListener(listenerId);
       delete channelsRef.current[channelName];
     }
   }, []);
 
-  const registerChannel = useCallback((channelName: string, channel: any) => {
-    if (!isMountedRef.current) return channel;
+  const registerChannel = useCallback((channelName: string, path: string, callback: (data: any) => void) => {
+    if (!isMountedRef.current) return null;
     
-    // Clean up existing channel if it exists
+    // Remove existing channel if it exists
     if (channelsRef.current[channelName]) {
-      console.log(`Replacing existing channel: ${channelName}`);
-      try {
-        off(channelsRef.current[channelName]);
-      } catch (e) {
-        console.error(`Error removing existing channel ${channelName}:`, e);
-      }
+      firebaseListener.removeListener(channelsRef.current[channelName]);
     }
     
-    console.log(`Registering new channel: ${channelName}`);
-    channelsRef.current[channelName] = channel;
-    return channel;
+    // Register new listener
+    const listenerId = firebaseListener.addListener(
+      path,
+      callback,
+      undefined,
+      `${componentId.current}-${channelName}`
+    );
+    
+    channelsRef.current[channelName] = listenerId;
+    return listenerId;
   }, []);
 
   return {
-    channelsRef,
     cleanupChannels,
     removeChannel,
     registerChannel
