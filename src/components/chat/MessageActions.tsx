@@ -19,6 +19,7 @@ interface MessageActionsProps {
   onReply: () => void;
   onReact: (emoji: string) => void;
   onTranslate: () => void;
+  translating?: boolean; // Added the missing prop
 }
 
 export const MessageActions = ({
@@ -29,6 +30,7 @@ export const MessageActions = ({
   onReply,
   onReact,
   onTranslate,
+  translating = false, // Added with default value
 }: MessageActionsProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -83,9 +85,9 @@ export const MessageActions = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {showTranslate && (
-            <DropdownMenuItem onClick={onTranslate}>
+            <DropdownMenuItem onClick={onTranslate} disabled={translating}>
               <Languages className="h-4 w-4 mr-2" />
-              Translate
+              {translating ? "Translating..." : "Translate"}
             </DropdownMenuItem>
           )}
           {isCurrentUser && (
