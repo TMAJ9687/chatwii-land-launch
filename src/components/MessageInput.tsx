@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { MessageInputContainer } from "./chat/input/MessageInputContainer";
 import { MessageInputPlaceholder } from "./chat/input/MessageInputPlaceholder";
@@ -82,33 +83,44 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, [replyToMessageId]);
 
-  const handleSendReply = (content: string) => {
+  const handleSendReply = (content: string, imageUrl?: string) => {
     if (!replyToMessageId || !content.trim() || disabled) return;
     handleReplyToMessage(replyToMessageId, content);
-    if (onTypingStatusChange) onTypingStatusChange(false);
+    onSendMessage(content, imageUrl);
+    cancelReply();
   };
 
-  if (isMockVipUser) return <MessageInputPlaceholder />;
-
   return (
-    <div className="flex flex-col bg-background">
-      {isReplying ? (
+    <>
+      {isReplying && replyToMessage && (
         <ReplyComposer
-          originalMessage={replyToMessage}
-          onSendReply={handleSendReply}
+          message={replyToMessage}
           onCancel={cancelReply}
+          onSend={handleSendReply}
+          currentUserId={currentUserId || ""}
+          replyContent={replyContent}
+          onReplyContentChange={setReplyContent}
           disabled={disabled}
-        />
-      ) : (
-        <MessageInputContainer
-          onSendMessage={onSendMessage}
-          currentUserId={currentUserId}
-          receiverId={receiverId}
           isVipUser={isVipUser}
-          onTypingStatusChange={onTypingStatusChange}
-          disabled={disabled}
         />
       )}
-    </div>
+
+      {!isReplying && (
+        <>
+          {isMockVipUser ? (
+            <MessageInputPlaceholder />
+          ) : (
+            <MessageInputContainer
+              onSendMessage={onSendMessage}
+              currentUserId={currentUserId || ""}
+              receiverId={receiverId}
+              onTypingStatusChange={onTypingStatusChange}
+              disabled={disabled}
+              isVipUser={isVipUser}
+            />
+          )}
+        </>
+      )}
+    </>
   );
 };

@@ -60,8 +60,8 @@ export const useChannelSetup = (
           console.log("User selection changed during setup, canceling");
         }
         setIsSettingUp(false);
-      }, 500);
-    }, 800)
+      }, 300); // Reduced timeout from 500ms to 300ms for faster setup
+    }, 500) // Reduced debounce from 800ms to 500ms for better responsiveness
   ).current;
   
   // Centralized setup and cleanup to prevent infinite loops

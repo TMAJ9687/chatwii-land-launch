@@ -11,7 +11,7 @@ export const uploadFile = async (
   contentType?: string
 ) => {
   const storageRef = ref(storage, `${bucket}/${filePath}`);
-  const metadata = contentType ? { contentType } : undefined;
+  const metadata = contentType ? { contentType, cacheControl: 'public, max-age=31536000' } : undefined;
   
   try {
     console.log(`Uploading file to ${bucket}/${filePath}`);
@@ -30,9 +30,22 @@ export const uploadFile = async (
     
     // Provide helpful error message for CORS issues
     if (error.message?.includes('CORS')) {
-      toast.error("Storage access error - check CORS settings");
+      toast.error("Storage access error - check CORS settings", {
+        duration: 6000,
+        description: "Add your domain to Firebase Storage CORS settings"
+      });
       console.error(`
-        CORS error detected. Check Firebase Storage CORS settings in Firebase Console.
+        CORS error detected. Please update Firebase Storage CORS settings in Firebase Console:
+        1. Go to Firebase Console > Storage > Rules
+        2. Add this CORS configuration:
+        [
+          {
+            "origin": ["*"],
+            "method": ["GET", "POST", "PUT", "DELETE"],
+            "maxAgeSeconds": 3600
+          }
+        ]
+        3. Save changes and retry
       `);
     } else {
       toast.error(`Upload failed: ${error.message || "Unknown error"}`);
@@ -52,6 +65,19 @@ async function getDownloadURLSafely(ref: any): Promise<string> {
       // Add cache-busting parameter to avoid CORS issues
       const url = await getDownloadURL(ref);
       const cacheBuster = `?t=${Date.now()}`;
+      
+      // Test URL with a HEAD request to verify CORS is working
+      if (attempt === 0) {
+        try {
+          const testResponse = await fetch(url, { method: 'HEAD' });
+          if (!testResponse.ok) {
+            console.warn("Storage URL accessible but may have CORS issues");
+          }
+        } catch (e) {
+          console.warn("Could not verify storage URL accessibility:", e);
+        }
+      }
+      
       return url + cacheBuster;
     } catch (error: any) {
       console.warn(`Attempt ${attempt + 1}: Failed to get download URL`, error);

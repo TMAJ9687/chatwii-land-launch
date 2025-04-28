@@ -37,8 +37,8 @@ export const useChannelManager = () => {
     return [user1Id, user2Id].sort().join('_');
   };
   
-  // Listen to a specific path with proper cleanup handling - highly debounced to prevent spam
-  const listenToChannel = useCallback(debounce((channelName: string, path: string, callback: (data: any) => void) => {
+  // Listen to a specific path with proper cleanup handling
+  const listenToChannel = useCallback((channelName: string, path: string, callback: (data: any) => void) => {
     if (!isMountedRef.current) {
       log(`Component unmounted, skipping channel setup: ${channelName}`);
       return () => {};
@@ -130,8 +130,7 @@ export const useChannelManager = () => {
       log(`Error setting up channel ${channelName}:`, error);
       return () => {};
     }
-  // Much longer debounce delay to prevent spam
-  }, 800), [log]); 
+  }, [log]);
   
   // Clean up a specific channel
   const cleanupChannel = useCallback((channelName: string) => {

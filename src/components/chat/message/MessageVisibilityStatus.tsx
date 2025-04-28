@@ -1,11 +1,14 @@
 
 import React from 'react';
+import { CheckCheck, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { format, isToday, isYesterday } from 'date-fns';
 
 interface MessageVisibilityStatusProps {
   timestamp: string;
   isRead: boolean;
   isCurrentUser: boolean;
-  isVipUser?: boolean;
+  isVipUser: boolean;
 }
 
 export const MessageVisibilityStatus: React.FC<MessageVisibilityStatusProps> = ({
@@ -15,22 +18,45 @@ export const MessageVisibilityStatus: React.FC<MessageVisibilityStatusProps> = (
   isVipUser
 }) => {
   // Format the timestamp for display
-  const formatTime = (isoString: string) => {
+  const formatMessageTime = (timestamp: string) => {
     try {
-      const date = new Date(isoString);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return ''; // Return empty string if there's an error
+      const date = new Date(timestamp);
+      
+      if (isNaN(date.getTime())) {
+        return "";
+      }
+      
+      if (isToday(date)) {
+        return format(date, 'h:mm a');
+      } else if (isYesterday(date)) {
+        return `Yesterday ${format(date, 'h:mm a')}`;
+      } else {
+        return format(date, 'MMM d, h:mm a');
+      }
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return "";
     }
   };
-
+  
+  const formattedTime = formatMessageTime(timestamp);
+  
   return (
-    <div className="text-xs text-gray-500 mt-1 flex justify-end items-center gap-1">
-      {formatTime(timestamp)}
+    <div className={cn(
+      "text-[10px] flex items-center mt-1",
+      isCurrentUser ? "justify-end" : "justify-start"
+    )}>
+      <span className="text-muted-foreground">
+        {formattedTime}
+      </span>
       
       {isCurrentUser && isVipUser && (
-        <span className={isRead ? "text-blue-500" : "text-gray-400"}>
-          {isRead ? "• Read" : "• Sent"}
+        <span className="ml-1 text-muted-foreground">
+          {isRead ? (
+            <CheckCheck className="h-3 w-3 inline" />
+          ) : (
+            <Check className="h-3 w-3 inline" />
+          )}
         </span>
       )}
     </div>

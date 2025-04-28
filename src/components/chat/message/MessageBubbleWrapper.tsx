@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { MessageWithMedia } from '@/types/message';
+import { cn } from '@/lib/utils';
 
 interface MessageBubbleWrapperProps {
   message: MessageWithMedia;
@@ -8,26 +9,29 @@ interface MessageBubbleWrapperProps {
   children: React.ReactNode;
 }
 
-export const MessageBubbleWrapper: React.FC<MessageBubbleWrapperProps> = ({ 
-  message, 
-  isCurrentUser, 
-  children 
+export const MessageBubbleWrapper: React.FC<MessageBubbleWrapperProps> = ({
+  message,
+  isCurrentUser,
+  children
 }) => {
-  const isDeleted = message.deleted_at !== undefined && message.deleted_at !== null;
+  // Determine if the message was deleted
+  const isDeleted = !!message.deleted_at;
   
   return (
     <div
-      className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
-      id={`message-${message.id}`}
+      className={cn(
+        "group relative flex flex-col w-full max-w-[80%] mb-2",
+        isCurrentUser ? "items-end ml-auto" : "items-start mr-auto"
+      )}
     >
       <div
-        className={`max-w-[80%] ${
-          isDeleted 
-            ? "bg-gray-100 dark:bg-gray-800 text-gray-400 italic"
-            : isCurrentUser
-            ? "bg-blue-500 text-white"
-            : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-        } rounded-2xl px-4 py-2 relative`}
+        className={cn(
+          "px-4 py-2 rounded-lg break-words",
+          isCurrentUser
+            ? "bg-primary text-primary-foreground rounded-br-none"
+            : "bg-muted rounded-bl-none",
+          isDeleted && "opacity-50"
+        )}
       >
         {children}
       </div>
