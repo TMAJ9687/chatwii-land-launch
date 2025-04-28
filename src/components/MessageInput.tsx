@@ -1,13 +1,11 @@
-
-import React from 'react';
-import { MessageInputContainer } from './chat/input/MessageInputContainer';
-import { MessageInputPlaceholder } from './chat/input/MessageInputPlaceholder';
-import { ReplyComposer } from './chat/ReplyComposer';
-import { MessageWithMedia } from '@/types/message';
-import { useMessageActions } from '@/hooks/useMessageActions';
-import { queryDocuments } from '@/lib/firebase';
-import { isMockUser } from '@/utils/mockUsers';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
+import { MessageInputContainer } from "./chat/input/MessageInputContainer";
+import { MessageInputPlaceholder } from "./chat/input/MessageInputPlaceholder";
+import { ReplyComposer } from "./chat/ReplyComposer";
+import { MessageWithMedia } from "@/types/message";
+import { useMessageActions } from "@/hooks/useMessageActions";
+import { queryDocuments } from "@/lib/firebase";
+import { isMockUser } from "@/utils/mockUsers";
 
 interface MessageInputProps {
   onSendMessage: (content: string, imageUrl?: string) => void;
@@ -18,99 +16,99 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-export const MessageInput: React.FC<MessageInputProps> = (props) => {
-  const { currentUserId, receiverId, isVipUser = false, disabled = false } = props;
+export const MessageInput: React.FC<MessageInputProps> = ({
+  onSendMessage,
+  currentUserId,
+  receiverId,
+  isVipUser = false,
+  onTypingStatusChange,
+  disabled = false,
+}) => {
   const isMockVipUser = isMockUser(receiverId);
-  
-  const { 
+
+  const {
     isReplying,
     replyToMessageId,
-    replyContent,
     setReplyContent,
     cancelReply,
-    handleReplyToMessage
-  } = useMessageActions(currentUserId || '', isVipUser);
+    handleReplyToMessage,
+    replyContent,
+  } = useMessageActions(currentUserId || "", isVipUser);
 
   const [replyToMessage, setReplyToMessage] = useState<MessageWithMedia | null>(null);
 
+  // Fetch the message being replied to (with media if present)
   useEffect(() => {
     if (!replyToMessageId) {
       setReplyToMessage(null);
       return;
     }
-    
-    const fetchReplyMessage = async () => {
+
+    let cancelled = false;
+    (async () => {
       try {
-        const replyMessages = await queryDocuments('messages', [
-          { field: 'id', operator: '==', value: replyToMessageId }
+        const replyMessages = await queryDocuments("messages", [
+          { field: "id", operator: "==", value: replyToMessageId },
         ]);
-        
-        if (replyMessages.length > 0) {
+        if (replyMessages.length > 0 && !cancelled) {
           const replyMsg = replyMessages[0];
-          
-          // Fetch media for the reply message
-          const mediaRecords = await queryDocuments('message_media', [
-            { field: 'message_id', operator: '==', value: replyMsg.id }
+          const mediaRecords = await queryDocuments("message_media", [
+            { field: "message_id", operator: "==", value: replyMsg.id },
           ]);
-          
-          const fullReplyMessage: MessageWithMedia = {
-            id: replyMsg.id,
-            content: replyMsg.content || '',
-            sender_id: replyMsg.sender_id,
-            receiver_id: replyMsg.receiver_id,
-            is_read: replyMsg.is_read || false,
-            created_at: replyMsg.created_at,
-            updated_at: replyMsg.updated_at,
-            deleted_at: replyMsg.deleted_at,
-            translated_content: replyMsg.translated_content,
-            language_code: replyMsg.language_code,
-            reply_to: replyMsg.reply_to,
-            media: mediaRecords.length > 0 ? {
-              id: mediaRecords[0].id,
-              message_id: mediaRecords[0].message_id,
-              user_id: mediaRecords[0].user_id,
-              file_url: mediaRecords[0].file_url,
-              media_type: mediaRecords[0].media_type,
-              created_at: mediaRecords[0].created_at
-            } : null,
-            reactions: []
-          };
-          
-          setReplyToMessage(fullReplyMessage);
+          setReplyToMessage({
+            ...replyMsg,
+            media:
+              mediaRecords.length > 0
+                ? {
+                    id: mediaRecords[0].id,
+                    message_id: mediaRecords[0].message_id,
+                    user_id: mediaRecords[0].user_id,
+                    file_url: mediaRecords[0].file_url,
+                    media_type: mediaRecords[0].media_type,
+                    created_at: mediaRecords[0].created_at,
+                  }
+                : null,
+            reactions: [],
+          });
         }
       } catch (error) {
-        console.error('Error fetching reply message:', error);
+        if (!cancelled) {
+          console.error("Error fetching reply message:", error);
+        }
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    
-    fetchReplyMessage();
   }, [replyToMessageId]);
 
   const handleSendReply = (content: string) => {
     if (!replyToMessageId || !content.trim() || disabled) return;
-    
     handleReplyToMessage(replyToMessageId, content);
-    if (props.onTypingStatusChange) {
-      props.onTypingStatusChange(false);
-    }
+    if (onTypingStatusChange) onTypingStatusChange(false);
   };
 
-  if (isMockVipUser) {
-    return <MessageInputPlaceholder />;
-  }
+  if (isMockVipUser) return <MessageInputPlaceholder />;
 
   return (
     <div className="flex flex-col bg-background">
-      {isReplying && (
-        <ReplyComposer 
+      {isReplying ? (
+        <ReplyComposer
           originalMessage={replyToMessage}
           onSendReply={handleSendReply}
           onCancel={cancelReply}
           disabled={disabled}
         />
+      ) : (
+        <MessageInputContainer
+          onSendMessage={onSendMessage}
+          currentUserId={currentUserId}
+          receiverId={receiverId}
+          isVipUser={isVipUser}
+          onTypingStatusChange={onTypingStatusChange}
+          disabled={disabled}
+        />
       )}
-    
-      {!isReplying && <MessageInputContainer {...props} />}
     </div>
   );
 };
