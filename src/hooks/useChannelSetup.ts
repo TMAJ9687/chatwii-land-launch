@@ -18,26 +18,18 @@ export const useChannelSetup = (
   
   const prevSelectedUserIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Only set up new channels if user ID has changed
-    if (!currentUserId || !selectedUserId) return;
-    
-    // Clean up previous connections if they exist and user ID has changed
-    if (prevSelectedUserIdRef.current !== selectedUserId) {
-      cleanupMessageChannel();
-      cleanupReactionListener();
-      
-      // Set up new connections
-      setupMessageChannel();
-      setupReactionsListener();
-      
-      // Update the ref
-      prevSelectedUserIdRef.current = selectedUserId;
-    }
+useEffect(() => {
+  if (!currentUserId || !selectedUserId) return;
 
-    return () => {
-      cleanupMessageChannel();
-      cleanupReactionListener();
-    };
-  }, [currentUserId, selectedUserId]); 
-};
+  cleanupMessageChannel();
+  cleanupReactionListener();
+
+  setupMessageChannel();
+  setupReactionsListener();
+
+  return () => {
+    cleanupMessageChannel();
+    cleanupReactionListener();
+  };
+}, [currentUserId, selectedUserId, setupMessageChannel, setupReactionsListener, cleanupMessageChannel, cleanupReactionListener]);
+
