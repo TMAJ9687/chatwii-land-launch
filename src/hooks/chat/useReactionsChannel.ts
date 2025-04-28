@@ -1,40 +1,66 @@
-import { useCallback, useRef } from 'react';
+// src/hooks/chat/useMessageChannel.ts
+
+import { useCallback, useRef, useEffect } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, onValue, off } from 'firebase/database';
+import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
+import { queryDocuments } from '@/lib/firebase';
 
-export const useReactionsChannel = (
+export const useMessageChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
-  fetchMessages: () => void
+  setMessages: React.Dispatch<React.SetStateAction<MessageWithMedia[]>>
 ) => {
-  const reactionListenerRef = useRef<any>(null);
+  const listenerRef = useRef<any>(null);
 
-  // Cleanup for reactions
-  const cleanupReactionListener = useCallback(() => {
-    if (reactionListenerRef.current) {
-      off(reactionListenerRef.current);
-      reactionListenerRef.current = null;
+  const cleanupMessageChannel = useCallback(() => {
+    if (listenerRef.current) {
+      off(listenerRef.current);
+      listenerRef.current = null;
     }
   }, []);
 
-  // Setup reactions listener (called when conversation changes)
-  const setupReactionsListener = useCallback(() => {
-    if (!currentUserId || !selectedUserId) return;
-    cleanupReactionListener();
+  const setupMessageChannel = useCallback(() => {
+    if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) return;
 
-    const conversationPath = `message_reactions/${currentUserId}_${selectedUserId}`;
-    const reactionsRef = ref(realtimeDb, conversationPath);
-    reactionListenerRef.current = reactionsRef;
+    cleanupMessageChannel();
 
-    onValue(reactionsRef, () => {
-      if (isMockUser(selectedUserId)) return;
-      fetchMessages();
+    const path = `messages/${currentUserId}_${selectedUserId}`;
+    const messagesRef = ref(realtimeDb, path);
+    listenerRef.current = messagesRef;
+
+    onValue(messagesRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        setMessages([]);
+        return;
+      }
+
+      const processedMessages = await Promise.all(
+        Object.values(data).map(async (msg: any) => {
+          const mediaRecords = await queryDocuments('message_media', [
+            { field: 'message_id', operator: '==', value: msg.id }
+          ]);
+          const reactionRecords = await queryDocuments('message_reactions', [
+            { field: 'message_id', operator: '==', value: msg.id }
+          ]);
+          return {
+            ...msg,
+            media: mediaRecords[0] || null,
+            reactions: reactionRecords || []
+          };
+        })
+      );
+
+      setMessages(processedMessages);
     });
-  }, [currentUserId, selectedUserId, fetchMessages, cleanupReactionListener]);
+  }, [currentUserId, selectedUserId, setMessages, cleanupMessageChannel]);
 
-  return {
-    setupReactionsListener,
-    cleanupReactionListener
-  };
+  useEffect(() => {
+    setupMessageChannel();
+    return cleanupMessageChannel;
+  }, [setupMessageChannel, cleanupMessageChannel]);
+
+  return { setupMessageChannel, cleanupMessageChannel };
 };
