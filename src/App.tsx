@@ -7,6 +7,7 @@ import { AdminGuard } from '@/components/guards/AdminGuard';
 import { VipGuard } from '@/components/guards/VipGuard';
 import { Spinner } from "@/components/Spinner";
 import { firebaseListener } from '@/services/FirebaseListenerService';
+import { FirebaseDebugPanel } from '@/utils/debugUtils';
 
 // Lazy-loaded routes
 const ChatInterfacePage = lazy(() => import('@/pages/ChatInterface'));
@@ -48,6 +49,7 @@ function App() {
         </Suspense>
       </BrowserRouter>
       <Toaster />
+      <FirebaseDebugPanel />
     </>
   );
 }
