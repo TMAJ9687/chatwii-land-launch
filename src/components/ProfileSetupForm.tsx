@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,15 +24,11 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Profanity check (if needed in UI)
   const { profanityList } = useProfanityList('nickname');
-  // Profile submission hook
   const { submitProfile, isLoading } = useProfileSubmission();
 
-  // Always the same nickname, validation handled elsewhere
   const nickname = initialNickname;
 
-  // Form validation
   const isValid = gender && age && selectedInterests.length > 0;
 
   const handleInterestChange = (interest: string) => {
@@ -54,11 +49,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
 
   const handleSubmit = () => {
     if (!isValid) {
-      toast({
-        title: "Complete all fields",
-        description: "Please select gender, age, and at least one interest.",
-        variant: "destructive",
-      });
+      toast.error("Please select gender, age, and at least one interest.");
       return;
     }
     submitProfile({
