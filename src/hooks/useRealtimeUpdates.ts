@@ -1,5 +1,4 @@
-
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/integrations/firebase/client";
 import { toast } from "sonner";
@@ -21,67 +20,51 @@ export function useRealtimeUpdates({
 }: RealtimeUpdatesProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const dbRefRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maxRetries = 5;
-  const [retryCount, setRetryCount] = useState(0);
-  const shouldUpdateRef = useRef(true); // Use ref to prevent unnecessary re-renders
+  const shouldUpdateRef = useRef(true);
+  const MAX_RETRIES = 5;
 
-  const setupRealtimeListener = () => {
-    // Don't set up listener if disabled or path is missing
+  // Helper: Cleanup listener and pending timeouts
+  const cleanupListener = useCallback(() => {
+    if (dbRefRef.current) {
+      off(dbRefRef.current);
+      dbRefRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Helper: Set up the real-time Firebase listener
+  const setupRealtimeListener = useCallback(() => {
     if (!enabled || !path) return;
-    
+    cleanupListener();
+
     try {
-      // Clean up any existing reference to prevent duplicate listeners
-      if (dbRefRef.current) {
-        off(dbRefRef.current);
-        dbRefRef.current = null;
-      }
-      
-      console.log(`Setting up new realtime listener for path: ${path}`);
-      
-      // Create a reference to the database path
       const dbRef = ref(realtimeDb, path);
       dbRefRef.current = dbRef;
-      
-      // Listen for changes
-      onValue(dbRef, (snapshot) => {
-        // Only process data if component is still mounted
+
+      const handleValue = (snapshot: any) => {
         if (!shouldUpdateRef.current) return;
-        
         const data = snapshot.val();
-        console.log(`Received update for ${path}:`, data);
-        
         if (data) {
-          // Process the data
-          // Note: Since we're using a basic listener, we'd need additional logic
-          // to determine if this is an insert, update or delete
-          
-          if (onUpdate) {
-            onUpdate(data);
-          }
-          
+          onUpdate?.(data); // Only calls if provided
           setIsConnected(true);
           setError(null);
           setRetryCount(0);
         }
-        
-        // Clear any pending reconnection timeouts
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-          reconnectTimeoutRef.current = null;
-        }
-      }, (error) => {
+        cleanupListener(); // Clean pending reconnect if any
+      };
+
+      const handleError = (error: any) => {
         if (!shouldUpdateRef.current) return;
-        
         setIsConnected(false);
         setError(`Connection error: ${error.message}`);
-        
-        // Attempt to reconnect with exponential backoff
-        if (retryCount < maxRetries) {
+        if (retryCount < MAX_RETRIES) {
           const delay = Math.min(1000 * (2 ** retryCount), 30000);
-          console.log(`Will attempt to reconnect in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
-          
           reconnectTimeoutRef.current = setTimeout(() => {
             if (shouldUpdateRef.current) {
               setRetryCount(prev => prev + 1);
@@ -92,35 +75,33 @@ export function useRealtimeUpdates({
           setError("Failed to connect after multiple attempts");
           toast.error(`Realtime connection failed for ${path}`);
         }
-      });
+      };
+
+      onValue(dbRef, handleValue, handleError);
     } catch (err: any) {
-      console.error(`Error setting up realtime updates for ${path}:`, err);
       setError(err.message || "Failed to setup realtime updates");
       setIsConnected(false);
       toast.error(`Realtime connection error: ${err.message}`);
     }
-  };
+    // eslint-disable-next-line
+  }, [enabled, path, onUpdate, retryCount, cleanupListener]);
 
+  // Effect: Mount & unmount logic
   useEffect(() => {
-    // Set up the listener when the component mounts
     shouldUpdateRef.current = true;
     setupRealtimeListener();
-    
-    // Cleanup function
+
     return () => {
       shouldUpdateRef.current = false;
-      if (dbRefRef.current) {
-        console.log(`Cleaning up realtime updates for ${path}`);
-        off(dbRefRef.current);
-        dbRefRef.current = null;
-      }
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
+      cleanupListener();
     };
-  }, [path, enabled]); // Re-subscribe when these props change
+  }, [path, enabled, setupRealtimeListener, cleanupListener]);
 
-  return { isConnected, error, reconnect: setupRealtimeListener };
+  // Manual reconnect function
+  const reconnect = useCallback(() => {
+    setRetryCount(0);
+    setupRealtimeListener();
+  }, [setupRealtimeListener]);
+
+  return { isConnected, error, reconnect };
 }
