@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -42,7 +41,7 @@ const getFilename = (file: File, prefix: string) =>
   `${prefix}_${Date.now()}_${Math.round(Math.random() * 1e6)}.${file.name.split(".").pop()}`;
 
 export const AvatarSettings = () => {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<{avatars?: SettingsAvatars}>({});
   const [avatars, setAvatars] = useState<SettingsAvatars>(DEFAULT_AVATARS);
   const [loading, setLoading] = useState(true);
   const [upLoading, setUpLoading] = useState(false);
@@ -62,9 +61,9 @@ export const AvatarSettings = () => {
         const settingsRef = doc(db, "site_settings", "avatars");
         const settingsSnapshot = await getDoc(settingsRef);
         
-        let settingsData = {};
+        let settingsData = {avatars: DEFAULT_AVATARS};
         if (settingsSnapshot.exists()) {
-          settingsData = settingsSnapshot.data() || {};
+          settingsData = settingsSnapshot.data() as {avatars?: SettingsAvatars} || {avatars: DEFAULT_AVATARS};
         }
         
         // Extract avatar settings or use defaults

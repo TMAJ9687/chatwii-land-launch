@@ -7,10 +7,18 @@ import {
 } from '@/lib/firebase';
 import { 
   collection, doc, getDocs, query, where, orderBy, limit,
-  serverTimestamp, Timestamp, DocumentData
+  serverTimestamp, Timestamp, DocumentData, 
+  WhereFilterOp // Import the Firebase operator type
 } from 'firebase/firestore';
 import { ref } from 'firebase/storage';
 import { getUserProfile } from '@/integrations/firebase/auth';
+
+// Type for our condition objects
+type FirebaseCondition = {
+  field: string;
+  operator: WhereFilterOp;
+  value: any;
+};
 
 // Mock the Supabase client with Firebase functionality
 export const supabase = {
@@ -82,7 +90,7 @@ export const supabase = {
         single: async () => {
           try {
             const documents = await queryDocuments(table, [
-              { field, operator: "==", value }
+              { field, operator: "==" as WhereFilterOp, value }
             ]);
             return { data: documents[0] || null, error: null };
           } catch (error) {
@@ -92,7 +100,7 @@ export const supabase = {
         maybeSingle: async () => {
           try {
             const documents = await queryDocuments(table, [
-              { field, operator: "==", value }
+              { field, operator: "==" as WhereFilterOp, value }
             ]);
             return { data: documents[0] || null, error: null };
           } catch (error) {
@@ -102,7 +110,7 @@ export const supabase = {
         range: async (from: number, to: number) => {
           try {
             const documents = await queryDocuments(table, [
-              { field, operator: "==", value }
+              { field, operator: "==" as WhereFilterOp, value }
             ]);
             // Implement range pagination (this is simplified)
             return { data: documents.slice(from, to + 1), error: null };
@@ -116,7 +124,7 @@ export const supabase = {
               try {
                 const documents = await queryDocuments(
                   table, 
-                  [{ field, operator: "==", value }],
+                  [{ field, operator: "==" as WhereFilterOp, value }],
                   column,
                   options?.ascending ? "asc" : "desc",
                   count
@@ -166,7 +174,7 @@ export const supabase = {
             // Firebase doesn't have direct 'in' operator in the same way
             // Use "in" operator in Firebase
             const documents = await queryDocuments(table, [
-              { field, operator: "in", value: values }
+              { field, operator: "in" as WhereFilterOp, value: values }
             ]);
             return { data: documents.slice(from, to + 1), error: null };
           } catch (error) {
@@ -233,7 +241,7 @@ export const supabase = {
           try {
             // Find document by field
             const documents = await queryDocuments(table, [
-              { field, operator: "==", value }
+              { field, operator: "==" as WhereFilterOp, value }
             ]);
             
             if (documents && documents[0]) {
@@ -254,11 +262,11 @@ export const supabase = {
           // Find document by multiple criteria
           const conditions = Object.entries(criteria).map(([field, value]) => ({
             field, 
-            operator: "==", 
+            operator: "==" as WhereFilterOp, 
             value
           }));
           
-          const documents = await queryDocuments(table, conditions);
+          const documents = await queryDocuments(table, conditions as FirebaseCondition[]);
           
           if (documents && documents[0]) {
             const docId = documents[0].id;
@@ -292,7 +300,7 @@ export const supabase = {
           try {
             // Find document by field
             const documents = await queryDocuments(table, [
-              { field, operator: "==", value }
+              { field, operator: "==" as WhereFilterOp, value }
             ]);
             
             if (documents && documents[0]) {
@@ -312,11 +320,11 @@ export const supabase = {
           // Find document by multiple criteria
           const conditions = Object.entries(criteria).map(([field, value]) => ({
             field, 
-            operator: "==", 
+            operator: "==" as WhereFilterOp, 
             value
           }));
           
-          const documents = await queryDocuments(table, conditions);
+          const documents = await queryDocuments(table, conditions as FirebaseCondition[]);
           
           if (documents && documents[0]) {
             const docId = documents[0].id;
@@ -404,4 +412,3 @@ export const timestampToISOString = (timestamp: Timestamp | null | undefined) =>
   if (!timestamp) return null;
   return timestamp.toDate().toISOString();
 };
-

@@ -19,7 +19,8 @@ import { BanUserModal } from "@/components/admin/modals/BanUserModal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   collection, query, where, orderBy, getDocs,
-  doc, deleteDoc, updateDoc, addDoc, serverTimestamp
+  doc, deleteDoc, updateDoc, addDoc, serverTimestamp,
+  WhereFilterOp
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 
@@ -183,7 +184,7 @@ export const ReportsTable = () => {
       await addDoc(bansRef, {
         user_id: reportedUser.id,
         reason,
-        admin_id: currentUser.id,
+        admin_id: currentUser.uid, // Using uid instead of id
         expires_at: expiresAt,
         created_at: serverTimestamp()
       });
