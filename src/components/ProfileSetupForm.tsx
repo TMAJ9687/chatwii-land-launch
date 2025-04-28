@@ -30,7 +30,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
 
   const nickname = initialNickname;
 
-  // Form validation - gender and age are required but interests are optional
+  // Form validation - ONLY gender and age are required, interests are optional
   const isValid = !!gender && !!age;
 
   const handleInterestChange = (interest: string) => {

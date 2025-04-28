@@ -18,12 +18,6 @@ export const realtimeDb = getDatabase(app);
 // Re-export for convenience
 export { app };
 
-// Connect to emulators in development if needed
-if (import.meta.env.DEV) {
-  // Add emulator connections here if needed
-  // Example: connectDatabaseEmulator(realtimeDb, 'localhost', 9000);
-}
-
 // Track connection state
 let isSetup = false;
 let connectionMonitorRef: any = null;
@@ -87,39 +81,64 @@ export const removeListener = (path: string) => {
 
 // Properly close database connection
 export const closeDbConnection = async () => {
-  try {
-    // Remove all active listeners first
-    Object.keys(activeListeners).forEach(path => {
-      try {
-        off(activeListeners[path]);
-      } catch (error) {
-        console.warn(`Error removing listener for ${path}:`, error);
-      }
-    });
-    activeListeners = {};
-    
-    // Remove event listeners
-    window.removeEventListener('online', handleOnline);
-    window.removeEventListener('offline', handleOffline);
-    
-    // Remove connection monitor
-    if (connectionMonitorRef) {
-      try {
-        connectionMonitorRef();
-      } catch (e) {
-        console.warn('Error removing connection monitor:', e);
-      }
-      connectionMonitorRef = null;
+  // Force close after timeout
+  const forceCloseTimeout = setTimeout(() => {
+    console.warn("Force closing Firebase connections after timeout");
+    clearActiveListeners();
+    removeEventListeners();
+    removeConnectionMonitor();
+    try {
+      goOffline(realtimeDb);
+    } catch (e) {
+      console.warn("Error in force offline:", e);
     }
+    isSetup = false;
+  }, 1000); // 1 second timeout
+  
+  try {
+    // Try graceful cleanup first
+    clearActiveListeners();
+    removeEventListeners();
+    removeConnectionMonitor();
     
     // Go offline
     goOffline(realtimeDb);
     
     isSetup = false;
     console.log("Firebase realtime database connection closed");
+    clearTimeout(forceCloseTimeout);
     return true;
   } catch (error) {
     console.error("Error closing database connection:", error);
+    // Let the force close timeout handle it
     return false;
   }
 };
+
+// Helper functions for closeDbConnection
+function clearActiveListeners() {
+  Object.keys(activeListeners).forEach(path => {
+    try {
+      off(activeListeners[path]);
+    } catch (error) {
+      console.warn(`Error removing listener for ${path}:`, error);
+    }
+  });
+  activeListeners = {};
+}
+
+function removeEventListeners() {
+  window.removeEventListener('online', handleOnline);
+  window.removeEventListener('offline', handleOffline);
+}
+
+function removeConnectionMonitor() {
+  if (connectionMonitorRef) {
+    try {
+      connectionMonitorRef();
+    } catch (e) {
+      console.warn('Error removing connection monitor:', e);
+    }
+    connectionMonitorRef = null;
+  }
+}

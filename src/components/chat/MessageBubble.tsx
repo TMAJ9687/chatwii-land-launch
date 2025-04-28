@@ -39,24 +39,68 @@ export const MessageBubble = ({
     translatingMessageId,
   } = useMessageActions(currentUserId, isVipUser);
 
+  // Utilities
+  const isImageRevealed = useCallback(
+    (messageId?: string) => !!messageId && revealedImages.has(messageId),
+    [revealedImages]
+  );
+
+  const formatTimestamp = (timestamp: string | Date | any): string => {
+    if (typeof timestamp === 'string') return timestamp;
+    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
+    if (timestamp instanceof Date) return timestamp.toISOString();
+    return new Date().toISOString();
+  };
+
+  // Handlers
+  const handleToggleImageReveal = () => {
+    if (message.id) toggleImageReveal(message.id);
+  };
+
   // Fetch reply message if this message is a reply
   useEffect(() => {
+    // Skip if there's no reply reference
     if (!message.reply_to) {
       setReplyMessage(null);
       return;
     }
 
     let isMounted = true;
+
+    // Function to fetch reply message with timeout and error handling
     const fetchReplyMessage = async () => {
       try {
-        const [replyMsg] = await queryDocuments('messages', [
+        // Set timeout for query operations
+        const replyMessagePromise = queryDocuments('messages', [
           { field: 'id', operator: '==', value: message.reply_to }
         ]);
-        if (!replyMsg) return;
+        
+        // Use Promise.race to limit query time
+        const replyMessages = await Promise.race([
+          replyMessagePromise,
+          new Promise<any[]>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout fetching reply message')), 3000)
+          )
+        ]);
+        
+        const replyMsg = replyMessages[0];
+        if (!replyMsg || !isMounted) return;
 
-        const mediaRecords = await queryDocuments('message_media', [
+        // Set timeout for media query operation
+        const mediaQueryPromise = queryDocuments('message_media', [
           { field: 'message_id', operator: '==', value: replyMsg.id }
         ]);
+        
+        const mediaRecords = await Promise.race([
+          mediaQueryPromise, 
+          new Promise<any[]>((resolve) => {
+            setTimeout(() => resolve([]), 2000); // Return empty array on timeout
+          })
+        ]);
+        
+        if (!isMounted) return;
+
+        // Create full message object
         const fullReplyMessage: MessageWithMedia = {
           id: replyMsg.id,
           content: replyMsg.content || '',
@@ -79,33 +123,20 @@ export const MessageBubble = ({
           } : null,
           reactions: []
         };
+        
         if (isMounted) setReplyMessage(fullReplyMessage);
       } catch (error) {
-        if (isMounted) setReplyMessage(null);
-        console.error('Error fetching reply message:', error);
+        if (isMounted) {
+          console.error('Error or timeout fetching reply message:', error);
+          setReplyMessage(null);
+        }
       }
     };
+    
     fetchReplyMessage();
+    
     return () => { isMounted = false; };
   }, [message.reply_to]);
-
-  // Utilities
-  const isImageRevealed = useCallback(
-    (messageId?: string) => !!messageId && revealedImages.has(messageId),
-    [revealedImages]
-  );
-
-  const formatTimestamp = (timestamp: string | Date | any): string => {
-    if (typeof timestamp === 'string') return timestamp;
-    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
-    if (timestamp instanceof Date) return timestamp.toISOString();
-    return new Date().toISOString();
-  };
-
-  // Handlers
-  const handleToggleImageReveal = () => {
-    if (message.id) toggleImageReveal(message.id);
-  };
 
   return (
     <MessageBubbleWrapper message={message} isCurrentUser={isCurrentUser}>

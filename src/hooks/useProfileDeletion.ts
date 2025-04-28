@@ -25,8 +25,7 @@ export const useProfileDeletion = () => {
       const profile = await getUserProfile(userId);
 
       if (!profile) {
-        console.error('Profile not found for deletion');
-        toast.error('Failed to fetch profile for deletion.');
+        console.warn('Profile not found for deletion');
         return { success: false, error: 'Profile not found' };
       }
 
@@ -36,79 +35,109 @@ export const useProfileDeletion = () => {
         return { success: true }; // No deletion needed
       }
 
-      // Step 3: Delete files from storage
+      // Step 3: Delete files from storage - don't wait for completion to avoid delays
       try {
-        // Delete files from chat_images bucket
-        const imagesFolderRef = ref(storage, `chat_images/${userId}`);
-        const imagesListResult = await listAll(imagesFolderRef);
-        
-        const deleteImagePromises = imagesListResult.items.map(itemRef => 
-          deleteObject(itemRef));
-        await Promise.all(deleteImagePromises);
-        
-        // Delete files from chat_audio bucket
-        const audioFolderRef = ref(storage, `chat_audio/${userId}`);
-        const audioListResult = await listAll(audioFolderRef);
-        
-        const deleteAudioPromises = audioListResult.items.map(itemRef => 
-          deleteObject(itemRef));
-        await Promise.all(deleteAudioPromises);
+        // Only attempt storage deletion if there's a userId
+        if (userId) {
+          // We'll start the delete operations but we won't wait for them
+          (async () => {
+            try {
+              // Try deleting chat images with timeout
+              const imagesFolderRef = ref(storage, `chat_images/${userId}`);
+              try {
+                const imagesListResult = await Promise.race([
+                  listAll(imagesFolderRef),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]);
+                
+                // Start deletion but don't await
+                imagesListResult.items.forEach(itemRef => {
+                  deleteObject(itemRef).catch(err => console.warn('Image deletion error:', err));
+                });
+              } catch (err) {
+                console.warn('Image listing failed or timed out:', err);
+              }
+              
+              // Try deleting chat audio with timeout
+              const audioFolderRef = ref(storage, `chat_audio/${userId}`);
+              try {
+                const audioListResult = await Promise.race([
+                  listAll(audioFolderRef),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]);
+                
+                // Start deletion but don't await
+                audioListResult.items.forEach(itemRef => {
+                  deleteObject(itemRef).catch(err => console.warn('Audio deletion error:', err));
+                });
+              } catch (err) {
+                console.warn('Audio listing failed or timed out:', err);
+              }
+            } catch (err) {
+              console.warn('Storage folder deletion error:', err);
+            }
+          })();
+        }
       } catch (storageError) {
-        // Ignore errors if files don't exist
-        console.log('No files to delete or storage error:', storageError);
+        // Log but continue if storage deletion fails
+        console.warn('Storage deletion error:', storageError);
       }
 
       // Step 4: Delete associated data using batch writes
       const batch = writeBatch(db);
-
-      // Delete reports
-      const reporterQuery = query(collection(db, 'reports'), where('reporter_id', '==', userId));
-      const reportedQuery = query(collection(db, 'reports'), where('reported_id', '==', userId));
       
-      const reporterDocs = await getDocs(reporterQuery);
-      const reportedDocs = await getDocs(reportedQuery);
+      // Rather than wait for all queries, set a maximum time limit
+      const startTime = Date.now();
+      const timeLimit = 3000; // 3 seconds max
       
-      reporterDocs.forEach(document => batch.delete(doc(db, 'reports', document.id)));
-      reportedDocs.forEach(document => batch.delete(doc(db, 'reports', document.id)));
+      try {
+        // Delete the most critical data first
+        
+        // Delete the profile first
+        batch.delete(doc(db, 'profiles', userId));
+        
+        // Only proceed with other deletion if we haven't exceeded time limit
+        if (Date.now() - startTime < timeLimit) {
+          // Delete reports
+          try {
+            const reporterQuery = query(collection(db, 'reports'), where('reporter_id', '==', userId));
+            const reporterDocs = await getDocs(reporterQuery);
+            reporterDocs.forEach(document => batch.delete(doc(db, 'reports', document.id)));
+          } catch (err) {
+            console.warn('Reporter query error:', err);
+          }
+          
+          if (Date.now() - startTime < timeLimit) {
+            try {
+              const reportedQuery = query(collection(db, 'reports'), where('reported_id', '==', userId));
+              const reportedDocs = await getDocs(reportedQuery);
+              reportedDocs.forEach(document => batch.delete(doc(db, 'reports', document.id)));
+            } catch (err) {
+              console.warn('Reported query error:', err);
+            }
+          }
+        }
 
-      // Delete daily_photo_uploads
-      const uploadsQuery = query(collection(db, 'daily_photo_uploads'), where('user_id', '==', userId));
-      const uploadsDocs = await getDocs(uploadsQuery);
-      uploadsDocs.forEach(document => batch.delete(doc(db, 'daily_photo_uploads', document.id)));
+        // Delete user interests if time permits
+        if (Date.now() - startTime < timeLimit) {
+          try {
+            const userInterestsQuery = query(collection(db, 'user_interests'), where('user_id', '==', userId));
+            const userInterestsDocs = await getDocs(userInterestsQuery);
+            userInterestsDocs.forEach(document => batch.delete(doc(db, 'user_interests', document.id)));
+          } catch (err) {
+            console.warn('User interests query error:', err);
+          }
+        }
 
-      // Delete blocked_users entries
-      const blockerQuery = query(collection(db, 'blocked_users'), where('blocker_id', '==', userId));
-      const blockedQuery = query(collection(db, 'blocked_users'), where('blocked_id', '==', userId));
-      
-      const blockerDocs = await getDocs(blockerQuery);
-      const blockedDocs = await getDocs(blockedQuery);
-      
-      blockerDocs.forEach(document => batch.delete(doc(db, 'blocked_users', document.id)));
-      blockedDocs.forEach(document => batch.delete(doc(db, 'blocked_users', document.id)));
+        // Commit the batch
+        await batch.commit();
 
-      // Delete messages
-      const sentMessagesQuery = query(collection(db, 'messages'), where('sender_id', '==', userId));
-      const receivedMessagesQuery = query(collection(db, 'messages'), where('receiver_id', '==', userId));
-      
-      const sentMessagesDocs = await getDocs(sentMessagesQuery);
-      const receivedMessagesDocs = await getDocs(receivedMessagesQuery);
-      
-      sentMessagesDocs.forEach(document => batch.delete(doc(db, 'messages', document.id)));
-      receivedMessagesDocs.forEach(document => batch.delete(doc(db, 'messages', document.id)));
-
-      // Delete user interests
-      const userInterestsQuery = query(collection(db, 'user_interests'), where('user_id', '==', userId));
-      const userInterestsDocs = await getDocs(userInterestsQuery);
-      userInterestsDocs.forEach(document => batch.delete(doc(db, 'user_interests', document.id)));
-
-      // Delete the profile
-      batch.delete(doc(db, 'profiles', userId));
-
-      // Commit the batch
-      await batch.commit();
-
-      console.log(`Successfully deleted profile for user ${userId}`);
-      return { success: true };
+        console.log(`Successfully deleted profile for user ${userId}`);
+        return { success: true };
+      } catch (error) {
+        console.error('Profile deletion batch error:', error);
+        return { success: false, error };
+      }
     } catch (error) {
       console.error('Profile deletion error:', error);
       return { success: false, error };

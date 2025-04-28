@@ -33,7 +33,7 @@ export const InterestsSelector: React.FC<InterestsSelectorProps> = ({
     <Collapsible open={isOpen} onOpenChange={onToggle} className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Interests (Optional, select up to 2)
+          Interests <span className="text-gray-500 text-xs">(Optional)</span>
         </label>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm">
@@ -57,7 +57,7 @@ export const InterestsSelector: React.FC<InterestsSelectorProps> = ({
         </div>
         <p className="text-xs text-gray-500">
           {selectedInterests.length === 0 ? (
-            "Selecting interests is optional but helps match you with similar users"
+            "You can select up to 2 interests to help match with similar users"
           ) : (
             `Selected: ${selectedInterests.length}/2`
           )}
