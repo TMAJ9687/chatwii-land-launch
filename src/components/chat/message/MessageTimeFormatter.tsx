@@ -1,10 +1,12 @@
+
 import { formatDistanceToNow } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 
 export interface MessageTimestampProps {
-  timestamp: string | Date | any;
+  timestamp: string | Date | Timestamp;
 }
 
-export const formatTimestamp = (timestamp: string | Date | any): string => {
+export const formatTimestamp = (timestamp: string | Date | Timestamp): string => {
   if (!timestamp) return '';
   
   try {

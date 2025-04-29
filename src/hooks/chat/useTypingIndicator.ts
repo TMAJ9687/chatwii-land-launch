@@ -11,7 +11,7 @@ export const useTypingIndicator = (
   isVipUser: boolean
 ) => {
   const [isTyping, setIsTyping] = useState(false);
-  const { registerChannel } = useChannelManagement();
+  const { setupChannel } = useChannelManagement();
   
   // Generate a stable channel name
   const getTypingChannelName = useCallback(() => {
@@ -24,21 +24,16 @@ export const useTypingIndicator = (
     if (!isVipUser || !selectedUserId || !currentUserId) return;
     
     const channelName = getTypingChannelName();
-    const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
+    const typingPath = `typing/${currentUserId}_${selectedUserId}`;
     
-    const unsubscribe = onValue(typingRef, (snapshot) => {
-      const data = snapshot.val();
+    const cleanup = setupChannel(channelName, typingPath, (data) => {
       if (data && data.userId === selectedUserId) {
         setIsTyping(data.isTyping);
       }
     });
     
-    registerChannel(channelName, typingRef);
-    
-    return () => {
-      off(typingRef);
-    };
-  }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, registerChannel]);
+    return cleanup;
+  }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, setupChannel]);
 
   // Auto-reset typing indicator after inactivity
   useEffect(() => {
