@@ -1,6 +1,9 @@
 
 import { ref, set, serverTimestamp, onDisconnect, onValue } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('presenceUtils');
 
 // Enhanced presence utilities with proper cleanup and error handling
 export const updateUserPresence = async (userId: string, profile: any) => {
@@ -33,13 +36,13 @@ export const updateUserPresence = async (userId: string, profile: any) => {
           is_current_user: true
         });
       } catch (error) {
-        console.warn('Failed to set up presence:', error);
+        logger.warn('Failed to set up presence:', error);
       }
     });
 
     return userStatusRef;
   } catch (error) {
-    console.error('Failed to update user presence:', error);
+    logger.error('Failed to update user presence:', error);
     return null;
   }
 };
@@ -56,7 +59,7 @@ export const removeUserPresence = async (userId: string) => {
     } catch (error) {
       // If this fails with permission error, it's usually because the user is already logged out
       // or the session has expired, so we can safely continue with logout
-      console.warn('Error canceling presence disconnect, continuing with logout:', error);
+      logger.warn('Error canceling presence disconnect, continuing with logout:', error);
       return true; // Continue with logout flow even if this fails
     }
 
@@ -67,11 +70,11 @@ export const removeUserPresence = async (userId: string) => {
     } catch (error) {
       // Silently handle permission errors during logout
       // This is expected if the user's session has already expired
-      console.warn('Presence removal failed, continuing with logout:', error);
+      logger.warn('Presence removal failed, continuing with logout:', error);
       return true; // Continue with logout flow even if this fails
     }
   } catch (error) {
-    console.warn('Presence system error, continuing with logout:', error);
+    logger.warn('Presence system error, continuing with logout:', error);
     return true; // Continue with logout flow
   }
 };

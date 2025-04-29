@@ -3,6 +3,9 @@ import React from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { cn } from '@/lib/utils';
 import { MessageReplyContent } from './MessageReplyContent';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('MessageBubbleWrapper');
 
 interface MessageBubbleWrapperProps {
   message: MessageWithMedia;

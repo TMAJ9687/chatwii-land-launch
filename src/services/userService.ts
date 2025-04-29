@@ -1,7 +1,6 @@
-
 import { db } from "@/lib/firebase";
 import { collection, doc, addDoc, updateDoc, deleteDoc, getDoc, query, where, getDocs, Timestamp, serverTimestamp } from "firebase/firestore";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export type BanDuration = '1day' | '1week' | '1month' | 'permanent';
 export type VipDuration = '1month' | '3months' | 'permanent';
