@@ -62,20 +62,20 @@ export const databaseRules = `
     },
     "typing": {
       "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
+        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
       }
     },
     "messages": {
       "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
+        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
       }
     },
     "message_reactions": {
       "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
+        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
       }
     },
     ".read": false,
