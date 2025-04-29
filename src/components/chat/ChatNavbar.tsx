@@ -32,7 +32,7 @@ export const ChatNavbar = ({ unreadCount = 0, isVipUser = false }: ChatNavbarPro
         </Button>
         
         <ThemeToggle />
-        {isVipUser && <VipSettingsButton />}
+        <VipSettingsButton isVipUser={isVipUser} />
         <LogoutButton />
       </div>
     </nav>
