@@ -11,11 +11,12 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  DocumentData
 } from "firebase/firestore";
 import { db } from "@/integrations/firebase/client";
 import { createLogger } from "@/utils/logger";
-import { MessageWithMedia } from "@/types/message";
+import { MessageWithMedia, MessageMedia, MessageReaction } from "@/types/message";
 
 const logger = createLogger("messageService");
 
@@ -63,7 +64,7 @@ export const messageService = {
       ]);
 
       // Combine messages from both directions
-      const messages: any[] = [
+      const messages: DocumentData[] = [
         ...fromUser1.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         ...fromUser2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
       ];
@@ -89,7 +90,7 @@ export const messageService = {
       ]);
 
       // Create lookup maps for media and reactions
-      const mediaByMessageId: Record<string, any> = {};
+      const mediaByMessageId: Record<string, DocumentData> = {};
       mediaSnapshot.forEach(doc => {
         const media = { id: doc.id, ...doc.data() };
         if (media.message_id) {
@@ -97,7 +98,7 @@ export const messageService = {
         }
       });
 
-      const reactionsByMessageId: Record<string, any[]> = {};
+      const reactionsByMessageId: Record<string, DocumentData[]> = {};
       reactionsSnapshot.forEach(doc => {
         const reaction = { id: doc.id, ...doc.data() };
         if (reaction.message_id) {
@@ -122,8 +123,21 @@ export const messageService = {
           translated_content: message.translated_content || null,
           language_code: message.language_code || null,
           reply_to: message.reply_to || null,
-          media: mediaByMessageId[message.id] || null,
-          reactions: reactionsByMessageId[message.id] || [],
+          media: mediaByMessageId[message.id] ? {
+            id: mediaByMessageId[message.id].id,
+            message_id: mediaByMessageId[message.id].message_id,
+            user_id: mediaByMessageId[message.id].user_id,
+            file_url: mediaByMessageId[message.id].file_url,
+            media_type: mediaByMessageId[message.id].media_type,
+            created_at: mediaByMessageId[message.id].created_at
+          } : null,
+          reactions: (reactionsByMessageId[message.id] || []).map(reaction => ({
+            id: reaction.id,
+            message_id: reaction.message_id,
+            user_id: reaction.user_id,
+            emoji: reaction.emoji,
+            created_at: reaction.created_at
+          })),
           participants: message.participants || [message.sender_id, message.receiver_id]
         }))
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -207,7 +221,7 @@ export const messageService = {
         return null;
       }
       
-      const message = { id: messageDoc.id, ...messageDoc.data() };
+      const messageData = { id: messageDoc.id, ...messageDoc.data() } as DocumentData;
       
       // Get media and reactions
       const [mediaSnapshot, reactionsSnapshot] = await Promise.all([
@@ -222,28 +236,43 @@ export const messageService = {
       ]);
       
       // Process media
-      const media = mediaSnapshot.docs.length > 0 
-        ? { id: mediaSnapshot.docs[0].id, ...mediaSnapshot.docs[0].data() } 
-        : null;
+      let media: MessageMedia | null = null;
+      if (mediaSnapshot.docs.length > 0) {
+        const mediaData = { id: mediaSnapshot.docs[0].id, ...mediaSnapshot.docs[0].data() } as DocumentData;
+        media = {
+          id: mediaData.id,
+          message_id: mediaData.message_id,
+          user_id: mediaData.user_id,
+          file_url: mediaData.file_url,
+          media_type: mediaData.media_type,
+          created_at: mediaData.created_at
+        };
+      }
       
       // Process reactions
-      const reactions = reactionsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const reactions: MessageReaction[] = reactionsSnapshot.docs.map(doc => {
+        const reactionData = { id: doc.id, ...doc.data() } as DocumentData;
+        return {
+          id: reactionData.id,
+          message_id: reactionData.message_id,
+          user_id: reactionData.user_id,
+          emoji: reactionData.emoji,
+          created_at: reactionData.created_at
+        };
+      });
       
       return {
         id: messageId,
-        content: message.content || '',
-        sender_id: message.sender_id,
-        receiver_id: message.receiver_id,
-        is_read: Boolean(message.is_read),
-        created_at: formatTimestamp(message.created_at),
-        updated_at: message.updated_at ? formatTimestamp(message.updated_at) : null,
-        deleted_at: message.deleted_at ? formatTimestamp(message.deleted_at) : null,
-        translated_content: message.translated_content || null,
-        language_code: message.language_code || null,
-        reply_to: message.reply_to || null,
+        content: messageData.content || '',
+        sender_id: messageData.sender_id,
+        receiver_id: messageData.receiver_id,
+        is_read: Boolean(messageData.is_read),
+        created_at: formatTimestamp(messageData.created_at),
+        updated_at: messageData.updated_at ? formatTimestamp(messageData.updated_at) : null,
+        deleted_at: messageData.deleted_at ? formatTimestamp(messageData.deleted_at) : null,
+        translated_content: messageData.translated_content || null,
+        language_code: messageData.language_code || null,
+        reply_to: messageData.reply_to || null,
         media,
         reactions
       };
