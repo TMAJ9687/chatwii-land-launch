@@ -21,7 +21,7 @@ export const FirebaseRulesHelper: React.FC = () => {
         Copy these rules and paste them into your Firebase console.
       </p>
       
-      <Tabs defaultValue="firestore">
+      <Tabs defaultValue="database">
         <TabsList>
           <TabsTrigger value="firestore">Firestore Rules</TabsTrigger>
           <TabsTrigger value="database">Realtime DB Rules</TabsTrigger>

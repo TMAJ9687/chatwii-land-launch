@@ -57,7 +57,7 @@ export const databaseRules = `
     "presence": {
       "$uid": {
         ".read": true,
-        ".write": "$uid === auth.uid"
+        ".write": "auth !== null && auth.uid === $uid"
       }
     },
     "typing": {
