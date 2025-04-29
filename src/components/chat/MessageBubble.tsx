@@ -9,6 +9,8 @@ import { MessageReactions } from './MessageReactions';
 import { MessageBubbleWrapper } from './message/MessageBubbleWrapper';
 import { MessageVisibilityStatus } from './message/MessageVisibilityStatus';
 import { MessageReplyFetcher } from './message/MessageReplyFetcher';
+import { MessageTimeFormatter } from './message/MessageTimeFormatter';
+import { handleMessageError } from '@/utils/errorHandler';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -44,22 +46,20 @@ export const MessageBubble = ({
     [revealedImages]
   );
 
-  const formatTimestamp = (timestamp: string | Date | any): string => {
-    if (typeof timestamp === 'string') return timestamp;
-    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
-    if (timestamp instanceof Date) return timestamp.toISOString();
-    return new Date().toISOString();
-  };
+  // Handler for when reply message is loaded
+  const handleReplyLoaded = useCallback((loadedMessage: MessageWithMedia | null) => {
+    setReplyMessage(loadedMessage);
+  }, []);
 
   // Handlers
   const handleToggleImageReveal = () => {
     if (message.id) toggleImageReveal(message.id);
   };
 
-  // Handler for when reply message is loaded
-  const handleReplyLoaded = useCallback((loadedMessage: MessageWithMedia | null) => {
-    setReplyMessage(loadedMessage);
-  }, []);
+  // Error handler for message action failures
+  const handleMessageActionError = (error: any, context: string) => {
+    handleMessageError(error, context);
+  };
 
   return (
     <>
@@ -99,7 +99,7 @@ export const MessageBubble = ({
         />
 
         <MessageVisibilityStatus
-          timestamp={formatTimestamp(message.created_at)}
+          timestamp={message.created_at}
           isRead={message.is_read}
           isCurrentUser={isCurrentUser}
           isVipUser={isVipUser}

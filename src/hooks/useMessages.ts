@@ -4,6 +4,11 @@ import { queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
+import { createLogger } from '@/utils/logger';
+import { handleMessageError, isPermissionError, isNetworkError } from '@/utils/errorHandler';
+import { useFirebaseCleanup } from '@/hooks/useFirebaseCleanup';
+
+const logger = createLogger('useMessages');
 
 // Helper function to convert any timestamp format to a numeric value for comparison
 const getTimestampValue = (timestamp: string | Date | Timestamp | undefined): number => {
@@ -33,6 +38,7 @@ export const useMessages = (
   const maxRetries = 3;
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchedUserIdRef = useRef<string | null>(null);
+  const { registerCleanup } = useFirebaseCleanup();
 
   const resetState = useCallback(() => {
     setMessages([]);
@@ -93,22 +99,34 @@ export const useMessages = (
       
       if (selectedUserId) {
         await markMessagesAsRead(selectedUserId).catch(err => {
-          console.error('Error marking messages as read:', err);
+          logger.warn('Error marking messages as read:', err);
+          // Don't show toast for permission errors on reading messages
+          if (!isPermissionError(err)) {
+            toast.error('Failed to mark messages as read');
+          }
         });
       }
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
-      setError(`Failed to load messages: ${err.message || 'Unknown error'}`);
+      // Use our error handler for consistent error handling
+      const appError = handleMessageError(err, 'Error fetching messages');
       
-      if (err.message?.includes('index')) {
-        toast.error("Firebase index required. Please check console for details.");
-      } else {
-        toast.error("Failed to load messages");
+      // Set the error message for display
+      setError(appError.message);
+      
+      // If it's a permission error, provide more guidance
+      if (isPermissionError(err)) {
+        logger.warn('Permission error fetching messages. This might be due to missing Firebase security rules.');
+        setError('Unable to load messages due to permission settings. Please contact support.');
+      }
+      // If it's a network error, provide different guidance
+      else if (isNetworkError(err)) {
+        setError('Network connection issue. Please check your internet connection.');
       }
       
-      if (retryCount < maxRetries) {
+      // Retry logic for non-permission errors
+      if (retryCount < maxRetries && !isPermissionError(err)) {
         retryTimeoutRef.current = setTimeout(() => {
-          console.log(`Retrying fetch messages (attempt ${retryCount + 1})`);
+          logger.info(`Retrying fetch messages (attempt ${retryCount + 1})`);
           isFetchingRef.current = false; // Reset fetching state to allow retry
           fetchMessages(retryCount + 1);
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
@@ -222,6 +240,16 @@ export const useMessages = (
       fetchMessages();
     }
   }, [selectedUserId, resetState, fetchMessages]);
+
+  // Register the cleanup function
+  useEffect(() => {
+    registerCleanup(() => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    });
+  }, [registerCleanup]);
 
   return {
     messages,

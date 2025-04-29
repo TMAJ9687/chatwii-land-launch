@@ -25,43 +25,13 @@ export const useChannelManagement = () => {
       channelsRef.current = {};
     };
   }, []);
-  
-  const cleanupChannels = useCallback(() => {
-    if (!isMountedRef.current) return;
-    
-    Object.entries(channelsRef.current).forEach(([name, channel]) => {
-      if (channel) {
-        console.log(`Cleaning up channel: ${name}`);
-        try {
-          off(channel);
-        } catch (e) {
-          console.error(`Error removing channel ${name}:`, e);
-        }
-        delete channelsRef.current[name];
-      }
-    });
-  }, []);
 
-  const removeChannel = useCallback((channelName: string) => {
-    if (!isMountedRef.current) return;
-    
-    if (channelsRef.current[channelName]) {
-      console.log(`Removing specific channel: ${channelName}`);
-      try {
-        off(channelsRef.current[channelName]);
-      } catch (e) {
-        console.error(`Error removing channel ${channelName}:`, e);
-      }
-      delete channelsRef.current[channelName];
-    }
-  }, []);
-
-  const registerChannel = useCallback((channelName: string, channel: any) => {
-    if (!isMountedRef.current) return channel;
+  // Setup a channel with auto-cleanup
+  const setupChannel = useCallback((channelName: string, path: string, onData: (data: any) => void) => {
+    if (!isMountedRef.current) return () => {};
     
     // Clean up existing channel if it exists
     if (channelsRef.current[channelName]) {
-      console.log(`Replacing existing channel: ${channelName}`);
       try {
         off(channelsRef.current[channelName]);
       } catch (e) {
@@ -69,15 +39,51 @@ export const useChannelManagement = () => {
       }
     }
     
-    console.log(`Registering new channel: ${channelName}`);
-    channelsRef.current[channelName] = channel;
-    return channel;
+    try {
+      const channelRef = ref(realtimeDb, path);
+      
+      onValue(channelRef, (snapshot) => {
+        if (!isMountedRef.current) return;
+        const data = snapshot.val();
+        onData(data);
+      }, (error) => {
+        console.error(`Error in channel ${channelName}:`, error);
+      });
+      
+      // Store the reference for later cleanup
+      channelsRef.current[channelName] = channelRef;
+      
+      // Return cleanup function
+      return () => {
+        if (channelsRef.current[channelName]) {
+          try {
+            off(channelsRef.current[channelName]);
+            delete channelsRef.current[channelName];
+          } catch (e) {
+            console.error(`Error removing channel ${channelName}:`, e);
+          }
+        }
+      };
+    } catch (error) {
+      console.error(`Error setting up channel ${channelName}:`, error);
+      return () => {};
+    }
   }, []);
-
+  
+  // Clean up a specific channel
+  const cleanupChannel = useCallback((channelName: string) => {
+    if (channelsRef.current[channelName]) {
+      try {
+        off(channelsRef.current[channelName]);
+        delete channelsRef.current[channelName];
+      } catch (error) {
+        console.error(`Error cleaning up channel ${channelName}:`, error);
+      }
+    }
+  }, []);
+  
   return {
-    channelsRef,
-    cleanupChannels,
-    removeChannel,
-    registerChannel
+    setupChannel,
+    cleanupChannel
   };
 };

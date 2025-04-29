@@ -1,11 +1,10 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import {
   getDatabase,
-  connectDatabaseEmulator,
   ref,
   onValue,
   goOffline,
@@ -13,6 +12,9 @@ import {
   off
 } from "firebase/database";
 import { firebaseConfig } from "./config";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger('firebase');
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -23,6 +25,14 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const realtimeDb = getDatabase(app);
 export { app };
+
+// Track app state
+const appState = {
+  isInitialized: false,
+  isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  isAuthenticated: false,
+  userId: null as string | null,
+};
 
 // ——— Firestore listener tracking ——————————————————————————————————
 
@@ -35,9 +45,10 @@ export function trackFirestoreListener(unsubscribe: () => void) {
 
 /** Unsubscribe all registered Firestore listeners */
 export function clearFirestoreListeners() {
+  logger.debug(`Clearing ${firestoreListeners.length} Firestore listeners`);
   firestoreListeners.forEach(unsub => {
     try { unsub(); }
-    catch (e) { console.warn("Error unsubscribing firestore listener:", e); }
+    catch (e) { logger.warn("Error unsubscribing firestore listener:", e); }
   });
   firestoreListeners = [];
 }
@@ -53,22 +64,34 @@ export const setupConnectionMonitoring = () => {
   try {
     const connectedRef = ref(realtimeDb, ".info/connected");
     connectionMonitorRef = onValue(connectedRef, (snap) => {
-      console.log(snap.val() ? "Connected to Firebase Realtime Database" : "Disconnected from Firebase Realtime Database");
+      logger.debug(snap.val() ? "Connected to Firebase Realtime Database" : "Disconnected from Firebase Realtime Database");
     }, (error) => {
-      console.error("Error setting up connection monitoring:", error);
+      logger.error("Error setting up connection monitoring:", error);
     });
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     isSetup = true;
   } catch (error) {
-    console.error("Error setting up connection monitoring:", error);
+    logger.error("Error setting up connection monitoring:", error);
   }
 };
 
 setupConnectionMonitoring();
 
-function handleOnline()  { try { goOnline(realtimeDb);  } catch(e) { console.warn("Error going online:", e); } }
-function handleOffline() { /* No-op: SDK will auto-reconnect */ }
+function handleOnline()  { 
+  appState.isOnline = true;
+  try { 
+    logger.debug("Network back online, reconnecting to Firebase");
+    goOnline(realtimeDb);  
+  } catch(e) { 
+    logger.warn("Error going online:", e); 
+  } 
+}
+
+function handleOffline() { 
+  appState.isOnline = false;
+  logger.debug("Network offline, Firebase will auto-reconnect when available");
+}
 
 export const trackListener = (path: string, listener: any) => {
   activeListeners[path] = listener;
@@ -80,10 +103,29 @@ export const removeListener = (path: string) => {
     try { 
       off(ref(realtimeDb, path), activeListeners[path]); 
     }
-    catch (error) { console.warn(`Error removing listener for ${path}:`, error); }
+    catch (error) { logger.warn(`Error removing listener for ${path}:`, error); }
     delete activeListeners[path];
   }
 };
+
+// ——— Authentication state tracking ——————————————————————————————————
+
+// Monitor auth state
+onAuthStateChanged(auth, (user) => {
+  const wasAuthenticated = appState.isAuthenticated;
+  appState.isAuthenticated = !!user;
+  appState.userId = user?.uid || null;
+  
+  // If authentication state changed, log it
+  if (wasAuthenticated !== appState.isAuthenticated) {
+    logger.debug(`Authentication state changed: ${appState.isAuthenticated ? 'logged in' : 'logged out'}`);
+    
+    // If we just logged out, ensure connections are closed
+    if (wasAuthenticated && !appState.isAuthenticated) {
+      closeDbConnection();
+    }
+  }
+});
 
 // ——— Close everything on logout —————————————————————————————————————
 
@@ -106,11 +148,11 @@ export const closeDbConnection = async () => {
     // Finally go offline
     goOffline(realtimeDb);
     isSetup = false;
-    console.log("Firebase connections closed successfully");
+    logger.debug("Firebase connections closed successfully");
     return true;
   } 
   catch (error) {
-    console.warn("Error or timeout during Firebase connection closure:", error);
+    logger.warn("Error or timeout during Firebase connection closure:", error);
     
     // Force cleanup anyway
     forceCleanup();
@@ -122,18 +164,18 @@ export const closeDbConnection = async () => {
 function clearActiveListenersTask() {
   return new Promise<void>((resolve) => {
     try {
-      console.log(`Clearing ${Object.keys(activeListeners).length} active realtime DB listeners`);
+      logger.debug(`Clearing ${Object.keys(activeListeners).length} active realtime DB listeners`);
       Object.keys(activeListeners).forEach(path => {
         try { 
           off(ref(realtimeDb, path), activeListeners[path]); 
         } catch (e) { 
-          console.warn(`Error removing listener for ${path}:`, e); 
+          logger.warn(`Error removing listener for ${path}:`, e); 
         }
       });
       activeListeners = {};
       resolve();
     } catch (e) {
-      console.warn("Error in clearActiveListeners:", e);
+      logger.warn("Error in clearActiveListeners:", e);
       resolve(); // Always resolve to not block other tasks
     }
   });
@@ -146,7 +188,7 @@ function removeEventListenersTask() {
       window.removeEventListener('offline', handleOffline);
       resolve();
     } catch (e) {
-      console.warn("Error in removeEventListeners:", e);
+      logger.warn("Error in removeEventListeners:", e);
       resolve();
     }
   });
@@ -161,7 +203,7 @@ function removeConnectionMonitorTask() {
       }
       resolve();
     } catch (e) {
-      console.warn("Error in removeConnectionMonitor:", e);
+      logger.warn("Error in removeConnectionMonitor:", e);
       resolve();
     }
   });
@@ -170,11 +212,11 @@ function removeConnectionMonitorTask() {
 function clearFirestoreListenersTask() {
   return new Promise<void>((resolve) => {
     try {
-      console.log(`Clearing ${firestoreListeners.length} Firestore listeners`);
+      logger.debug(`Clearing ${firestoreListeners.length} Firestore listeners`);
       clearFirestoreListeners();
       resolve();
     } catch (e) {
-      console.warn("Error in clearFirestoreListeners:", e);
+      logger.warn("Error in clearFirestoreListeners:", e);
       resolve();
     }
   });
@@ -182,7 +224,7 @@ function clearFirestoreListenersTask() {
 
 // Force cleanup for emergency situations
 function forceCleanup() {
-  console.warn("Forcing Firebase connection cleanup");
+  logger.warn("Forcing Firebase connection cleanup");
   try {
     Object.keys(activeListeners).forEach(k => delete activeListeners[k]);
     window.removeEventListener('online', handleOnline);
@@ -195,6 +237,9 @@ function forceCleanup() {
     try { goOffline(realtimeDb); } catch {}
     isSetup = false;
   } catch (e) {
-    console.error("Error during force cleanup:", e);
+    logger.error("Error during force cleanup:", e);
   }
 }
+
+// Export app state for components to use
+export const getAppState = () => ({...appState});
