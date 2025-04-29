@@ -22,7 +22,7 @@ export const MessageBubbleWrapper: React.FC<MessageBubbleWrapperProps> = ({
   return (
     <div 
       className={cn(
-        "flex mb-4", 
+        "flex mb-4 relative group", 
         isCurrentUser ? "justify-end" : "justify-start"
       )}
       data-message-id={message.id}

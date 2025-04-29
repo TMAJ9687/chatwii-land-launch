@@ -1,82 +1,74 @@
 
-import { useState } from 'react';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { updateDocument, queryDocuments, deleteDocument } from '@/lib/firebase';
+import { isMockUser } from '@/utils/mockUsers';
 
 export const useMessageDeletion = (currentUserId: string, isVipUser: boolean) => {
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
-
-  const handleUnsendMessage = async (messageId: string) => {
-    if (!isVipUser) return;
-
+  
+  // Delete a single message (mark as deleted)
+  const handleUnsendMessage = useCallback(async (messageId: string) => {
+    if (!currentUserId || !isVipUser) return;
+    
     try {
-      const messageRef = doc(db, 'messages', messageId);
-      
-      await updateDoc(messageRef, { 
-        deleted_at: new Date().toISOString() 
+      await updateDocument('messages', messageId, {
+        deleted_at: new Date().toISOString(),
+        content: '[Message removed]'
       });
-      
-      toast.success('Message unsent');
+      toast.success('Message removed');
     } catch (error) {
       console.error('Error unsending message:', error);
-      toast.error('Failed to unsend message');
+      toast.error('Failed to remove message');
     }
-  };
+  }, [currentUserId, isVipUser]);
 
-  const deleteConversation = async (partnerId: string): Promise<void> => {
-    if (!isVipUser || isDeletingConversation) return;
-
+  // Delete an entire conversation between two users
+  const deleteConversation = useCallback(async (otherUserId: string) => {
+    if (!currentUserId || !isVipUser) return;
+    
+    // Skip for mock users
+    if (isMockUser(otherUserId)) {
+      console.log('Skipping delete conversation for mock user');
+      return;
+    }
+    
+    setIsDeletingConversation(true);
+    
     try {
-      setIsDeletingConversation(true);
-      toast.loading('Deleting conversation...');
+      // Fetch all messages between these two users
+      const [sentMessages, receivedMessages] = await Promise.all([
+        queryDocuments('messages', [
+          { field: 'sender_id', operator: '==', value: currentUserId },
+          { field: 'receiver_id', operator: '==', value: otherUserId }
+        ]),
+        queryDocuments('messages', [
+          { field: 'sender_id', operator: '==', value: otherUserId },
+          { field: 'receiver_id', operator: '==', value: currentUserId }
+        ])
+      ]);
       
-      // Get messages sent by current user to partner
-      const sentMessagesQuery = query(
-        collection(db, 'messages'),
-        where('sender_id', '==', currentUserId),
-        where('receiver_id', '==', partnerId)
+      const allMessages = [...sentMessages, ...receivedMessages];
+      
+      // Mark all messages as deleted
+      const updatePromises = allMessages.map(message => 
+        updateDocument('messages', message.id, {
+          deleted_at: new Date().toISOString(),
+          content: '[Message removed]'
+        })
       );
-      
-      const sentMessagesDocs = await getDocs(sentMessagesQuery);
-      
-      // Get messages received by current user from partner
-      const receivedMessagesQuery = query(
-        collection(db, 'messages'),
-        where('sender_id', '==', partnerId),
-        where('receiver_id', '==', currentUserId)
-      );
-      
-      const receivedMessagesDocs = await getDocs(receivedMessagesQuery);
-      
-      // Update all messages to mark as deleted
-      const updatePromises = [];
-      
-      for (const doc of sentMessagesDocs.docs) {
-        updatePromises.push(
-          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
-        );
-      }
-      
-      for (const doc of receivedMessagesDocs.docs) {
-        updatePromises.push(
-          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
-        );
-      }
       
       await Promise.all(updatePromises);
       
-      toast.dismiss();
       toast.success('Conversation deleted');
     } catch (error) {
       console.error('Error deleting conversation:', error);
-      toast.dismiss();
       toast.error('Failed to delete conversation');
     } finally {
       setIsDeletingConversation(false);
     }
-  };
-
+  }, [currentUserId, isVipUser]);
+  
   return {
     handleUnsendMessage,
     deleteConversation,

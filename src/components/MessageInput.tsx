@@ -5,6 +5,7 @@ import { MessageInputPlaceholder } from "./chat/input/MessageInputPlaceholder";
 import { ReplyComposer } from "./chat/ReplyComposer";
 import { MessageWithMedia } from "@/types/message";
 import { useMessageActions } from "@/hooks/useMessageActions";
+import { useMessageReplies } from "@/hooks/message/useMessageReplies";
 import { queryDocuments } from "@/lib/firebase";
 import { isMockUser } from "@/utils/mockUsers";
 
@@ -31,7 +32,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     isReplying,
     replyToMessageId,
     cancelReply,
-    handleReplyToMessage,
   } = useMessageActions(currentUserId || "", isVipUser);
 
   const [replyToMessage, setReplyToMessage] = useState<MessageWithMedia | null>(null);
@@ -83,7 +83,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSendReply = (content: string, imageUrl?: string) => {
     if (!replyToMessageId || !content.trim() || disabled) return;
-    handleReplyToMessage(replyToMessageId, content);
+    
+    // Send the message with reply_to metadata
     onSendMessage(content, imageUrl);
     cancelReply();
   };
