@@ -7,7 +7,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  DocumentData
+  DocumentData,
+  updateDoc
 } from "firebase/firestore";
 import { db } from "@/integrations/firebase/client";
 import { createLogger } from "@/utils/logger";
@@ -148,15 +149,15 @@ export const conversationService = {
       
       // Mark all messages as deleted
       const updatePromises = [
-        ...fromUser1.docs.map(doc => 
-          doc.ref.update({
+        ...fromUser1.docs.map(docSnapshot => 
+          updateDoc(docSnapshot.ref, {
             deleted_at: serverTimestamp(),
             content: "[Message deleted]",
             updated_at: serverTimestamp()
           })
         ),
-        ...fromUser2.docs.map(doc => 
-          doc.ref.update({
+        ...fromUser2.docs.map(docSnapshot => 
+          updateDoc(docSnapshot.ref, {
             deleted_at: serverTimestamp(),
             content: "[Message deleted]",
             updated_at: serverTimestamp()

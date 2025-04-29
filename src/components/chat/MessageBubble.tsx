@@ -91,7 +91,7 @@ export const MessageBubble = ({
           message={message}
           isCurrentUser={isCurrentUser}
           isVipUser={isVipUser}
-          onUnsend={() => handleUnsendMessage(message.id)}
+          onUnsend={() => handleUnsendMessage(message.id, message.sender_id)}
           onReply={() => startReply(message.id)}
           onReact={emoji => handleReactToMessage(message.id, emoji)}
           onTranslate={() => translateMessage(message)}
