@@ -23,8 +23,8 @@ export const useGlobalMessages = (currentUserId: string | null) => {
     currentSelectedUserIdRef.current = currentSelectedUserId;
     
     // Reset notification cooldown when changing conversations
-    if (selectedUserId) {
-      resetNotificationCooldowns(selectedUserId);
+    if (currentSelectedUserId) {
+      resetNotificationCooldowns(currentSelectedUserId);
     }
   }, [currentSelectedUserId]);
 

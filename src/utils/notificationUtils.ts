@@ -1,5 +1,5 @@
 
-import { toast, Toast } from "sonner";
+import { toast } from "sonner";
 
 // Store last notification time by sender ID
 const notificationCooldowns: Record<string, number> = {};
@@ -104,7 +104,7 @@ export const showMessageNotification = (
   // Show notification
   toast(text, {
     duration: 4000,
-    onClick: options?.onClick
+    onDismiss: options?.onClick  // Using onDismiss instead of onClick
   });
   
   // Update tracking state

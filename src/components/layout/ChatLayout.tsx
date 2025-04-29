@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { ChatNavbar } from '@/components/chat/ChatNavbar';
-import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ResetConnectionButton } from '@/components/ResetConnectionButton';
 
 interface ChatLayoutProps {
