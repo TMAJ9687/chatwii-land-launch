@@ -1,9 +1,9 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
+import { ref, set, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
-import { useChannelManagement } from './useChannelManagement';
+import { useChannelManager } from './useChannelManager';
 
 export const useTypingIndicator = (
   currentUserId: string | null,
@@ -11,29 +11,24 @@ export const useTypingIndicator = (
   isVipUser: boolean
 ) => {
   const [isTyping, setIsTyping] = useState(false);
-  const { setupChannel } = useChannelManagement();
-  
-  // Generate a stable channel name
-  const getTypingChannelName = useCallback(() => {
-    if (!currentUserId || !selectedUserId) return '';
-    return `typing:${currentUserId}-${selectedUserId}`;
-  }, [currentUserId, selectedUserId]);
+  const { listenToChannel, getConversationId } = useChannelManager();
   
   // Set up Firebase listener for typing events
   useEffect(() => {
     if (!isVipUser || !selectedUserId || !currentUserId) return;
     
-    const channelName = getTypingChannelName();
-    const typingPath = `typing/${currentUserId}_${selectedUserId}`;
+    const convId = getConversationId(currentUserId, selectedUserId);
+    const channelName = `typing_${convId}`;
+    const typingPath = `typing/${convId}`;
     
-    const cleanup = setupChannel(channelName, typingPath, (data) => {
+    const cleanup = listenToChannel(channelName, typingPath, (data) => {
       if (data && data.userId === selectedUserId) {
         setIsTyping(data.isTyping);
       }
     });
     
     return cleanup;
-  }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, setupChannel]);
+  }, [selectedUserId, currentUserId, isVipUser, getConversationId, listenToChannel]);
 
   // Auto-reset typing indicator after inactivity
   useEffect(() => {
@@ -51,7 +46,9 @@ export const useTypingIndicator = (
     debounce((isTyping: boolean) => {
       if (!isVipUser || !selectedUserId || !currentUserId) return;
       
-      const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
+      const convId = getConversationId(currentUserId, selectedUserId);
+      const typingRef = ref(realtimeDb, `typing/${convId}`);
+      
       set(typingRef, {
         userId: currentUserId,
         isTyping,
@@ -60,7 +57,7 @@ export const useTypingIndicator = (
         console.error('Error broadcasting typing status:', error);
       });
     }, 300),
-    [selectedUserId, currentUserId, isVipUser]
+    [selectedUserId, currentUserId, isVipUser, getConversationId]
   );
 
   return {

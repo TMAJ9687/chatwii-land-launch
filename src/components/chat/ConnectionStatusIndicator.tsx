@@ -18,7 +18,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   onReconnect,
   error,
   isLoading = false,
-  showFirebaseRules = false,
+  showFirebaseRules = true, // Changed default to true to help users see the rules
 }) => {
   // If everything is working fine, don't show the indicator
   if (isConnected && !error && !isLoading) {
@@ -28,7 +28,8 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   // Handle permission errors specifically
   const isPermissionError = error?.toLowerCase().includes('permission') || 
                            error?.toLowerCase().includes('access') || 
-                           error?.toLowerCase().includes('not authorized');
+                           error?.toLowerCase().includes('not authorized') ||
+                           error?.toLowerCase().includes('insufficient');
   
   // Handle different types of issues
   let icon = <AlertCircle className="h-4 w-4" />;
@@ -43,7 +44,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   } else if (isPermissionError) {
     icon = <XCircle className="h-4 w-4" />;
     title = 'Permission Error';
-    description = 'You don\'t have permission to access this data. This may be due to missing Firebase security rules.';
+    description = 'You don\'t have permission to access this data. This may be due to missing or incorrect Firebase security rules.';
     variant = 'destructive';
   } else if (isLoading) {
     icon = <RefreshCw className="h-4 w-4 animate-spin" />;
