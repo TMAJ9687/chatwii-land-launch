@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase';
@@ -46,7 +45,6 @@ export const useMessages = (
   }, []);
 
   const fetchMessages = useCallback(async (retryCount = 0) => {
-    // Return early if already loading or if userIds are missing
     if (
       !selectedUserId || 
       !currentUserId || 
@@ -56,12 +54,10 @@ export const useMessages = (
       return;
     }
     
-    // Set state to prevent concurrent fetches
     isFetchingRef.current = true;
     lastFetchedUserIdRef.current = selectedUserId;
     setIsLoading(true);
     
-    // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
       const mockMessages = getMockVipMessages(currentUserId);
       
@@ -90,13 +86,11 @@ export const useMessages = (
     }
     
     try {
-      // Simplified query approach with batch processing
       const messages = await fetchAllMessages(currentUserId, selectedUserId);
       
       setMessages(messages);
       setError(null);
       
-      // Mark messages as read after fetching
       if (selectedUserId) {
         await markMessagesAsRead(selectedUserId).catch(err => {
           console.error('Error marking messages as read:', err);
@@ -112,7 +106,6 @@ export const useMessages = (
         toast.error("Failed to load messages");
       }
       
-      // Implement retry logic
       if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
           console.log(`Retrying fetch messages (attempt ${retryCount + 1})`);
@@ -130,9 +123,7 @@ export const useMessages = (
     }
   }, [selectedUserId, currentUserId, markMessagesAsRead]);
 
-  // Helper function to fetch and process all messages between two users
   const fetchAllMessages = async (userId1: string, userId2: string): Promise<MessageWithMedia[]> => {
-    // Fetch both directions at once
     const [fromUser1, fromUser2] = await Promise.all([
       queryDocuments('messages', [
         { field: 'sender_id', operator: '==', value: userId1 },
@@ -144,17 +135,14 @@ export const useMessages = (
       ])
     ]);
     
-    // Combine and filter valid messages
     const allMessages = [...fromUser1, ...fromUser2].filter(msg => msg && typeof msg === 'object');
     
     if (allMessages.length === 0) {
       return [];
     }
     
-    // Get message IDs for batch queries
     const messageIds = allMessages.map(msg => msg.id).filter(Boolean);
     
-    // Make batch queries for media and reactions
     const [mediaRecords, reactionRecords] = await Promise.all([
       queryDocuments('message_media', [
         { field: 'message_id', operator: 'in', value: messageIds }
@@ -164,7 +152,6 @@ export const useMessages = (
       ])
     ]);
     
-    // Create lookup maps
     const mediaByMessageId = mediaRecords.reduce((acc, media) => {
       if (media && media.message_id) {
         acc[media.message_id] = media;
@@ -182,7 +169,6 @@ export const useMessages = (
       return acc;
     }, {} as Record<string, any[]>);
     
-    // Process all messages
     const processedMessages = allMessages.map(message => {
       let createdAt = message.created_at;
       if (createdAt) {
@@ -215,7 +201,6 @@ export const useMessages = (
       };
     });
     
-    // Sort by creation date
     return processedMessages.sort((a, b) => {
       const dateA = getTimestampValue(a.created_at);
       const dateB = getTimestampValue(b.created_at);
@@ -223,7 +208,6 @@ export const useMessages = (
     });
   };
 
-  // Clean up any pending retries when component unmounts or dependencies change
   useEffect(() => {
     return () => {
       if (retryTimeoutRef.current) {
@@ -232,7 +216,6 @@ export const useMessages = (
     };
   }, [selectedUserId, currentUserId]);
 
-  // Reset state and trigger fetch when selecting a new user
   useEffect(() => {
     if (selectedUserId !== lastFetchedUserIdRef.current) {
       resetState();
