@@ -10,6 +10,7 @@ interface ChannelRegistry {
     lastAccessed: number;
     isActive: boolean;
     callback: (data: any) => void;
+    setupCount: number; // Track number of setup attempts
   };
 }
 
@@ -50,18 +51,35 @@ export const useChannelManager = () => {
       channelsRef.current[channelName].lastAccessed = Date.now();
       channelsRef.current[channelName].callback = callback;
       
-      // Re-trigger callback with existing data if any
-      const existingRef = channelsRef.current[channelName].reference;
-      onValue(existingRef, (snapshot) => {
-        const data = snapshot.val();
-        callback(data);
-      }, { onlyOnce: true });
+      // Only re-trigger callback if the channel has been established for a while
+      // This prevents constant re-firing during rapid setup/cleanup cycles
+      const existingChannel = channelsRef.current[channelName];
+      if (Date.now() - existingChannel.lastAccessed > 5000) {
+        // Re-trigger callback with existing data if any
+        const existingRef = existingChannel.reference;
+        onValue(existingRef, (snapshot) => {
+          const data = snapshot.val();
+          callback(data);
+        }, { onlyOnce: true });
+      }
       
       return () => cleanupChannel(channelName);
     }
     
-    // Clean up existing channel if it exists but isn't active
+    // Prevent excessive setup attempts for the same channel
     if (channelsRef.current[channelName]) {
+      const setupCount = channelsRef.current[channelName].setupCount || 0;
+      
+      // If we've tried to set up this channel too many times in a short period, back off
+      if (setupCount > 5 && (Date.now() - channelsRef.current[channelName].lastAccessed) < 10000) {
+        log(`Too many setup attempts for channel ${channelName}, backing off`);
+        return () => {};
+      }
+      
+      // Update setup count
+      channelsRef.current[channelName].setupCount = setupCount + 1;
+      
+      // Clean up existing channel if it exists but isn't active
       log(`Channel ${channelName} exists but inactive, cleaning up first`);
       cleanupChannel(channelName);
     }
@@ -74,7 +92,8 @@ export const useChannelManager = () => {
         reference: channelRef,
         lastAccessed: Date.now(),
         isActive: true,
-        callback: callback
+        callback: callback,
+        setupCount: 1
       };
       
       // Set up listener with error handling
@@ -116,11 +135,13 @@ export const useChannelManager = () => {
               }
               
               // Try again after delay
-              setTimeout(setupListener, 1000);
+              setTimeout(setupListener, 1000 * errorRetryCount); // Exponential backoff
             } else {
               // Too many errors, give up
               log(`Too many errors for channel ${channelName}, giving up`);
-              cleanupChannel(channelName);
+              if (channelsRef.current[channelName]) {
+                channelsRef.current[channelName].isActive = false;
+              }
             }
           });
         } catch (error) {
@@ -209,7 +230,11 @@ export const useChannelManager = () => {
       if (oldChannels.length > 0) {
         log(`Removing ${oldChannels.length} old inactive channels`);
         oldChannels.forEach(name => {
-          off(channelsRef.current[name].reference);
+          try {
+            off(channelsRef.current[name].reference);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
           delete channelsRef.current[name];
         });
       }

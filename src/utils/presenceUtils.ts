@@ -54,8 +54,10 @@ export const removeUserPresence = async (userId: string) => {
     try {
       await onDisconnect(userPresenceRef).cancel();
     } catch (error) {
+      // If this fails with permission error, it's usually because the user is already logged out
+      // or the session has expired, so we can safely continue with logout
       console.warn('Error canceling presence disconnect, continuing with logout:', error);
-      // Continue with logout process even if this fails
+      return true; // Continue with logout flow even if this fails
     }
 
     // Then try to remove the presence
@@ -63,12 +65,13 @@ export const removeUserPresence = async (userId: string) => {
       await set(userPresenceRef, null);
       return true;
     } catch (error) {
-      // Just log but consider it successful for logout flow
-      console.warn('Presence removal failed due to permissions, continuing with logout:', error);
-      return true; // Return true to not block logout flow
+      // Silently handle permission errors during logout
+      // This is expected if the user's session has already expired
+      console.warn('Presence removal failed, continuing with logout:', error);
+      return true; // Continue with logout flow even if this fails
     }
   } catch (error) {
     console.warn('Presence system error, continuing with logout:', error);
-    return true; // Return true to not block logout flow
+    return true; // Continue with logout flow
   }
 };

@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
@@ -22,6 +23,7 @@ export const useChannelSetup = (
   const previousUserIdRef = useRef<string | null>(null);
   const setupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setupRetryCountRef = useRef(0);
+  const hasTriedToSetupRef = useRef(false);
   const { cleanupAllChannels } = useChannelManager();
   
   // Ensure we maintain connection whenever chat is open
@@ -53,12 +55,14 @@ export const useChannelSetup = (
       console.log("Missing user IDs, skipping channel setup");
       return;
     }
-    
+
+    // Check if this is a new user selection or first setup
     const userIdChanged = 
       previousUserIdRef.current !== selectedUserId || 
-      setupAttemptRef.current === false;
+      !hasTriedToSetupRef.current;
       
     if (userIdChanged) {
+      hasTriedToSetupRef.current = true;
       console.log(`User selection changed: ${previousUserIdRef.current} -> ${selectedUserId}`);
       previousUserIdRef.current = selectedUserId;
       setupAttemptRef.current = true;
@@ -71,7 +75,7 @@ export const useChannelSetup = (
       
       // Set up immediately
       setIsSettingUp(true);
-      console.log("Setting up message and reaction channels immediately");
+      console.log("Setting up message and reaction channels");
       setChannelStatus({
         messages: false,
         reactions: false
@@ -98,7 +102,7 @@ export const useChannelSetup = (
           // If we're still not connected after retries, inform the user but don't keep retrying
           toast.info("Using cached messages. Reconnecting in background...");
         }
-      }, 3000); // Increased timeout to give more time for setup
+      }, 5000); // Increased timeout to give more time for setup
     }
   }, [currentUserId, selectedUserId, fetchMessages, isSettingUp, channelStatus, cleanupAllChannels]);
 
@@ -108,6 +112,7 @@ export const useChannelSetup = (
       console.log("Component unmounting, cleaning up all channels");
       setupAttemptRef.current = false;
       previousUserIdRef.current = null;
+      hasTriedToSetupRef.current = false;
       
       if (setupTimeoutRef.current) {
         clearTimeout(setupTimeoutRef.current);

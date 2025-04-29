@@ -1,62 +1,46 @@
 
 import React from 'react';
-import { CheckCheck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, isToday, isYesterday } from 'date-fns';
+import { Check } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface MessageVisibilityStatusProps {
   timestamp: string;
   isRead: boolean;
   isCurrentUser: boolean;
-  isVipUser: boolean;
+  isVipUser?: boolean;
 }
 
 export const MessageVisibilityStatus: React.FC<MessageVisibilityStatusProps> = ({
   timestamp,
   isRead,
   isCurrentUser,
-  isVipUser
+  isVipUser = false
 }) => {
-  // Format the timestamp for display
-  const formatMessageTime = (timestamp: string) => {
+  // Format timestamp for display
+  const formattedTime = () => {
     try {
-      const date = new Date(timestamp);
-      
-      if (isNaN(date.getTime())) {
-        return "";
-      }
-      
-      if (isToday(date)) {
-        return format(date, 'h:mm a');
-      } else if (isYesterday(date)) {
-        return `Yesterday ${format(date, 'h:mm a')}`;
-      } else {
-        return format(date, 'MMM d, h:mm a');
-      }
-    } catch (error) {
-      console.error('Error formatting timestamp:', error);
-      return "";
+      return format(new Date(timestamp), 'h:mm a');
+    } catch (e) {
+      return ''; // Return empty string if timestamp is invalid
     }
   };
   
-  const formattedTime = formatMessageTime(timestamp);
+  // Only show read status for current user's messages and if they're a VIP
+  const showReadStatus = isCurrentUser && isVipUser;
   
   return (
-    <div className={cn(
-      "text-[10px] flex items-center mt-1",
-      isCurrentUser ? "justify-end" : "justify-start"
-    )}>
-      <span className="text-muted-foreground">
-        {formattedTime}
+    <div className="flex items-center justify-end gap-1 mt-1">
+      <span className="text-[10px] text-muted-foreground">
+        {formattedTime()}
       </span>
       
-      {isCurrentUser && isVipUser && (
-        <span className="ml-1 text-muted-foreground">
-          {isRead ? (
-            <CheckCheck className="h-3 w-3 inline" />
-          ) : (
-            <Check className="h-3 w-3 inline" />
-          )}
+      {showReadStatus && (
+        <span className={cn(
+          "ml-1", 
+          isRead ? "text-green-500" : "text-muted-foreground/40"
+        )}>
+          <Check className="h-3 w-3" />
         </span>
       )}
     </div>

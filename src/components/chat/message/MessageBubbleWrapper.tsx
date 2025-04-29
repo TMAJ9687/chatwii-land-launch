@@ -6,43 +6,45 @@ import { MessageReplyContent } from './MessageReplyContent';
 
 interface MessageBubbleWrapperProps {
   message: MessageWithMedia;
-  replyMessage: MessageWithMedia | null;
   isCurrentUser: boolean;
+  replyMessage: MessageWithMedia | null;
   children: React.ReactNode;
 }
 
 export const MessageBubbleWrapper: React.FC<MessageBubbleWrapperProps> = ({
   message,
-  replyMessage,
   isCurrentUser,
+  replyMessage,
   children
 }) => {
-  // Determine if the message was deleted
   const isDeleted = !!message.deleted_at;
   
   return (
-    <div
+    <div 
       className={cn(
-        "group relative flex flex-col w-full max-w-[80%] mb-2",
-        isCurrentUser ? "items-end ml-auto" : "items-start mr-auto"
+        "flex mb-4", 
+        isCurrentUser ? "justify-end" : "justify-start"
       )}
+      data-message-id={message.id}
     >
-      {message.reply_to && replyMessage && (
-        <MessageReplyContent 
-          message={replyMessage} 
-          isCurrentUser={isCurrentUser} 
-        />
-      )}
-      
       <div
         className={cn(
-          "px-4 py-2 rounded-lg break-words",
-          isCurrentUser
-            ? "bg-primary text-primary-foreground rounded-br-none"
-            : "bg-muted rounded-bl-none",
-          isDeleted && "opacity-50"
+          "rounded-lg px-3 py-2 max-w-[80%]",
+          isCurrentUser 
+            ? "bg-primary text-primary-foreground" 
+            : "bg-muted",
+          isDeleted && "opacity-60"
         )}
       >
+        {/* Display replied message if this is a reply */}
+        {message.reply_to && replyMessage && (
+          <MessageReplyContent 
+            message={replyMessage} 
+            isCurrentUser={isCurrentUser} 
+          />
+        )}
+        
+        {/* Message content and children components */}
         {children}
       </div>
     </div>

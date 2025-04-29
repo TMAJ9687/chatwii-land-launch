@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { queryDocuments } from '@/lib/firebase';
 
@@ -9,73 +9,83 @@ interface MessageReplyFetcherProps {
 }
 
 /**
- * This component doesn't render anything, it only fetches reply message data
- * and provides it to its parent through the callback
+ * Component that handles fetching reply message data
+ * This component doesn't render anything visible - it just fetches data
+ * and provides it to the parent component via the onReplyLoaded callback
  */
-export const MessageReplyFetcher = ({ 
-  replyToId, 
-  onReplyLoaded 
-}: MessageReplyFetcherProps) => {
-  // Use an internal state to avoid unnecessary re-renders of parent components
+export const MessageReplyFetcher: React.FC<MessageReplyFetcherProps> = ({
+  replyToId,
+  onReplyLoaded
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   
-  // Fetch the message that is being replied to
-  const fetchReplyMessage = useCallback(async (messageId: string) => {
-    if (!messageId) {
+  useEffect(() => {
+    if (!replyToId) {
       onReplyLoaded(null);
       return;
     }
-    
+
+    let isMounted = true;
     setIsLoading(true);
     
-    try {
-      // Fetch the message
-      const messages = await queryDocuments('messages', [
-        { field: 'id', operator: '==', value: messageId }
-      ]);
-      
-      if (!messages || messages.length === 0) {
-        onReplyLoaded(null);
-        return;
+    const fetchReplyMessage = async () => {
+      try {
+        // Fetch the original message
+        const replyMessages = await queryDocuments('messages', [
+          { field: 'id', operator: '==', value: replyToId }
+        ]);
+        
+        if (!isMounted) return;
+        
+        if (replyMessages.length > 0) {
+          const replyMsg = replyMessages[0];
+          
+          // Fetch media if any
+          const mediaRecords = await queryDocuments('message_media', [
+            { field: 'message_id', operator: '==', value: replyMsg.id }
+          ]);
+          
+          if (!isMounted) return;
+          
+          // Construct full message with media
+          const fullMessage: MessageWithMedia = {
+            ...replyMsg,
+            media: mediaRecords.length > 0 
+              ? {
+                  id: mediaRecords[0].id,
+                  message_id: mediaRecords[0].message_id,
+                  user_id: mediaRecords[0].user_id,
+                  file_url: mediaRecords[0].file_url,
+                  media_type: mediaRecords[0].media_type,
+                  created_at: mediaRecords[0].created_at
+                }
+              : null,
+            reactions: []
+          };
+          
+          onReplyLoaded(fullMessage);
+        } else {
+          onReplyLoaded(null);
+        }
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+        if (isMounted) {
+          onReplyLoaded(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-      
-      // Fetch associated media if any
-      const message = messages[0];
-      const mediaRecords = await queryDocuments('message_media', [
-        { field: 'message_id', operator: '==', value: messageId }
-      ]);
-      
-      // Create the complete message object
-      const completeMessage: MessageWithMedia = {
-        ...message,
-        media: mediaRecords && mediaRecords.length > 0 ? {
-          id: mediaRecords[0].id,
-          message_id: mediaRecords[0].message_id,
-          user_id: mediaRecords[0].user_id,
-          file_url: mediaRecords[0].file_url,
-          media_type: mediaRecords[0].media_type,
-          created_at: mediaRecords[0].created_at,
-        } : null,
-        reactions: [] // We don't need reactions for reply preview
-      };
-      
-      onReplyLoaded(completeMessage);
-    } catch (err) {
-      console.error('Error fetching reply message:', err);
-      onReplyLoaded(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onReplyLoaded]);
-  
-  useEffect(() => {
-    if (replyToId) {
-      fetchReplyMessage(replyToId);
-    } else {
-      onReplyLoaded(null);
-    }
-  }, [replyToId, fetchReplyMessage, onReplyLoaded]);
-  
-  // This component doesn't render anything
+    };
+    
+    fetchReplyMessage();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [replyToId, onReplyLoaded]);
+
+  // This component doesn't render anything visible
   return null;
 };
