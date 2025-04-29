@@ -1,63 +1,29 @@
 
 import React from 'react';
-import { Mail, History, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { LogoutButton } from '@/components/LogoutButton';
-import { VipSettingsButton } from '@/components/VipSettingsButton';
-import { NotificationBadge } from '@/components/NotificationBadge';
-import { useChatContext } from '@/contexts/ChatContext';
+import { ChatNavbar } from '@/components/chat/ChatNavbar';
+import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { ResetConnectionButton } from '@/components/ResetConnectionButton';
 
 interface ChatLayoutProps {
   children: React.ReactNode;
-  unreadCount: number;
-  isVipUser: boolean;
+  unreadCount?: number;
+  isVipUser?: boolean;
 }
 
-export const ChatLayout: React.FC<ChatLayoutProps> = ({ 
-  children, 
-  unreadCount,
-  isVipUser
-}) => {
-  const { setActiveSidebar } = useChatContext();
-
+export const ChatLayout = ({ children, unreadCount = 0, isVipUser = false }: ChatLayoutProps) => {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border py-3 px-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">Chatwii Chat</h1>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full relative"
-            onClick={() => setActiveSidebar('inbox')}
-          >
-            <Mail className="h-5 w-5" />
-            <NotificationBadge count={unreadCount} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setActiveSidebar('history')}
-          >
-            <History className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setActiveSidebar('blocked')}
-          >
-            <Users className="h-5 w-5" />
-          </Button>
-          <VipSettingsButton isVipUser={isVipUser} />
-          <ThemeToggle />
-          <LogoutButton />
-        </div>
-      </header>
-
-      {children}
+    <div className="flex flex-col min-h-screen">
+      <ChatNavbar unreadCount={unreadCount} isVipUser={isVipUser} />
+      
+      <div className="fixed right-4 top-16 z-50">
+        <ResetConnectionButton />
+      </div>
+      
+      <div className="flex flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

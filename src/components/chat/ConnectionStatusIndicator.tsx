@@ -1,91 +1,71 @@
 
-import React from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, WifiOff, RefreshCw, XCircle, Bell } from 'lucide-react';
+import { AlertCircle, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FirebaseRulesHelper } from '@/components/admin/FirebaseRulesHelper';
+import { ResetConnectionButton } from '@/components/ResetConnectionButton';
+import { toast } from 'sonner';
 
 interface ConnectionStatusIndicatorProps {
   isConnected: boolean;
   onReconnect: () => void;
   error: string | null;
   isLoading?: boolean;
-  showFirebaseRules?: boolean;
 }
 
-export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
+export const ConnectionStatusIndicator = ({
   isConnected,
   onReconnect,
   error,
-  isLoading = false,
-  showFirebaseRules = true, // Changed default to true to help users see the rules
-}) => {
-  // If everything is working fine, don't show the indicator
+  isLoading = false
+}: ConnectionStatusIndicatorProps) => {
+  const handleReconnectClick = () => {
+    toast.info('Attempting to reconnect...');
+    onReconnect();
+  };
+  
+  // If no issues and not loading, don't show anything
   if (isConnected && !error && !isLoading) {
     return null;
   }
-
-  // Handle permission errors specifically
-  const isPermissionError = error?.toLowerCase().includes('permission') || 
-                           error?.toLowerCase().includes('access') || 
-                           error?.toLowerCase().includes('not authorized') ||
-                           error?.toLowerCase().includes('insufficient');
   
-  // Handle different types of issues
-  let icon = <AlertCircle className="h-4 w-4" />;
-  let title = 'Connection Issue';
-  let description = error || 'There was a problem connecting to the chat service.';
-  let variant: 'default' | 'destructive' = 'default';
-  
-  if (!isConnected) {
-    icon = <WifiOff className="h-4 w-4" />;
-    title = 'Disconnected';
-    description = 'You are currently disconnected from the chat service. Please check your internet connection.';
-  } else if (isPermissionError) {
-    icon = <XCircle className="h-4 w-4" />;
-    title = 'Permission Error';
-    description = 'You don\'t have permission to access this data. This may be due to missing or incorrect Firebase security rules.';
-    variant = 'destructive';
-  } else if (isLoading) {
-    icon = <RefreshCw className="h-4 w-4 animate-spin" />;
-    title = 'Loading';
-    description = 'Connecting to chat service...';
-  } else if (error?.includes('index')) {
-    icon = <Bell className="h-4 w-4" />;
-    title = 'Database Configuration Required';
-    description = 'Firebase index is required for this query. Please follow the link to create the necessary index.';
-  }
-
+  // Show appropriate message based on state
   return (
-    <>
-      <Alert variant={variant} className="mb-2">
-        <div className="flex items-start">
-          {icon}
-          <div className="ml-2 flex-1">
-            <AlertTitle>{title}</AlertTitle>
-            <AlertDescription className="text-sm">{description}</AlertDescription>
-
-            {!isConnected && (
-              <Button 
-                onClick={onReconnect} 
-                variant="outline" 
-                size="sm" 
-                className="mt-2"
-              >
-                <RefreshCw className="h-3 w-3 mr-2" />
-                Reconnect
-              </Button>
-            )}
-          </div>
-        </div>
-      </Alert>
-
-      {/* Show Firebase Rules Helper when there's a permission error */}
-      {isPermissionError && showFirebaseRules && (
-        <div className="mb-4">
-          <FirebaseRulesHelper />
-        </div>
-      )}
-    </>
+    <div className={`px-4 py-2 flex items-center justify-between text-sm ${
+      error ? 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300' : 
+      !isConnected ? 'bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+      'bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+    }`}>
+      <div className="flex items-center space-x-2">
+        {error ? (
+          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+        ) : !isConnected ? (
+          <WifiOff className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+        ) : (
+          <Wifi className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        )}
+        
+        <span>
+          {error ? 'Connection error' : 
+           !isConnected ? 'Disconnected' : 
+           isLoading ? 'Loading messages...' : 'Connected'}
+        </span>
+        
+        {isLoading && <Loader2 className="h-3 w-3 animate-spin ml-2" />}
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        {!isConnected && (
+          <Button 
+            onClick={handleReconnectClick} 
+            variant="outline" 
+            size="sm"
+            className="h-7 px-2 py-1 text-xs"
+          >
+            Reconnect
+          </Button>
+        )}
+        
+        <ResetConnectionButton />
+      </div>
+    </div>
   );
 };

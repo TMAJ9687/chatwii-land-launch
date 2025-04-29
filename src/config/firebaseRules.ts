@@ -14,8 +14,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         resource.data.sender_id == request.auth.uid ||
         resource.data.receiver_id == request.auth.uid ||
-        resource.data.participants[0] == request.auth.uid ||
-        resource.data.participants[1] == request.auth.uid
+        resource.data.participants.hasAny([request.auth.uid])
       );
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && (
@@ -25,8 +24,7 @@ service cloud.firestore {
     
     // Message media - follows same rules as messages
     match /message_media/{mediaId} {
-      allow read: if request.auth != null && exists(/databases/$(database)/documents/messages/$(resource.data.message_id)) &&
-        get(/databases/$(database)/documents/messages/$(resource.data.message_id)).data.participants.hasAny([request.auth.uid]);
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
         resource.data.user_id == request.auth.uid;
@@ -34,8 +32,7 @@ service cloud.firestore {
     
     // Message reactions - users can add reactions to messages they can see
     match /message_reactions/{reactionId} {
-      allow read: if request.auth != null && exists(/databases/$(database)/documents/messages/$(resource.data.message_id)) &&
-        get(/databases/$(database)/documents/messages/$(resource.data.message_id)).data.participants.hasAny([request.auth.uid]);
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
         resource.data.user_id == request.auth.uid;
