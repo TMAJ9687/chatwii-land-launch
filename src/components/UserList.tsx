@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Ensure React is imported
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -107,9 +108,13 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
         if (!user) return false; // Basic check
         
         // Fixed type issue: use type safe comparison for gender
-        if (filters.selectedGenders.length > 0 && 
-            !filters.selectedGenders.includes(user.gender as Gender)) {
-          return false;
+        // Check if the user's gender is in the selected genders array
+        if (filters.selectedGenders.length > 0) {
+          // Cast the user.gender to a Gender type to avoid type errors
+          const userGender = user.gender as Gender;
+          if (!filters.selectedGenders.includes(userGender)) {
+            return false;
+          }
         }
         
         if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) return false;

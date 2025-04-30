@@ -19,7 +19,6 @@ interface OnlineUser {
   avatarBgColor?: string;
   avatarTextColor?: string;
   flagEmoji?: string;
-  [key: string]: any; // Allow additional properties
 }
 
 interface UserListSidebarProps {
