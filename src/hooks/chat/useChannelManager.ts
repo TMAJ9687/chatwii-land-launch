@@ -26,7 +26,7 @@ export const useChannelManager = () => {
   // Track component mounted state to prevent updates after unmount
   const isMountedRef = useRef(true);
   // Track debug mode
-  const debugMode = useRef(false);
+  const debugMode = useRef(true); // Set to true to see more logs
   
   // Cleanup on unmount
   useCallback(() => {
@@ -40,11 +40,6 @@ export const useChannelManager = () => {
     if (debugMode.current) {
       console.log(`[ChannelManager] ${message}`, ...args);
     }
-  }, []);
-  
-  // Generate a consistent conversation ID regardless of user order
-  const getConversationIdInternal = useCallback((user1Id: string, user2Id: string): string => {
-    return getConversationId(user1Id, user2Id);
   }, []);
   
   // Listen to a specific path with proper cleanup handling
@@ -68,16 +63,24 @@ export const useChannelManager = () => {
       // Create a reference to the database location
       const dbRef = ref(realtimeDb, path);
       
-      // Setup the listener
-      onValue(dbRef, (snapshot) => {
-        const data = snapshot.val();
-        if (isMountedRef.current && channelsRef.current[channelName]) {
-          log(`Received data on channel ${channelName}`);
-          callback(data);
+      // Setup the listener with error handler
+      onValue(dbRef, 
+        (snapshot) => {
+          const data = snapshot.val();
+          log(`Received data on channel ${channelName}: ${data ? 'has data' : 'no data'}`);
+          
+          if (isMountedRef.current && channelsRef.current[channelName]) {
+            callback(data);
+          }
+        }, 
+        (error) => {
+          console.error(`Error on channel ${channelName}:`, error);
+          // Still call the callback with null to allow UI to handle error state
+          if (isMountedRef.current && channelsRef.current[channelName]) {
+            callback(null);
+          }
         }
-      }, (error) => {
-        console.error(`Error on channel ${channelName}:`, error);
-      });
+      );
       
       // Register the channel
       channelsRef.current[channelName] = {
@@ -94,8 +97,12 @@ export const useChannelManager = () => {
         const possibleConversationId = match[1];
         // Try to sync this conversation data
         if (possibleConversationId.includes('_')) {
-          syncService.queueSync(possibleConversationId.split('_')[0], possibleConversationId.split('_')[1])
-            .catch(err => console.error('Error queuing sync for conversation:', err));
+          log(`Attempting to sync conversation: ${possibleConversationId}`);
+          const userIds = possibleConversationId.split('_');
+          if (userIds.length === 2) {
+            syncService.queueSync(userIds[0], userIds[1])
+              .catch(err => console.error('Error queuing sync for conversation:', err));
+          }
         }
       }
       
@@ -153,6 +160,6 @@ export const useChannelManager = () => {
     listenToChannel,
     cleanupChannel,
     cleanupAllChannels,
-    getConversationId: getConversationIdInternal,
+    getConversationId: getConversationId,
   };
 };

@@ -10,6 +10,11 @@
  * @returns Normalized conversation ID string
  */
 export const getConversationId = (user1Id: string, user2Id: string): string => {
+  if (!user1Id || !user2Id) {
+    console.error("Invalid user IDs for conversation:", user1Id, user2Id);
+    // Return a fallback that won't match any messages
+    return "invalid_conversation";
+  }
   return [user1Id, user2Id].sort().join('_');
 };
 

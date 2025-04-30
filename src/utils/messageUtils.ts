@@ -1,116 +1,96 @@
 
-import { MessageWithMedia } from '@/types/message';
+import { MessageWithMedia } from "@/types/message";
 
 /**
- * Sort messages by date in ascending order (oldest first)
+ * Merges two arrays of messages, removing duplicates and preserving order
+ * @param currentMessages Current messages in state
+ * @param newMessages New messages to merge
+ * @returns Merged array of messages
  */
-export function sortMessagesByDate(messages: MessageWithMedia[]): MessageWithMedia[] {
-  return [...messages].sort((a, b) => {
-    const dateA = getMessageTimestamp(a.created_at);
-    const dateB = getMessageTimestamp(b.created_at);
-    return dateA - dateB;
-  });
-}
-
-/**
- * Get a numeric timestamp value from various date formats
- */
-export function getMessageTimestamp(timestamp: any): number {
-  if (!timestamp) return 0;
-  
-  if (timestamp instanceof Date) {
-    return timestamp.getTime();
-  } 
-  
-  if (typeof timestamp === 'object' && 'seconds' in timestamp) {
-    return timestamp.seconds * 1000;
-  }
-  
-  if (typeof timestamp === 'string') {
-    return new Date(timestamp).getTime();
-  }
-  
-  return 0;
-}
-
-/**
- * Check if two messages are the same
- */
-export function areMessagesEqual(msg1: MessageWithMedia, msg2: MessageWithMedia): boolean {
-  return msg1.id === msg2.id && 
-    msg1.content === msg2.content &&
-    msg1.is_read === msg2.is_read &&
-    (msg1.updated_at === msg2.updated_at);
-}
-
-/**
- * Create a unique key for a message based on its content and timestamp
- */
-export function createMessageKey(message: MessageWithMedia): string {
-  // Use ID plus update time to make a unique key
-  const updateTime = message.updated_at || message.created_at;
-  return `${message.id}-${updateTime}`;
-}
-
-/**
- * Merge two message arrays, prioritizing newest versions
- * and maintaining order
- */
-export function mergeMessages(
+export const mergeMessages = (
   currentMessages: MessageWithMedia[],
   newMessages: MessageWithMedia[]
-): MessageWithMedia[] {
+): MessageWithMedia[] => {
   if (!newMessages || newMessages.length === 0) return currentMessages;
   if (!currentMessages || currentMessages.length === 0) return [...newMessages];
-  
-  // Create a map of existing messages by ID
+
+  // Create a map for fast lookup
   const messageMap = new Map<string, MessageWithMedia>();
-  
-  // Add all current messages to map
+
+  // Add all current messages to the map
   currentMessages.forEach(msg => {
-    messageMap.set(msg.id, msg);
-  });
-  
-  // Add or update with new messages
-  newMessages.forEach(msg => {
-    // If message doesn't exist or is newer, update it
-    const existing = messageMap.get(msg.id);
-    if (!existing || getMessageTimestamp(msg.updated_at || msg.created_at) >= 
-        getMessageTimestamp(existing.updated_at || existing.created_at)) {
+    if (msg && msg.id) {
       messageMap.set(msg.id, msg);
     }
   });
-  
-  // Convert back to array and sort
-  return sortMessagesByDate(Array.from(messageMap.values()));
-}
+
+  // Add or replace with new messages
+  newMessages.forEach(msg => {
+    if (msg && msg.id) {
+      messageMap.set(msg.id, msg);
+    }
+  });
+
+  // Convert map back to array and sort by creation date
+  const mergedMessages = Array.from(messageMap.values()).sort((a, b) => {
+    const dateA = a.created_at
+      ? typeof a.created_at === 'string'
+        ? new Date(a.created_at).getTime()
+        : a.created_at instanceof Date
+        ? a.created_at.getTime()
+        : 0
+      : 0;
+    
+    const dateB = b.created_at
+      ? typeof b.created_at === 'string'
+        ? new Date(b.created_at).getTime()
+        : b.created_at instanceof Date
+        ? b.created_at.getTime()
+        : 0
+      : 0;
+    
+    return dateA - dateB;
+  });
+
+  return mergedMessages;
+};
 
 /**
- * Insert a temporary message into the message list
- * For optimistic UI updates
+ * Insert a temporary message into the messages array
+ * @param messages Current messages
+ * @param tempMessage Temporary message to insert
+ * @returns Updated messages array with temporary message
  */
-export function insertTemporaryMessage(
+export const insertTemporaryMessage = (
   messages: MessageWithMedia[],
   tempMessage: MessageWithMedia
-): MessageWithMedia[] {
-  return sortMessagesByDate([...messages, tempMessage]);
-}
-
-/**
- * Replace a temporary message with its confirmed version
- * For optimistic UI updates
- */
-export function replaceTemporaryMessage(
-  messages: MessageWithMedia[],
-  tempId: string, 
-  confirmedMessage: MessageWithMedia | null
-): MessageWithMedia[] {
-  // If we don't have a confirmed message, just remove the temp one
-  if (!confirmedMessage) {
-    return messages.filter(msg => !msg.id.includes(tempId));
+): MessageWithMedia[] => {
+  // First check if message with this ID already exists
+  if (messages.some(msg => msg.id === tempMessage.id)) {
+    return messages;
   }
   
-  return messages.map(msg => 
-    msg.id.includes(tempId) ? confirmedMessage : msg
-  );
-}
+  // Add new message and sort
+  const updatedMessages = [...messages, tempMessage];
+  
+  // Sort by creation date
+  return updatedMessages.sort((a, b) => {
+    const dateA = a.created_at
+      ? typeof a.created_at === 'string'
+        ? new Date(a.created_at).getTime()
+        : a.created_at instanceof Date
+        ? a.created_at.getTime()
+        : 0
+      : 0;
+    
+    const dateB = b.created_at
+      ? typeof b.created_at === 'string'
+        ? new Date(b.created_at).getTime()
+        : b.created_at instanceof Date
+        ? b.created_at.getTime()
+        : 0
+      : 0;
+    
+    return dateA - dateB;
+  });
+};
