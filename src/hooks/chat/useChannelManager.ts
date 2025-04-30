@@ -1,7 +1,9 @@
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback } from 'react';
 import { ref, onValue, off, DatabaseReference } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
+import { getConversationId } from '@/utils/channelUtils';
+import { syncService } from '@/services/syncService';
 
 // Type for channel registry
 interface ChannelRegistry {
@@ -26,6 +28,13 @@ export const useChannelManager = () => {
   // Track debug mode
   const debugMode = useRef(false);
   
+  // Cleanup on unmount
+  useCallback(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   // Logging utility
   const log = useCallback((message: string, ...args: any[]) => {
     if (debugMode.current) {
@@ -34,9 +43,9 @@ export const useChannelManager = () => {
   }, []);
   
   // Generate a consistent conversation ID regardless of user order
-  const getConversationId = (user1Id: string, user2Id: string): string => {
-    return [user1Id, user2Id].sort().join('_');
-  };
+  const getConversationIdInternal = useCallback((user1Id: string, user2Id: string): string => {
+    return getConversationId(user1Id, user2Id);
+  }, []);
   
   // Listen to a specific path with proper cleanup handling
   const listenToChannel = useCallback((channelName: string, path: string, callback: (data: any) => void) => {
@@ -50,208 +59,100 @@ export const useChannelManager = () => {
       log(`Channel ${channelName} already active, updating timestamp and callback`);
       channelsRef.current[channelName].lastAccessed = Date.now();
       channelsRef.current[channelName].callback = callback;
-      
-      // Only re-trigger callback if the channel has been established for a while
-      // This prevents constant re-firing during rapid setup/cleanup cycles
-      const existingChannel = channelsRef.current[channelName];
-      if (Date.now() - existingChannel.lastAccessed > 5000) {
-        // Re-trigger callback with existing data if any
-        const existingRef = existingChannel.reference;
-        onValue(existingRef, (snapshot) => {
-          const data = snapshot.val();
-          callback(data);
-        }, { onlyOnce: true });
-      }
-      
       return () => cleanupChannel(channelName);
     }
     
-    // Prevent excessive setup attempts for the same channel
-    if (channelsRef.current[channelName]) {
-      const setupCount = channelsRef.current[channelName].setupCount || 0;
-      
-      // If we've tried to set up this channel too many times in a short period, back off
-      if (setupCount > 5 && (Date.now() - channelsRef.current[channelName].lastAccessed) < 10000) {
-        log(`Too many setup attempts for channel ${channelName}, backing off`);
-        return () => {};
-      }
-      
-      // Update setup count
-      channelsRef.current[channelName].setupCount = setupCount + 1;
-      
-      // Clean up existing channel if it exists but isn't active
-      log(`Channel ${channelName} exists but inactive, cleaning up first`);
-      cleanupChannel(channelName);
-    }
+    log(`Setting up channel: ${channelName} at path: ${path}`);
     
     try {
-      log(`Setting up new channel: ${channelName} for path: ${path}`);
-      const channelRef = ref(realtimeDb, path);
+      // Create a reference to the database location
+      const dbRef = ref(realtimeDb, path);
       
+      // Setup the listener
+      onValue(dbRef, (snapshot) => {
+        const data = snapshot.val();
+        if (isMountedRef.current && channelsRef.current[channelName]) {
+          log(`Received data on channel ${channelName}`);
+          callback(data);
+        }
+      }, (error) => {
+        console.error(`Error on channel ${channelName}:`, error);
+      });
+      
+      // Register the channel
       channelsRef.current[channelName] = {
-        reference: channelRef,
+        reference: dbRef,
         lastAccessed: Date.now(),
         isActive: true,
-        callback: callback,
-        setupCount: 1
+        callback,
+        setupCount: (channelsRef.current[channelName]?.setupCount || 0) + 1
       };
       
-      // Set up listener with error handling
-      let errorRetryCount = 0;
-      const maxRetries = 3;
-      
-      const setupListener = () => {
-        try {
-          onValue(channelRef, (snapshot) => {
-            if (!isMountedRef.current) {
-              log(`Component unmounted during callback, cleaning up: ${channelName}`);
-              cleanupChannel(channelName);
-              return;
-            }
-            
-            if (!channelsRef.current[channelName]?.isActive) {
-              log(`Channel ${channelName} no longer active, ignoring update`);
-              return;
-            }
-            
-            channelsRef.current[channelName].lastAccessed = Date.now();
-            const data = snapshot.val();
-            callback(data);
-          }, (error) => {
-            log(`Error in channel ${channelName}:`, error);
-            
-            // Retry logic for temporary errors
-            if (errorRetryCount < maxRetries) {
-              errorRetryCount++;
-              log(`Retrying channel ${channelName} (${errorRetryCount}/${maxRetries})`);
-              
-              // Clean up failed listener
-              if (channelsRef.current[channelName]) {
-                try {
-                  off(channelsRef.current[channelName].reference);
-                } catch (e) {
-                  // Ignore cleanup errors
-                }
-              }
-              
-              // Try again after delay
-              setTimeout(setupListener, 1000 * errorRetryCount); // Exponential backoff
-            } else {
-              // Too many errors, give up
-              log(`Too many errors for channel ${channelName}, giving up`);
-              if (channelsRef.current[channelName]) {
-                channelsRef.current[channelName].isActive = false;
-              }
-            }
-          });
-        } catch (error) {
-          log(`Error setting up listener for ${channelName}:`, error);
-          // Mark as inactive on setup error
-          if (channelsRef.current[channelName]) {
-            channelsRef.current[channelName].isActive = false;
-          }
+      // Extract conversation ID from channel name (if possible)
+      const match = channelName.match(/_([^_]+)$/);
+      if (match && match[1] && match[1].includes('_')) {
+        const possibleConversationId = match[1];
+        // Try to sync this conversation data
+        if (possibleConversationId.includes('_')) {
+          syncService.queueSync(possibleConversationId.split('_')[0], possibleConversationId.split('_')[1])
+            .catch(err => console.error('Error queuing sync for conversation:', err));
         }
-      };
-      
-      setupListener();
+      }
       
       // Return cleanup function
       return () => cleanupChannel(channelName);
     } catch (error) {
-      log(`Error setting up channel ${channelName}:`, error);
+      console.error(`Error setting up channel ${channelName}:`, error);
       return () => {};
     }
   }, [log]);
   
   // Clean up a specific channel
-  const cleanupChannel = useCallback((channelName: string) => {
-    if (channelsRef.current[channelName]) {
-      try {
-        log(`Cleaning up channel: ${channelName}`);
-        // Don't actually remove the listener to avoid reconnection issues
-        // Just mark it as inactive
-        channelsRef.current[channelName].isActive = false;
-      } catch (error) {
-        log(`Error cleaning up channel ${channelName}:`, error);
-      }
+  const cleanupChannel = useCallback((channelName: string, force: boolean = false) => {
+    const channel = channelsRef.current[channelName];
+    if (!channel) {
+      return;
     }
-  }, [log]);
-  
-  // Clean up all channels with force option
-  const cleanupAllChannels = useCallback((force: boolean = false) => {
-    log(`Cleaning up all channels (${Object.keys(channelsRef.current).length} total)`);
     
-    Object.keys(channelsRef.current).forEach(channelName => {
-      try {
-        log(`Cleaning up channel: ${channelName}`);
-        
-        // Actually remove the listener when forcing cleanup
-        if (force) {
-          off(channelsRef.current[channelName].reference);
-        }
-        
-        channelsRef.current[channelName].isActive = false;
-        
-        // Only fully remove if force is true
-        if (force) {
+    // If not forced, check if it was recently accessed
+    if (!force && Date.now() - channel.lastAccessed < 1000) {
+      log(`Skipping cleanup for recently accessed channel: ${channelName}`);
+      return;
+    }
+    
+    log(`Cleaning up channel: ${channelName}`);
+    
+    try {
+      // Remove the listener
+      off(channel.reference);
+      
+      // Mark as inactive
+      channel.isActive = false;
+      
+      // Remove from registry after a delay to prevent rapid setup/teardown cycles
+      setTimeout(() => {
+        if (!channelsRef.current[channelName]?.isActive) {
           delete channelsRef.current[channelName];
         }
-      } catch (error) {
-        log(`Error cleaning up channel ${channelName}:`, error);
-      }
-    });
-    
-    // If force cleanup, clear the entire registry
-    if (force) {
-      channelsRef.current = {};
+      }, 5000);
+    } catch (error) {
+      console.error(`Error cleaning up channel ${channelName}:`, error);
     }
   }, [log]);
   
-  // Activate/deactivate debug mode
-  const setDebugMode = useCallback((enable: boolean) => {
-    debugMode.current = enable;
-    log(`Debug mode ${enable ? 'enabled' : 'disabled'}`);
-  }, [log]);
-  
-  // Clean up all channels on unmount
-  useEffect(() => {
-    isMountedRef.current = true;
+  // Clean up all channels
+  const cleanupAllChannels = useCallback((force: boolean = false) => {
+    log(`Cleaning up all channels, forced: ${force}`);
     
-    // Cleanup old inactive channels every 5 minutes
-    const cleanupInterval = setInterval(() => {
-      if (!isMountedRef.current) return;
-      
-      const now = Date.now();
-      const oldChannels = Object.keys(channelsRef.current).filter(
-        name => !channelsRef.current[name].isActive && 
-        (now - channelsRef.current[name].lastAccessed) > 5 * 60 * 1000
-      );
-      
-      if (oldChannels.length > 0) {
-        log(`Removing ${oldChannels.length} old inactive channels`);
-        oldChannels.forEach(name => {
-          try {
-            off(channelsRef.current[name].reference);
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-          delete channelsRef.current[name];
-        });
-      }
-    }, 5 * 60 * 1000);
-    
-    return () => {
-      isMountedRef.current = false;
-      clearInterval(cleanupInterval);
-      cleanupAllChannels(true); // Force cleanup on unmount
-    };
-  }, [cleanupAllChannels, log]);
+    Object.keys(channelsRef.current).forEach(channelName => {
+      cleanupChannel(channelName, force);
+    });
+  }, [cleanupChannel, log]);
   
   return {
     listenToChannel,
     cleanupChannel,
     cleanupAllChannels,
-    getConversationId,
-    setDebugMode
+    getConversationId: getConversationIdInternal,
   };
 };

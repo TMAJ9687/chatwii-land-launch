@@ -20,8 +20,25 @@ export const realtimeDatabaseRules = {
         ".write": "$uid === auth.uid"
       }
     },
+    "messages": {
+      "$conversation_id": {
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+      }
+    },
+    "message_reactions": {
+      "$conversation_id": {
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+      }
+    },
+    "typing_status": {
+      "$conversation_id": {
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+      }
+    },
     ".read": false,
     ".write": false
   }
 };
-

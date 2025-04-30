@@ -1,17 +1,22 @@
-
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments } from '@/lib/firebase';
 import { mergeMessages } from '@/utils/messageUtils';
+import { 
+  getConversationId, 
+  getMessageChannelName, 
+  getMessageChannelPath 
+} from '@/utils/channelUtils';
+import { syncService } from '@/services/syncService';
 
 export const useMessageChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
   setMessages: React.Dispatch<React.SetStateAction<MessageWithMedia[]>>
 ) => {
-  const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
+  const { listenToChannel, cleanupChannel } = useChannelManager();
   const isListeningRef = useRef(false);
   const latestDataRef = useRef<any>(null);
   const localMessagesRef = useRef<MessageWithMedia[]>([]);
@@ -30,43 +35,14 @@ export const useMessageChannel = (
       const messages = Object.values(messagesData);
       if (!Array.isArray(messages) || messages.length === 0) return [];
 
-      const messageIds = messages
-        .filter((msg: any) => msg && typeof msg === 'object' && msg.id)
-        .map((msg: any) => msg.id);
-        
-      if (messageIds.length === 0) return [];
-
-      // Batch fetch media and reactions in parallel
-      const [mediaRecords, reactionRecords] = await Promise.all([
-        queryDocuments('message_media', [
-          { field: 'message_id', operator: 'in', value: messageIds }
-        ]),
-        queryDocuments('message_reactions', [
-          { field: 'message_id', operator: 'in', value: messageIds }
-        ])
-      ]);
-
-      // Create lookup maps for fast access
-      const mediaById = mediaRecords.reduce((acc: Record<string, any>, m: any) => {
-        if (m?.message_id) acc[m.message_id] = m;
-        return acc;
-      }, {});
-      
-      const reactionsById = reactionRecords.reduce((acc: Record<string, any[]>, r: any) => {
-        if (r?.message_id) {
-          acc[r.message_id] = acc[r.message_id] || [];
-          acc[r.message_id].push(r);
-        }
-        return acc;
-      }, {});
-
-      // Construct complete message objects
+      // Messages from the realtime database should already include media and reactions
+      // so we can just filter and return them
       return messages
         .filter((msg: any) => msg && typeof msg === 'object' && msg.id)
         .map((msg: any) => ({
           ...msg,
-          media: mediaById[msg.id] || null,
-          reactions: reactionsById[msg.id] || []
+          media: msg.media || null,
+          reactions: msg.reactions || []
         }));
     } catch (err) {
       console.error('Error processing messages:', err);
@@ -161,10 +137,10 @@ export const useMessageChannel = (
     // Set connection status to connecting
     setConnectionStatus('connecting');
 
-    // Create unique channel name and path
+    // Create unique channel name and path using our utility functions
     const convId = getConversationId(currentUserId, selectedUserId);
-    const channelName = `messages_${convId}`;
-    const path = `messages/${convId}`;
+    const channelName = getMessageChannelName(convId);
+    const path = getMessageChannelPath(convId);
     
     // Store the channel name for cleanup
     channelNameRef.current = channelName;
@@ -193,6 +169,10 @@ export const useMessageChannel = (
     isListeningRef.current = true;
     console.log(`Setting up message channel for ${channelName}`);
     
+    // Ensure data is synced before subscribing
+    syncService.queueSync(currentUserId, selectedUserId)
+      .catch(err => console.error('Error queuing sync:', err));
+    
     // Subscribe with immediate processing
     const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
     
@@ -205,7 +185,6 @@ export const useMessageChannel = (
   }, [
     currentUserId,
     selectedUserId,
-    getConversationId,
     listenToChannel,
     cleanupChannel,
     handleRealTimeUpdate

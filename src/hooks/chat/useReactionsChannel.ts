@@ -1,13 +1,19 @@
+
 import { useEffect } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { isMockUser } from '@/utils/mockUsers';
+import { 
+  getConversationId, 
+  getReactionsChannelName, 
+  getReactionsChannelPath 
+} from '@/utils/channelUtils';
 
 export const useReactionsChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
   fetchMessages: () => void
 ) => {
-  const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
+  const { listenToChannel, cleanupChannel } = useChannelManager();
 
   useEffect(() => {
     if (
@@ -19,8 +25,8 @@ export const useReactionsChannel = (
     }
 
     const convId = getConversationId(currentUserId, selectedUserId);
-    const channelName = `reactions_${convId}`;
-    const path = `message_reactions/${convId}`;
+    const channelName = getReactionsChannelName(convId);
+    const path = getReactionsChannelPath(convId);
 
     listenToChannel(channelName, path, (data) => {
       if (data) {
@@ -34,7 +40,6 @@ export const useReactionsChannel = (
   }, [
     currentUserId,
     selectedUserId,
-    getConversationId,
     listenToChannel,
     cleanupChannel,
     fetchMessages

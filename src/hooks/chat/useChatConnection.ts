@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, onValue, off, goOnline } from 'firebase/database';
+import { toast } from 'sonner';
 
 /**
  * Custom hook for managing a persistent connection to Firebase Realtime Database for chat
@@ -13,11 +14,11 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const isConnectedRef = useRef(false);
   const connectionRefObj = useRef<any>(null);
-  const presenceRefObj = useRef<any>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoReconnectRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectionAttemptTimeRef = useRef<number>(0);
+  const lastToastTimeRef = useRef<number>(0);
   
   // Clean up any existing retry timers
   const cleanupRetryTimers = useCallback(() => {
@@ -29,6 +30,22 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
     if (autoReconnectRef.current) {
       clearInterval(autoReconnectRef.current);
       autoReconnectRef.current = null;
+    }
+  }, []);
+
+  // Throttled toast function to prevent spam
+  const showConnectionToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const now = Date.now();
+    // Only show a toast every 10 seconds at most
+    if (now - lastToastTimeRef.current > 10000) {
+      lastToastTimeRef.current = now;
+      if (type === 'success') {
+        toast.success(message);
+      } else if (type === 'error') {
+        toast.error(message);
+      } else {
+        toast.info(message);
+      }
     }
   }, []);
 
@@ -60,13 +77,16 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
         }
       }
       
+      showConnectionToast("Reconnecting to chat service...");
+      
       // Setup connection monitoring again
       setupConnectionMonitoring();
     } catch (err) {
       console.error("Error during reconnection attempt:", err);
       setConnectionError("Failed to reconnect. Please try again.");
+      showConnectionToast("Failed to reconnect. Please try again.", "error");
     }
-  }, [cleanupRetryTimers]);
+  }, [cleanupRetryTimers, showConnectionToast]);
   
   // Function to set up connection monitoring
   const setupConnectionMonitoring = useCallback(() => {
@@ -113,10 +133,6 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
       };
       
       onValue(connectedRef, onConnectionChange, onError);
-      
-      // No need to set up presence monitoring here
-      // It's handled separately in usePresence hook
-      
     } catch (err) {
       console.error('Error setting up connection monitoring:', err);
       setConnectionError("Failed to setup connection monitoring");
@@ -152,19 +168,6 @@ export const useChatConnection = (shouldConnect: boolean = true) => {
         connectionRefObj.current = null;
       } catch (e) {
         console.warn('Error cleaning up connection listener:', e);
-      }
-    }
-    
-    // Clean up presence listener
-    if (presenceRefObj.current) {
-      try {
-        const userId = localStorage.getItem('userId');
-        if (userId) {
-          off(ref(realtimeDb, `presence/${userId}/status`), presenceRefObj.current);
-          presenceRefObj.current = null;
-        }
-      } catch (e) {
-        console.warn('Error cleaning up presence listener:', e);
       }
     }
     
