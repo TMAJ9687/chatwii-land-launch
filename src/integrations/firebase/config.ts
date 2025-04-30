@@ -15,30 +15,33 @@ export const firebaseConfig = {
 export const realtimeDatabaseRules = {
   "rules": {
     "presence": {
-      // Allow reading all presence data for any authenticated user
-      ".read": "auth !== null",
+      ".read": "auth != null",
       "$uid": {
-        // Only the owner can write their own presence
         ".write": "$uid === auth.uid"
       }
     },
     "messages": {
-      "$conversation_id": {
-        // Instead of .contains, use string comparison and check if conversation ID has user's ID
-        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)"
+      "$uid1": {
+        "$uid2": {
+          ".read": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)",
+          ".write": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)"
+        }
       }
     },
-    "reactions": {
-      "$conversation_id": {
-        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)"
+    "message_reactions": {
+      "$uid1": {
+        "$uid2": {
+          ".read": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)",
+          ".write": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)"
+        }
       }
     },
     "typing_status": {
-      "$conversation_id": {
-        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)" 
+      "$uid1": {
+        "$uid2": {
+          ".read": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)",
+          ".write": "auth != null && (auth.uid === $uid1 || auth.uid === $uid2)"
+        }
       }
     },
     // Deny all other read/write access by default

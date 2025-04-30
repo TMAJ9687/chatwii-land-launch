@@ -4,6 +4,7 @@ import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
 import { useChannelManagement } from './useChannelManagement';
+import { getTypingStatusPath, getConversationId, getSortedUserIds } from '@/utils/channelUtils';
 
 export const useTypingIndicator = (
   currentUserId: string | null,
@@ -23,8 +24,12 @@ export const useTypingIndicator = (
   useEffect(() => {
     if (!isVipUser || !selectedUserId || !currentUserId) return;
     
+    // Use new path structure
+    const conversationId = getConversationId(currentUserId, selectedUserId);
+    const typingPath = getTypingStatusPath(conversationId);
+    
     const channelName = getTypingChannelName();
-    const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
+    const typingRef = ref(realtimeDb, typingPath);
     
     const unsubscribe = onValue(typingRef, (snapshot) => {
       const data = snapshot.val();
@@ -56,7 +61,11 @@ export const useTypingIndicator = (
     debounce((isTyping: boolean) => {
       if (!isVipUser || !selectedUserId || !currentUserId) return;
       
-      const typingRef = ref(realtimeDb, `typing/${currentUserId}_${selectedUserId}`);
+      // Use new path structure
+      const conversationId = getConversationId(currentUserId, selectedUserId);
+      const typingPath = getTypingStatusPath(conversationId);
+      const typingRef = ref(realtimeDb, typingPath);
+      
       set(typingRef, {
         userId: currentUserId,
         isTyping,

@@ -33,7 +33,7 @@ export const updateUserPresence = async (userId: string, profile: any) => {
         const countryCode = getCountryCode(profile?.country || '');
         const flagEmoji = getFlagEmoji(countryCode || '');
 
-        // Register cleanup on disconnect
+        // Register cleanup on disconnect - ONLY on the user's presence node, NOT on the .info/connected node
         await onDisconnect(userStatusRef).remove();
 
         // Update user status to online

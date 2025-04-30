@@ -21,6 +21,21 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     return null;
   }
 
+  // Extract a more user-friendly error message
+  const getErrorMessage = (error: string | null): string => {
+    if (!error) return '';
+    
+    if (error.includes('permission') || error.includes('PERMISSION_DENIED')) {
+      return 'Database permission issue';
+    } else if (error.includes('Invalid token')) {
+      return 'Database path issue';
+    } else if (error.includes('index')) {
+      return 'Database index issue';
+    } else {
+      return 'Error loading messages';
+    }
+  };
+
   return (
     <div className="px-4 py-2 bg-muted/80 border-b flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
@@ -44,13 +59,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
           <>
             <AlertCircle className="h-4 w-4 text-destructive ml-1" />
             <span className="text-sm text-destructive truncate max-w-[200px]">
-              {error.includes("index")
-                ? "Database index issue"
-                : error.includes("permission")
-                  ? "Permission denied"
-                  : error.includes("Invalid token") || error.includes("PERMISSION_DENIED")
-                    ? "Firebase rules issue"
-                    : "Error loading messages"}
+              {getErrorMessage(error)}
             </span>
           </>
         )}

@@ -20,6 +20,25 @@ export const getCurrentUserId = (): string | null => {
 };
 
 /**
+ * Gets sorted user IDs for consistent path generation
+ * @param userId1 First user ID
+ * @param userId2 Second user ID
+ * @returns Array of sorted user IDs or null if any ID is missing
+ */
+export const getSortedUserIds = (
+  userId1: string | null | undefined,
+  userId2: string | null | undefined
+): string[] | null => {
+  if (!userId1 || !userId2) {
+    console.log('Missing user IDs, skipping channel setup');
+    return null;
+  }
+  
+  // Sort user IDs alphabetically for consistency
+  return [userId1, userId2].sort();
+};
+
+/**
  * Creates a consistent conversation ID from two user IDs
  * @param userId1 First user ID
  * @param userId2 Second user ID
@@ -29,13 +48,8 @@ export const getConversationId = (
   userId1: string | null | undefined,
   userId2: string | null | undefined
 ): string | null => {
-  if (!userId1 || !userId2) {
-    console.log('Missing user IDs, skipping channel setup');
-    return null;
-  }
-  
-  // Sort user IDs alphabetically for consistency
-  const sortedIds = [userId1, userId2].sort();
+  const sortedIds = getSortedUserIds(userId1, userId2);
+  if (!sortedIds) return null;
   return `${sortedIds[0]}_${sortedIds[1]}`;
 };
 
@@ -51,14 +65,27 @@ export const getReactionsChannelName = (conversationId: string | null): string =
 };
 
 /**
- * Generate consistent database paths for different channels
+ * Generate consistent database paths for different channels using the new nested structure
  */
 export const getMessageChannelPath = (conversationId: string | null): string => {
-  return conversationId ? `messages/${conversationId}` : 'messages/unknown';
+  if (!conversationId) return 'messages/unknown';
+  const parts = conversationId.split('_');
+  if (parts.length !== 2) return 'messages/unknown';
+  return `messages/${parts[0]}/${parts[1]}`;
 };
 
 export const getReactionsChannelPath = (conversationId: string | null): string => {
-  return conversationId ? `reactions/${conversationId}` : 'reactions/unknown';
+  if (!conversationId) return 'message_reactions/unknown';
+  const parts = conversationId.split('_');
+  if (parts.length !== 2) return 'message_reactions/unknown';
+  return `message_reactions/${parts[0]}/${parts[1]}`;
+};
+
+export const getTypingStatusPath = (conversationId: string | null): string => {
+  if (!conversationId) return 'typing_status/unknown';
+  const parts = conversationId.split('_');
+  if (parts.length !== 2) return 'typing_status/unknown';
+  return `typing_status/${parts[0]}/${parts[1]}`;
 };
 
 /**
@@ -81,13 +108,12 @@ export const debugConversationAccess = (path: string, userId: string | null): bo
     return true;
   }
   
-  if (path.includes('/')) {
-    const parts = path.split('/');
-    if (parts.length >= 2) {
-      const conversationId = parts[1];
-      // Check if userId is included in the conversation ID
-      return conversationId.indexOf(userId) !== -1;
-    }
+  // For the new nested structure, check if userId matches either uid1 or uid2
+  const pathParts = path.split('/');
+  if (pathParts.length >= 3) {
+    const uid1 = pathParts[1];
+    const uid2 = pathParts[2];
+    return userId === uid1 || userId === uid2;
   }
   
   return false;

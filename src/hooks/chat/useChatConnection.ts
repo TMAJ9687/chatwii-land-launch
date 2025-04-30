@@ -49,16 +49,14 @@ export function useChatConnection(active: boolean = true) {
     // Monitor connection state
     const connectedRef = ref(realtimeDb, '.info/connected');
     
-    // Fixed: Use onValue to monitor connection changes instead of onDisconnect().then()
+    // Fixed: Use onValue to monitor connection changes
     const unsubscribe = onValue(connectedRef, (snapshot) => {
       const connected = snapshot.val() === true;
       setIsConnected(connected);
       
-      // If connected, register an onDisconnect handler
-      if (connected) {
-        onDisconnect(connectedRef).remove()
-          .catch(err => console.error('Error setting disconnect handler:', err));
-      }
+      // Don't set onDisconnect handler on the .info/connected reference
+      // onDisconnect handlers should only be set on your application's data paths
+      // such as presence/{uid}
     });
     
     return () => {
