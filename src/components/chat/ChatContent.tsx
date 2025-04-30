@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
@@ -5,8 +6,8 @@ import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
-// Removed: import { useChatConnection } from '@/hooks/chat/useChatConnection'; // Obsolete RTDB hook
-// Removed: import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Component relying on useChatConnection
+import { useChatConnection } from '@/hooks/chat/useChatConnection';
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { toast } from 'sonner';
 
 interface ChatContentProps {
@@ -41,10 +42,10 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
-
-  // Removed: Call to the obsolete useChatConnection hook
-  // const { isConnected, reconnect } = useChatConnection(!!selectedUserId);
-
+  
+  // Ensure we maintain connection when a chat is selected
+  const { isConnected, reconnect } = useChatConnection(!!selectedUserId);
+  
   // Check for Firebase index error in the error message
   useEffect(() => {
     if (error && error.includes('index')) {
@@ -53,23 +54,19 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         setIndexUrl(urlMatch[0]);
       }
     }
-    // Store the error locally for potential display (ConnectionStatusIndicator removed)
+    
     setLocalError(error);
   }, [error]);
 
   // Memoize the send handler to prevent unnecessary rerenders
   const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
     if (!content && !imageUrl) return;
-
+    
     setIsSending(true);
-    setLocalError(null); // Clear previous errors on new send attempt
     try {
       await onSendMessage(content, imageUrl);
-    } catch (e: any) {
-        console.error("Send message error:", e);
-        // Set a generic error or use e.message if available
-        setLocalError(`Failed to send message: ${e?.message || 'Please try again.'}`);
-        toast.error(`Failed to send message: ${e?.message || 'Please try again.'}`);
+    } catch (e) {
+      setLocalError('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -81,26 +78,18 @@ export const ChatContent: React.FC<ChatContentProps> = ({
 
   return (
     <>
-      {/* Firebase Index Error Display (remains useful for Firestore) */}
+      {/* Firebase Index Error */}
       {error && error.includes('index') && (
         <FirebaseIndexMessage indexUrl={indexUrl || undefined} />
       )}
-
-      {/* Removed: ConnectionStatusIndicator component */}
-      {/* <ConnectionStatusIndicator
-          isConnected={isConnected} // isConnected no longer available
-          onReconnect={reconnect}   // reconnect no longer available
-          error={localError}
-          isLoading={isLoading}
-      /> */}
-
-      {/* Display localError if needed */}
-       {localError && !error?.includes('index') && ( // Avoid duplicating index message
-          <div className="bg-destructive/10 text-destructive text-center p-2 text-sm">
-              {localError}
-          </div>
-        )}
-
+      
+      {/* Connection Status Component */}
+      <ConnectionStatusIndicator 
+        isConnected={isConnected}
+        onReconnect={reconnect}
+        error={localError}
+        isLoading={isLoading}
+      />
 
       <ChatArea
         messages={messages}
@@ -111,9 +100,9 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         }}
         onClose={onClose}
         onMessagesRead={onMessagesRead}
-        isTyping={isTyping} // Prop depends on useTypingIndicator review
+        isTyping={isTyping}
         isVipUser={isVipUser}
-        isLoading={isLoading} // Prop from useMessages
+        isLoading={isLoading}
       />
 
       {isSending && (
@@ -128,10 +117,8 @@ export const ChatContent: React.FC<ChatContentProps> = ({
         currentUserId={currentUserId}
         receiverId={selectedUserId}
         isVipUser={isVipUser}
-        onTypingStatusChange={onTypingStatusChange} // Prop depends on useTypingIndicator review
-        // Updated disabled logic: Input is disabled only while sending.
-        // Firestore handles offline automatically, so disabling based on connection is less critical.
-        disabled={isSending}
+        onTypingStatusChange={onTypingStatusChange}
+        disabled={isSending || !isConnected}
       />
     </>
   );
