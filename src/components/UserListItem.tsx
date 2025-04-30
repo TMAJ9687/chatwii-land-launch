@@ -51,7 +51,6 @@ interface UserListItemProps {
   avatarTextColor: string; // Added prop for text color class (e.g., 'text-purple-600')
   isBlocked?: boolean;
   onUnblock?: () => void;
-  // role?: string; // Role might be redundant if isVip covers it
 }
 
 export const UserListItem: React.FC<UserListItemProps> = ({
@@ -74,8 +73,9 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   const genderColor = gender === 'Female' ? 'text-pink-600' : 'text-blue-600';
 
   // Combine base classes with conditional glow class
+  // Changed ml-4 mr-4 to ml-3 mr-3 to make card wider relative to placeholder
   const cardClasses = `
-    flex items-center bg-white p-3 rounded-lg shadow-sm ml-4 mr-4
+    flex items-center bg-white p-3 rounded-lg shadow-sm ml-3 mr-3
     ${isBlocked ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer'}
     ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
     ${isVip ? 'vip-pulsing-glow' : ''}
