@@ -1,4 +1,3 @@
-
 // Country name to ISO code mapping
 const COUNTRY_TO_ISO: Record<string, string> = {
   'Afghanistan': 'af',
@@ -260,6 +259,26 @@ export const getFlagUrl = (codeOrName: string): string => {
   
   // No valid code found
   return '';
+};
+
+// Get flag emoji from country code
+export const getFlagEmoji = (countryCode?: string): string => {
+  if (!countryCode || countryCode.length !== 2) return '';
+  
+  // Emoji flags are created using Regional Indicator Symbols
+  // Each letter is represented by a Unicode Regional Indicator Symbol
+  // A-Z are represented by Unicode code points U+1F1E6 through U+1F1FF
+  const OFFSET = 127397; // The value to add to ASCII to get the Regional Indicator Symbol
+  
+  // Convert country code to uppercase (just to be safe)
+  const code = countryCode.toUpperCase();
+  
+  // Convert the two letters to the corresponding Regional Indicator Symbols
+  const firstLetter = code.charCodeAt(0) + OFFSET;
+  const secondLetter = code.charCodeAt(1) + OFFSET;
+  
+  // Return the flag emoji
+  return String.fromCodePoint(firstLetter) + String.fromCodePoint(secondLetter);
 };
 
 // Detect user's country using their IP - with better error handling and caching

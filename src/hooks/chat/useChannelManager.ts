@@ -63,11 +63,15 @@ export const useChannelManager = () => {
       // Create a reference to the database location
       const dbRef = ref(realtimeDb, path);
       
+      // Debug the path and ensure it's properly formed
+      console.log(`Database path: ${path}`, dbRef);
+      
       // Setup the listener with error handler
       onValue(dbRef, 
         (snapshot) => {
           const data = snapshot.val();
           log(`Received data on channel ${channelName}: ${data ? 'has data' : 'no data'}`);
+          console.log(`Channel data for ${channelName}:`, data);
           
           if (isMountedRef.current && channelsRef.current[channelName]) {
             callback(data);
@@ -92,7 +96,7 @@ export const useChannelManager = () => {
       };
       
       // Extract conversation ID from channel name (if possible)
-      const match = channelName.match(/_([^_]+)$/);
+      const match = channelName.match(/(?:messages|reactions)_(.+)/);
       if (match && match[1] && match[1].includes('_')) {
         const possibleConversationId = match[1];
         // Try to sync this conversation data
@@ -160,6 +164,6 @@ export const useChannelManager = () => {
     listenToChannel,
     cleanupChannel,
     cleanupAllChannels,
-    getConversationId: getConversationId,
+    getConversationId
   };
 };

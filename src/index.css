@@ -98,3 +98,32 @@
 .card-shadow {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
+
+/* VIP pulsing glow animation */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 6px rgba(255, 215, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 6px rgba(255, 215, 0, 0.2);
+  }
+}
+
+.vip-pulsing-glow {
+  position: relative;
+  z-index: 1;
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+/* Style for flag emoji */
+.flag-icon {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  line-height: 1.1em;
+  text-align: center;
+  flex-shrink: 0;
+}

@@ -1,4 +1,5 @@
 
+
 /**
  * Utility functions for managing Firebase Realtime Database channels
  */
@@ -15,7 +16,22 @@ export const getConversationId = (user1Id: string, user2Id: string): string => {
     // Return a fallback that won't match any messages
     return "invalid_conversation";
   }
-  return [user1Id, user2Id].sort().join('_');
+  
+  // Ensure both IDs are strings
+  const id1 = String(user1Id).trim();
+  const id2 = String(user2Id).trim();
+  
+  // Log the original IDs for debugging
+  console.log(`Creating conversation ID from: "${id1}" and "${id2}"`);
+  
+  // Create sorted ID to ensure consistency
+  const sortedIds = [id1, id2].sort();
+  const conversationId = sortedIds.join('_');
+  
+  // Log the final conversation ID
+  console.log(`Generated conversation ID: "${conversationId}"`);
+  
+  return conversationId;
 };
 
 /**
@@ -80,4 +96,30 @@ export const getTypingChannelPath = (conversationId: string): string => {
 export const normalizeSnapshotValue = (snapshot: any): any => {
   if (!snapshot || !snapshot.val) return null;
   return snapshot.val();
+};
+
+/**
+ * Debug function to verify if a user ID is part of a conversation ID
+ * Helps troubleshoot Realtime Database security rules
+ */
+export const debugConversationAccess = (
+  conversationId: string,
+  userId: string
+): { allowed: boolean; details: string } => {
+  if (!conversationId || !userId) {
+    return { 
+      allowed: false,
+      details: `Invalid params: conversationId=${conversationId}, userId=${userId}`
+    };
+  }
+
+  const parts = conversationId.split('_');
+  const userIdStr = String(userId);
+  const containsUserId = conversationId.includes(userIdStr);
+  const indexOfUserId = parts.indexOf(userIdStr);
+  
+  return {
+    allowed: indexOfUserId !== -1,
+    details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, IndexOf: ${indexOfUserId}, Contains: ${containsUserId}`
+  };
 };

@@ -1,4 +1,5 @@
 
+
 // Firebase configuration
 export const firebaseConfig = {
   apiKey: "AIzaSyCkMejgIKMAnmFV70Gr_A7U4FIlfxkK4tg",
@@ -22,23 +23,24 @@ export const realtimeDatabaseRules = {
     },
     "messages": {
       "$conversation_id": {
-        ".read": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
     },
     "message_reactions": {
       "$conversation_id": {
-        ".read": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
     },
     "typing_status": {
       "$conversation_id": {
-        ".read": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.contains(auth.uid) || $conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
     },
     ".read": false,
     ".write": false
   }
 };
+

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Ensure React is imported
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { FilterState, DEFAULT_FILTERS } from '@/types/filters';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { getFlagEmoji } from '@/utils/countryTools'; // Assuming you have a utility for emoji flags
+import { getFlagEmoji, getCountryCode } from '@/utils/countryTools'; // Import getFlagEmoji
 
 // --- Define a more complete User type (adjust based on your actual data) ---
 interface OnlineUser {
@@ -21,11 +22,6 @@ interface OnlineUser {
   avatar_url?: string;
   profile_theme?: string; // Keep if used elsewhere, otherwise remove
   is_current_user?: boolean;
-  // Add fields needed for the new UserListItem props
-  avatarInitial: string; // e.g., 'E'
-  avatarBgColor: string; // e.g., 'bg-purple-100'
-  avatarTextColor: string; // e.g., 'text-purple-600'
-  flagEmoji: string; // e.g., '🇧🇮'
 }
 // --- End of User type ---
 
@@ -34,6 +30,32 @@ interface UserListProps {
   onUserSelect: (userId: string) => void;
   selectedUserId?: string;
 }
+
+// Helper function to get avatar initial from nickname
+const getAvatarInitial = (nickname: string): string => {
+  return nickname ? nickname.charAt(0).toUpperCase() : '?';
+};
+
+// Helper function to get consistent avatar colors based on user ID
+const getAvatarColors = (userId: string): { bg: string, text: string } => {
+  // Create a simple hash from the user ID
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  
+  // Define color sets (background and text colors that work well together)
+  const colorSets = [
+    { bg: 'bg-purple-100', text: 'text-purple-600' },
+    { bg: 'bg-blue-100', text: 'text-blue-600' },
+    { bg: 'bg-green-100', text: 'text-green-600' },
+    { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+    { bg: 'bg-red-100', text: 'text-red-600' },
+    { bg: 'bg-pink-100', text: 'text-pink-600' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  ];
+  
+  // Use the hash to select a color set
+  const colorIndex = hash % colorSets.length;
+  return colorSets[colorIndex];
+};
 
 export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selectedUserId }) => {
   const { blockedUsers, unblockUser } = useBlockedUsers();
@@ -97,9 +119,29 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
    }, [filters]);
   // --- End of active filters ---
 
-  // --- Sorting logic (keep as is) ---
+  // --- Process users to add required UserListItem props ---
+  const processedUsers = useMemo(() => {
+    return filteredUsers.map(user => {
+      // Get avatar colors based on user ID
+      const colors = getAvatarColors(user.user_id);
+      
+      // Get country code and flag emoji
+      const countryCode = getCountryCode(user.country);
+      const flagEmoji = getFlagEmoji(countryCode);
+      
+      return {
+        ...user,
+        avatarInitial: getAvatarInitial(user.nickname),
+        avatarBgColor: colors.bg,
+        avatarTextColor: colors.text,
+        flagEmoji: flagEmoji || '🏳️' // Fallback to neutral flag if no emoji found
+      };
+    });
+  }, [filteredUsers]);
+
+  // --- Sorting logic with processed users ---
   const sortedUsers = useMemo(() => {
-    return [...filteredUsers].sort((a, b) => {
+    return [...processedUsers].sort((a, b) => {
       // VIP users first, then bots, then by country, then by nickname
       const aIsVip = a.role === 'vip' || a.vip_status;
       const bIsVip = b.role === 'vip' || b.vip_status;
@@ -111,7 +153,7 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
       // Fallback sorting if needed (e.g., by name)
       return (a.nickname || '').localeCompare(b.nickname || '');
     });
-  }, [filteredUsers]);
+  }, [processedUsers]);
   // --- End of sorting ---
 
   // --- Handlers (keep as is) ---
@@ -191,15 +233,15 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
                       gender={user.gender}
                       age={user.age}
                       country={user.country}
-                      flagEmoji={user.flagEmoji} // Make sure this is in your user data
+                      flagEmoji={user.flagEmoji}
                       isVip={user.role === 'vip' || user.vip_status}
                       interests={userInterests[user.user_id] || []}
                       isSelected={selectedUserId === user.user_id}
                       onClick={() => handleUserSelection(user.user_id)}
                       avatarUrl={user.avatar_url}
-                      avatarInitial={user.avatarInitial} // Make sure this is in your user data
-                      avatarBgColor={user.avatarBgColor} // Make sure this is in your user data
-                      avatarTextColor={user.avatarTextColor} // Make sure this is in your user data
+                      avatarInitial={user.avatarInitial}
+                      avatarBgColor={user.avatarBgColor}
+                      avatarTextColor={user.avatarTextColor}
                       isBlocked={blockedUsers.includes(user.user_id)}
                       onUnblock={
                           blockedUsers.includes(user.user_id)
