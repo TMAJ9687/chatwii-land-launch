@@ -33,9 +33,17 @@ interface UserListProps {
   users: OnlineUser[]; // Use the more detailed OnlineUser type
   onUserSelect: (userId: string) => void;
   selectedUserId?: string;
+  connectionStatus: string; // Add connectionStatus prop
+  onRetryConnection: () => void; // Add retry connection prop
 }
 
-export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selectedUserId }) => {
+export const UserList: React.FC<UserListProps> = ({ 
+  users, 
+  onUserSelect, 
+  selectedUserId,
+  connectionStatus,
+  onRetryConnection
+}) => {
   const { blockedUsers, unblockUser } = useBlockedUsers();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);

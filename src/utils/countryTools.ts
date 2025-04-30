@@ -229,6 +229,43 @@ export const getFlagEmoji = (countryCode: string): string => {
 };
 
 /**
+ * Get flag URL for a country code
+ * @param countryCode ISO country code
+ * @returns URL to the flag image
+ */
+export const getFlagUrl = (countryCode: string): string => {
+  if (!countryCode) return '';
+  const code = countryCode.toLowerCase();
+  return `https://flagcdn.com/16x12/${code}.png`;
+};
+
+/**
+ * Detect user's country based on IP geolocation
+ * @returns Promise resolving to country info object
+ */
+export const detectUserCountry = async (): Promise<{ country: string, countryCode: string }> => {
+  try {
+    // Use a free geolocation API
+    const response = await fetch('https://ipapi.co/json/');
+    if (!response.ok) {
+      throw new Error('Failed to detect country');
+    }
+    
+    const data = await response.json();
+    return {
+      country: data.country_name || "Unknown",
+      countryCode: data.country_code || ""
+    };
+  } catch (error) {
+    console.error("Error detecting country:", error);
+    return {
+      country: "Unknown",
+      countryCode: ""
+    };
+  }
+};
+
+/**
  * Debug function to test Realtime Database access paths
  * Used only in development to diagnose security rule issues
  */

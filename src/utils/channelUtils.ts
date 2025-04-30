@@ -40,6 +40,28 @@ export const getConversationId = (
 };
 
 /**
+ * Generate consistent channel names for different purposes
+ */
+export const getMessageChannelName = (conversationId: string | null): string => {
+  return conversationId ? `messages_${conversationId}` : 'messages_unknown';
+};
+
+export const getReactionsChannelName = (conversationId: string | null): string => {
+  return conversationId ? `reactions_${conversationId}` : 'reactions_unknown';
+};
+
+/**
+ * Generate consistent database paths for different channels
+ */
+export const getMessageChannelPath = (conversationId: string | null): string => {
+  return conversationId ? `messages/${conversationId}` : 'messages/unknown';
+};
+
+export const getReactionsChannelPath = (conversationId: string | null): string => {
+  return conversationId ? `reactions/${conversationId}` : 'reactions/unknown';
+};
+
+/**
  * Debug function to check conversation access
  */
 export const debugConversationAccess = (path: string, userId: string | null): boolean => {
