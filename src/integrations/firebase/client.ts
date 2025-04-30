@@ -1,17 +1,8 @@
-
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import {
-  getDatabase,
-  connectDatabaseEmulator,
-  ref,
-  onValue,
-  goOffline,
-  goOnline,
-  off
-} from "firebase/database";
+// Removed: getDatabase, connectDatabaseEmulator, ref, onValue, goOffline, goOnline, off from "firebase/database"
 import { firebaseConfig } from "./config";
 
 // Initialize Firebase
@@ -19,12 +10,13 @@ const app = initializeApp(firebaseConfig);
 
 // Services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app); // Firestore instance
 export const storage = getStorage(app);
-export const realtimeDb = getDatabase(app);
+// Removed: export const realtimeDb = getDatabase(app);
 export { app };
 
 // ——— Firestore listener tracking ——————————————————————————————————
+// (This section remains unchanged as it relates to Firestore)
 
 let firestoreListeners: Array<() => void> = [];
 
@@ -43,129 +35,47 @@ export function clearFirestoreListeners() {
 }
 
 // ——— Realtime DB connection & listener tracking ——————————————————————
-
-let isSetup = false;
-let connectionMonitorRef: any = null;
-let activeListeners: Record<string, any> = {};
-
-export const setupConnectionMonitoring = () => {
-  if (isSetup) return;
-  try {
-    const connectedRef = ref(realtimeDb, ".info/connected");
-    connectionMonitorRef = onValue(connectedRef, (snap) => {
-      console.log(snap.val() ? "Connected to Firebase Realtime Database" : "Disconnected from Firebase Realtime Database");
-    }, (error) => {
-      console.error("Error setting up connection monitoring:", error);
-    });
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    isSetup = true;
-  } catch (error) {
-    console.error("Error setting up connection monitoring:", error);
-  }
-};
-
-setupConnectionMonitoring();
-
-function handleOnline()  { try { goOnline(realtimeDb);  } catch(e) { console.warn("Error going online:", e); } }
-function handleOffline() { /* No-op: SDK will auto-reconnect */ }
-
-export const trackListener = (path: string, listener: any) => {
-  activeListeners[path] = listener;
-  return listener;
-};
-
-export const removeListener = (path: string) => {
-  if (activeListeners[path]) {
-    try { 
-      off(ref(realtimeDb, path), activeListeners[path]); 
-    }
-    catch (error) { console.warn(`Error removing listener for ${path}:`, error); }
-    delete activeListeners[path];
-  }
-};
+// (This entire section has been removed as it relates to RTDB)
+// Removed: isSetup, connectionMonitorRef, activeListeners
+// Removed: setupConnectionMonitoring function
+// Removed: handleOnline, handleOffline functions
+// Removed: trackListener, removeListener functions (for RTDB)
 
 // ——— Close everything on logout —————————————————————————————————————
 
 export const closeDbConnection = async () => {
-  // Start parallel cleanup tasks and handle each independently
+  // Only clear Firestore listeners now
   const tasks = [
-    clearActiveListenersTask(),
-    removeEventListenersTask(),
-    removeConnectionMonitorTask(),
     clearFirestoreListenersTask()
+    // Removed: clearActiveListenersTask(), removeEventListenersTask(), removeConnectionMonitorTask()
   ];
-  
-  // Wait for all tasks with a timeout
+
+  // Wait for Firestore cleanup task with a timeout
   try {
     await Promise.race([
       Promise.all(tasks),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 600))
     ]);
-    
-    // Finally go offline
-    goOffline(realtimeDb);
-    isSetup = false;
-    console.log("Firebase connections closed successfully");
+
+    // Removed: goOffline(realtimeDb);
+    // Removed: isSetup = false; // If isSetup was only for RTDB
+    console.log("Firebase Firestore listeners cleared successfully");
     return true;
-  } 
+  }
   catch (error) {
-    console.warn("Error or timeout during Firebase connection closure:", error);
-    
-    // Force cleanup anyway
+    console.warn("Error or timeout during Firebase Firestore cleanup:", error);
+
+    // Force Firestore cleanup anyway
     forceCleanup();
     return false;
   }
 };
 
 // Individual cleanup tasks wrapped in promises
-function clearActiveListenersTask() {
-  return new Promise<void>((resolve) => {
-    try {
-      console.log(`Clearing ${Object.keys(activeListeners).length} active realtime DB listeners`);
-      Object.keys(activeListeners).forEach(path => {
-        try { 
-          off(ref(realtimeDb, path), activeListeners[path]); 
-        } catch (e) { 
-          console.warn(`Error removing listener for ${path}:`, e); 
-        }
-      });
-      activeListeners = {};
-      resolve();
-    } catch (e) {
-      console.warn("Error in clearActiveListeners:", e);
-      resolve(); // Always resolve to not block other tasks
-    }
-  });
-}
 
-function removeEventListenersTask() {
-  return new Promise<void>((resolve) => {
-    try {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      resolve();
-    } catch (e) {
-      console.warn("Error in removeEventListeners:", e);
-      resolve();
-    }
-  });
-}
-
-function removeConnectionMonitorTask() {
-  return new Promise<void>((resolve) => {
-    try {
-      if (connectionMonitorRef) {
-        connectionMonitorRef();
-        connectionMonitorRef = null;
-      }
-      resolve();
-    } catch (e) {
-      console.warn("Error in removeConnectionMonitor:", e);
-      resolve();
-    }
-  });
-}
+// Removed: clearActiveListenersTask function (for RTDB)
+// Removed: removeEventListenersTask function
+// Removed: removeConnectionMonitorTask function (for RTDB)
 
 function clearFirestoreListenersTask() {
   return new Promise<void>((resolve) => {
@@ -175,25 +85,21 @@ function clearFirestoreListenersTask() {
       resolve();
     } catch (e) {
       console.warn("Error in clearFirestoreListeners:", e);
-      resolve();
+      resolve(); // Always resolve to not block other tasks
     }
   });
 }
 
 // Force cleanup for emergency situations
 function forceCleanup() {
-  console.warn("Forcing Firebase connection cleanup");
+  console.warn("Forcing Firebase cleanup");
   try {
-    Object.keys(activeListeners).forEach(k => delete activeListeners[k]);
-    window.removeEventListener('online', handleOnline);
-    window.removeEventListener('offline', handleOffline);
-    if (connectionMonitorRef) {
-      try { connectionMonitorRef(); } catch {}
-      connectionMonitorRef = null;
-    }
-    clearFirestoreListeners();
-    try { goOffline(realtimeDb); } catch {}
-    isSetup = false;
+    // Removed: RTDB activeListeners cleanup
+    // Removed: Browser online/offline event listeners removal
+    // Removed: RTDB connectionMonitorRef cleanup
+    clearFirestoreListeners(); // Keep Firestore cleanup
+    // Removed: goOffline(realtimeDb);
+    // Removed: isSetup = false; // If isSetup was only for RTDB
   } catch (e) {
     console.error("Error during force cleanup:", e);
   }
