@@ -16,7 +16,7 @@ export function useChatConnection(active: boolean = true) {
     
     try {
       // Try a simple read operation to see if we're connected
-      const testRef = ref(realtimeDb, '.info/connected');
+      const testRef = ref(realtimeDb, '/.info/connected');
       const snapshot = await get(testRef);
       const isOnline = snapshot.val() === true;
       
