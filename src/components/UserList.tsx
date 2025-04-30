@@ -67,6 +67,20 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [userInterests, setUserInterests] = useState<Record<string, string[]>>({});
 
+  // Debug: Log props on mount and when they change
+  useEffect(() => {
+    console.log('UserList Component:', {
+      users: users.length,
+      selectedUserId,
+      blockedUsers: blockedUsers.length,
+    });
+    
+    // More detailed debug for the first few users
+    if (users.length > 0) {
+      console.log('Sample users:', users.slice(0, 3));
+    }
+  }, [users, selectedUserId, blockedUsers]);
+
   // --- Fetching interests logic (keep as is) ---
   useEffect(() => {
     if (!users.length) return;
@@ -100,8 +114,29 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
 
   // --- Filtering logic with type-safe gender check ---
   const filteredUsers = useMemo(() => {
+    console.log('Filtering users:', users.length);
+    
     return users
-      .filter(user => !user.is_current_user) // Ensure user exists
+      .filter(user => {
+        // Log to debug user filtering
+        if (!user) {
+          console.warn('Found undefined or null user in users array');
+          return false;
+        }
+        
+        if (!user.user_id) {
+          console.warn('Found user without user_id:', user);
+          return false;
+        }
+        
+        // Skip current user
+        if (user.is_current_user) {
+          console.log('Filtering out current user:', user.user_id);
+          return false;
+        }
+        
+        return true;
+      })
       .filter(user => {
         if (!user) return false; // Basic check
         
@@ -135,6 +170,7 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
 
   // --- Process users to add required UserListItem props ---
   const processedUsers = useMemo(() => {
+    console.log('Processing filtered users:', filteredUsers.length);
     return filteredUsers.map(user => {
       // Use existing properties if available or generate them
       const avatarInitial = user.avatarInitial ?? getAvatarInitial(user.nickname);
@@ -158,6 +194,7 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
 
   // --- Sorting logic with processed users ---
   const sortedUsers = useMemo(() => {
+    console.log('Sorting processed users:', processedUsers.length);
     return [...processedUsers].sort((a, b) => {
       // VIP users first, then bots, then by country, then by nickname
       const aIsVip = a.role === 'vip' || a.vip_status;
@@ -183,18 +220,26 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
   }, []);
 
   const handleUserSelection = useCallback((userId: string) => {
+    console.log('User selected:', userId);
     const user = users.find(u => u.user_id === userId);
     if (user && !user.is_current_user) {
       onUserSelect(userId);
+    } else if (user?.is_current_user) {
+      console.log('Cannot select current user');
+    } else {
+      console.warn('User not found in users list:', userId);
     }
   }, [users, onUserSelect]);
 
   const handleUnblockUser = useCallback(async (userId: string) => {
     // Assuming current user ID is stored in localStorage or obtained differently
     const currentUserId = localStorage.getItem('userId');
+    console.log('Unblocking user:', userId, 'Current user:', currentUserId);
+    
     if (unblockUser && currentUserId) {
       await unblockUser(userId, currentUserId);
       // Optionally refetch or update user list state here
+      console.log('User unblocked successfully');
     } else {
         console.warn("Cannot unblock: unblockUser function or currentUserId missing.");
     }
@@ -242,36 +287,36 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
 
           {/* Actual List (relative, z-10, space-y-3) */}
           <div className="relative z-10 space-y-3">
-              {sortedUsers.map(user => (
-                  <UserListItem
-                      key={user.user_id}
-                      // --- Pass required props ---
-                      name={user.nickname}
-                      gender={user.gender}
-                      age={user.age}
-                      country={user.country}
-                      flagEmoji={user.flagEmoji || '🏳️'}
-                      isVip={user.role === 'vip' || user.vip_status}
-                      interests={userInterests[user.user_id] || []}
-                      isSelected={selectedUserId === user.user_id}
-                      onClick={() => handleUserSelection(user.user_id)}
-                      avatarUrl={user.avatar_url}
-                      avatarInitial={user.avatarInitial || getAvatarInitial(user.nickname)}
-                      avatarBgColor={user.avatarBgColor || getAvatarColors(user.user_id).bg}
-                      avatarTextColor={user.avatarTextColor || getAvatarColors(user.user_id).text}
-                      isBlocked={blockedUsers.includes(user.user_id)}
-                      onUnblock={
-                          blockedUsers.includes(user.user_id)
-                          ? () => handleUnblockUser(user.user_id)
-                          : undefined
-                      }
-                      // --- End of props ---
-                  />
-              ))}
-              {/* Add loading/empty states if needed */}
-              {sortedUsers.length === 0 && (
+              {sortedUsers.length > 0 ? (
+                  sortedUsers.map(user => (
+                      <UserListItem
+                          key={user.user_id}
+                          // --- Pass required props ---
+                          name={user.nickname}
+                          gender={user.gender}
+                          age={user.age}
+                          country={user.country}
+                          flagEmoji={user.flagEmoji || '🏳️'}
+                          isVip={user.role === 'vip' || user.vip_status}
+                          interests={userInterests[user.user_id] || []}
+                          isSelected={selectedUserId === user.user_id}
+                          onClick={() => handleUserSelection(user.user_id)}
+                          avatarUrl={user.avatar_url}
+                          avatarInitial={user.avatarInitial || getAvatarInitial(user.nickname)}
+                          avatarBgColor={user.avatarBgColor || getAvatarColors(user.user_id).bg}
+                          avatarTextColor={user.avatarTextColor || getAvatarColors(user.user_id).text}
+                          isBlocked={blockedUsers.includes(user.user_id)}
+                          onUnblock={
+                              blockedUsers.includes(user.user_id)
+                              ? () => handleUnblockUser(user.user_id)
+                              : undefined
+                          }
+                          // --- End of props ---
+                      />
+                  ))
+              ) : (
                   <div className="text-center text-gray-500 py-10 px-4 relative z-10">
-                      No users match the current filters.
+                      {users.length > 0 ? 'No users match the current filters.' : 'No online users found.'}
                   </div>
               )}
           </div>

@@ -58,7 +58,10 @@ export const usePresence = (currentUserId: string | null) => {
 
   // --- Handle presence setup/cleanup ---
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      console.log('No current user ID, skipping presence setup');
+      return;
+    }
 
     let unsubPresenceListener: (() => void) | undefined;
 
@@ -70,6 +73,11 @@ export const usePresence = (currentUserId: string | null) => {
         // Fetch user profile
         const userProfile = await getUserProfile(currentUserId);
         console.log('User profile for presence:', userProfile);
+
+        if (!userProfile) {
+          console.warn('No user profile found for current user');
+          return;
+        }
 
         // Reference for user's own presence
         const myPresenceRef = ref(realtimeDb, `presence/${currentUserId}`);
@@ -87,7 +95,7 @@ export const usePresence = (currentUserId: string | null) => {
         const flagEmoji = getFlagEmoji(countryCode);
 
         // Set initial presence data
-        await set(myPresenceRef, {
+        const presenceData = {
           user_id: currentUserId,
           nickname: userProfile?.nickname || 'Anonymous',
           role: userProfile?.role || 'standard',
@@ -103,7 +111,10 @@ export const usePresence = (currentUserId: string | null) => {
           avatarBgColor: avatarColors.bg,
           avatarTextColor: avatarColors.text,
           flagEmoji: flagEmoji || '🏳️' // Fallback to neutral flag
-        });
+        };
+
+        console.log('Setting presence data:', presenceData);
+        await set(myPresenceRef, presenceData);
 
         userPresenceRef.current = myPresenceRef;
 
@@ -115,6 +126,7 @@ export const usePresence = (currentUserId: string | null) => {
           console.log('Presence data received, exists:', snapshot.exists());
           
           const users: PresenceUser[] = [];
+          
           if (!snapshot.exists()) {
             console.log('No users present, adding mock user');
             // Add required fields to mock VIP user
@@ -178,6 +190,7 @@ export const usePresence = (currentUserId: string | null) => {
           }
           
           console.log(`Total online users: ${users.length}`);
+          console.log('Online users data:', users);
           setOnlineUsers(users);
         });
 
@@ -191,8 +204,10 @@ export const usePresence = (currentUserId: string | null) => {
 
     // Cleanup on unmount
     return () => {
+      console.log('Cleaning up presence for user:', currentUserId);
       if (userPresenceRef.current) {
-        set(userPresenceRef.current, null);
+        set(userPresenceRef.current, null)
+          .catch(err => console.error('Error clearing presence:', err));
       }
       if (typeof unsubPresenceListener === 'function') {
         unsubPresenceListener();

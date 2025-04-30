@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { UserList } from '@/components/UserList';
 
 // Define proper online user type that matches what UserList expects
@@ -32,6 +32,16 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
   onUserSelect,
   selectedUserId
 }) => {
+  
+  // Debug: Log props on component mount and when they change
+  useEffect(() => {
+    console.log('UserListSidebar rendered with:', {
+      onlineUsersCount: onlineUsers.length,
+      onlineUsers,
+      selectedUserId
+    });
+  }, [onlineUsers, selectedUserId]);
+
   return (
     <aside className="w-full max-w-xs border-r border-border">
       <UserList

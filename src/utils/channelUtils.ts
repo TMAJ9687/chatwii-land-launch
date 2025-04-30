@@ -1,5 +1,4 @@
 
-
 /**
  * Utility functions for managing Firebase Realtime Database channels
  */
@@ -122,4 +121,28 @@ export const debugConversationAccess = (
     allowed: indexOfUserId !== -1,
     details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, IndexOf: ${indexOfUserId}, Contains: ${containsUserId}`
   };
+};
+
+/**
+ * Store the current user ID in localStorage for easy access
+ * @param userId The user ID to store
+ */
+export const storeCurrentUserId = (userId: string | null) => {
+  if (userId) {
+    console.log('Storing current user ID in localStorage:', userId);
+    localStorage.setItem('userId', userId);
+  } else {
+    console.log('Clearing current user ID from localStorage');
+    localStorage.removeItem('userId');
+  }
+};
+
+/**
+ * Get the current user ID from localStorage
+ * @returns The current user ID or null if not found
+ */
+export const getCurrentUserId = (): string | null => {
+  const userId = localStorage.getItem('userId');
+  console.log('Retrieved current user ID from localStorage:', userId);
+  return userId;
 };

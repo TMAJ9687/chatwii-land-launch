@@ -1,5 +1,4 @@
 
-
 // Firebase configuration
 export const firebaseConfig = {
   apiKey: "AIzaSyCkMejgIKMAnmFV70Gr_A7U4FIlfxkK4tg",
@@ -23,18 +22,21 @@ export const realtimeDatabaseRules = {
     },
     "messages": {
       "$conversation_id": {
+        // Fixed: replaced contains with indexOf
         ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
         ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
     },
     "message_reactions": {
       "$conversation_id": {
+        // Fixed: replaced contains with indexOf
         ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
         ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
     },
     "typing_status": {
       "$conversation_id": {
+        // Fixed: replaced contains with indexOf
         ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
         ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
       }
@@ -43,4 +45,3 @@ export const realtimeDatabaseRules = {
     ".write": false
   }
 };
-

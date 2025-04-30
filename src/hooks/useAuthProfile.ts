@@ -6,6 +6,7 @@ import {
   getUserProfile
 } from '@/lib/firebase';
 import { updateUserPresence, removeUserPresence } from '@/utils/presenceUtils';
+import { storeCurrentUserId } from '@/utils/channelUtils';
 
 // Define the UserProfile type inline
 interface UserProfile {
@@ -45,6 +46,7 @@ export const useAuthProfile = () => {
             // Clean up presence if user was previously logged in
             if (currentUserId) {
               await removeUserPresence(currentUserId);
+              storeCurrentUserId(null);
             }
             
             setCurrentUserId(null);
@@ -55,9 +57,12 @@ export const useAuthProfile = () => {
           }
 
           setCurrentUserId(user.uid);
+          storeCurrentUserId(user.uid);
+          console.log('User authenticated:', user.uid);
 
           // Get user profile from Firestore
           const userProfile = await getUserProfile(user.uid);
+          console.log('User profile loaded:', userProfile);
 
           if (cancelled) return;
 
@@ -69,6 +74,7 @@ export const useAuthProfile = () => {
             // Update user presence with profile data
             try {
               presenceRef = await updateUserPresence(user.uid, userProfile);
+              console.log('User presence updated');
             } catch (error) {
               console.error('Failed to update presence:', error);
             }
