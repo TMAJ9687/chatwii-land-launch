@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { syncService } from '@/services/syncService';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, set, get, onDisconnect } from 'firebase/database';
+import { ref, set, get, onDisconnect, onValue } from 'firebase/database';
 
 export function useChatConnection(active: boolean = true) {
   const [isConnected, setIsConnected] = useState<boolean>(true);
@@ -48,13 +48,22 @@ export function useChatConnection(active: boolean = true) {
     
     // Monitor connection state
     const connectedRef = ref(realtimeDb, '.info/connected');
-    const unsubscribe = onDisconnect(connectedRef).then(() => {
-      setIsConnected(false);
+    
+    // Fixed: Use onValue to monitor connection changes instead of onDisconnect().then()
+    const unsubscribe = onValue(connectedRef, (snapshot) => {
+      const connected = snapshot.val() === true;
+      setIsConnected(connected);
+      
+      // If connected, register an onDisconnect handler
+      if (connected) {
+        onDisconnect(connectedRef).remove()
+          .catch(err => console.error('Error setting disconnect handler:', err));
+      }
     });
     
     return () => {
       // Handle cleanup
-      unsubscribe.catch(err => console.error('Error removing disconnect listener:', err));
+      unsubscribe();
     };
   }, [active, checkConnection]);
 
