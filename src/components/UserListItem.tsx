@@ -70,14 +70,16 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   isBlocked = false,
   onUnblock,
 }) => {
-  const genderColor = gender === 'Female' ? 'text-pink-600' : 'text-blue-600';
+  // Adjusted gender colors for dark mode
+  const genderColor = gender === 'Female'
+    ? 'text-pink-600 dark:text-pink-400'
+    : 'text-blue-600 dark:text-blue-400';
 
-  // Combine base classes with conditional glow class
-  // Changed ml-4 mr-4 to ml-3 mr-3 to make card wider relative to placeholder
+  // Combine base classes with conditional glow class and dark mode variants
   const cardClasses = `
-    flex items-center bg-white p-3 rounded-lg shadow-sm ml-3 mr-3
+    flex items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm ml-3 mr-3
     ${isBlocked ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer'}
-    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900' : ''}
     ${isVip ? 'vip-pulsing-glow' : ''}
   `;
 
@@ -95,7 +97,8 @@ export const UserListItem: React.FC<UserListItemProps> = ({
           {avatarUrl ? (
             <AvatarImage src={avatarUrl} alt={name} className="object-cover"/>
           ) : (
-            <AvatarFallback className={`${avatarBgColor} ${avatarTextColor} text-lg`}>
+            // Added dark mode variant for fallback background
+            <AvatarFallback className={`${avatarBgColor} ${avatarTextColor} text-lg dark:bg-opacity-80`}>
               {avatarInitial}
             </AvatarFallback>
           )}
@@ -103,24 +106,28 @@ export const UserListItem: React.FC<UserListItemProps> = ({
       </div>
 
       {/* User Details */}
-      <div className="flex-grow min-w-0">
+      <div className="flex-grow min-w-0"> {/* min-w-0 prevents flex item from overflowing */}
         {/* Top line: Name, Crown, VIP */}
         <div className="flex items-center space-x-1.5 mb-1">
-          <span className="font-semibold text-sm text-gray-800 truncate">{name}</span>
+          {/* Added dark text color */}
+          <span className="font-semibold text-sm text-gray-800 dark:text-gray-100 truncate">{name}</span>
           {isVip && (
             <>
               <span className="text-yellow-500 text-xs flex-shrink-0">👑</span>
-              <span className="text-xs font-medium bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded flex-shrink-0">VIP</span>
+              {/* Added dark mode variants for VIP tag */}
+              <span className="text-xs font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-200 px-1.5 py-0.5 rounded flex-shrink-0">VIP</span>
             </>
           )}
         </div>
 
         {/* Second line: Country, Flag, Separator, Gender/Age */}
-        <div className="flex items-center text-xs text-gray-500 space-x-1.5 mb-1.5">
+        {/* Added dark text color */}
+        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-1.5 mb-1.5">
           <span className="truncate">{country}</span>
           {flagEmoji && <span className="flag-icon">{flagEmoji}</span>}
-          <span className="text-gray-300">|</span>
-          <span className={`${genderColor} font-medium whitespace-nowrap`}>
+          {/* Added dark border color for separator */}
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <span className={`${genderColor} font-medium whitespace-nowrap`}> {/* whitespace-nowrap prevents wrapping */}
             {gender}, {age}
           </span>
         </div>
@@ -131,7 +138,8 @@ export const UserListItem: React.FC<UserListItemProps> = ({
             {interests.map((interest, idx) => (
               <span
                 key={idx}
-                className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                // Added dark mode variants for interest tags
+                className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full"
               >
                 {interest}
               </span>
@@ -149,7 +157,8 @@ export const UserListItem: React.FC<UserListItemProps> = ({
                  e.stopPropagation(); // Prevent card click
                  onUnblock();
                }}
-               className="text-xs h-7 px-2 text-blue-600 hover:bg-blue-50"
+               // Added dark mode variants for unblock button
+               className="text-xs h-7 px-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-gray-700"
              >
                Unblock
              </Button>
