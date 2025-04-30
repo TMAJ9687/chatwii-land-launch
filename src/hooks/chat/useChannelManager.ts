@@ -2,6 +2,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { ref, onValue, off, DatabaseReference } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
+import { getConversationId } from '@/utils/channelUtils';
 
 // Type for channel registry
 interface ChannelRegistry {
@@ -18,11 +19,6 @@ export const useChannelManager = () => {
       isMountedRef.current = false;
       cleanupAllChannels(true);
     };
-  }, []);
-
-  // Hash userId pair for consistent conversation IDs
-  const getConversationId = useCallback((userId1: string, userId2: string) => {
-    return [userId1, userId2].sort().join('_');
   }, []);
   
   // Setup a channel with auto-cleanup

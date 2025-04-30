@@ -13,11 +13,11 @@ import { useConversation } from '@/hooks/useConversation';
 import { useMessages } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
 import { useChannelSetup } from '@/hooks/useChannelSetup';
+import { syncService } from '@/services/syncService';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
-import { UserListSidebar } from '@/components/chat/UserListSidebar';
 
 const ChatInterfaceContent = () => {
   const { 
@@ -74,8 +74,20 @@ const ChatInterfaceContent = () => {
     isVipUser
   );
 
-  // Simply call the hook without destructuring now
-  useChannelSetup(currentUserId, selectedUserId, setMessages, fetchMessages);
+  // Call channel setup hook
+  const { isConnected, isSettingUp } = useChannelSetup(
+    currentUserId, 
+    selectedUserId, 
+    setMessages, 
+    fetchMessages
+  );
+
+  // Sync messages when user selects a conversation
+  useEffect(() => {
+    if (currentUserId && selectedUserId) {
+      syncService.checkAndSyncConversation(currentUserId, selectedUserId);
+    }
+  }, [currentUserId, selectedUserId]);
 
   useEffect(() => {
     if (currentUserId) {
@@ -106,42 +118,40 @@ const ChatInterfaceContent = () => {
   };
 
   return (
-    <ChatLayout unreadCount={unreadCount} isVipUser={isVipUser}>
-      <div className="flex h-[calc(100vh-60px)]">
-        <UserListSidebar
-          onlineUsers={onlineUsers}
-          onUserSelect={handleUserSelect}
-          selectedUserId={selectedUserId}
-        />
-
-        <main className="flex-1 flex flex-col">
-          {selectedUserId && (
-            <ChatHeader
-              nickname={selectedUserNickname}
-              onClose={handleCloseChat}
-              onReportUser={() => setShowReportPopup(true)}
-              onBlockUser={handleBlockUser}
-              onDeleteConversation={handleDeleteConversation}
-              isBlocked={isBlocked}
-              isVipUser={isVipUser}
-            />
-          )}
-          
-          <ChatContent
-            selectedUserId={selectedUserId}
-            selectedUserNickname={selectedUserNickname}
-            currentUserId={currentUserId || ''}
-            messages={messages}
+    <ChatLayout 
+      unreadCount={unreadCount} 
+      isVipUser={isVipUser}
+      onlineUsers={onlineUsers}
+      onUserSelect={handleUserSelect}
+      selectedUserId={selectedUserId}
+    >
+      <div className="flex h-[calc(100vh-60px)] flex-col">
+        {selectedUserId && (
+          <ChatHeader
+            nickname={selectedUserNickname}
             onClose={handleCloseChat}
-            onSendMessage={handleSendMessage}
-            onMessagesRead={() => fetchUnreadCount()}
+            onReportUser={() => setShowReportPopup(true)}
+            onBlockUser={handleBlockUser}
+            onDeleteConversation={handleDeleteConversation}
+            isBlocked={isBlocked}
             isVipUser={isVipUser}
-            isTyping={isTyping}
-            onTypingStatusChange={handleTypingStatusChange}
-            isLoading={messagesLoading}
-            error={messagesError}
           />
-        </main>
+        )}
+        
+        <ChatContent
+          selectedUserId={selectedUserId}
+          selectedUserNickname={selectedUserNickname}
+          currentUserId={currentUserId || ''}
+          messages={messages}
+          onClose={handleCloseChat}
+          onSendMessage={handleSendMessage}
+          onMessagesRead={() => fetchUnreadCount()}
+          isVipUser={isVipUser}
+          isTyping={isTyping}
+          onTypingStatusChange={handleTypingStatusChange}
+          isLoading={messagesLoading || isSettingUp}
+          error={messagesError}
+        />
       </div>
 
       <SidebarContainer

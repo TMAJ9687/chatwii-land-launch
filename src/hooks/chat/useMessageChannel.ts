@@ -5,13 +5,14 @@ import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { queryDocuments } from '@/lib/firebase';
 import { mergeMessages } from '@/utils/messageUtils';
+import { getConversationId, getMessageChannelName, getMessagesPath } from '@/utils/channelUtils';
 
 export const useMessageChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
   setMessages: React.Dispatch<React.SetStateAction<MessageWithMedia[]>>
 ) => {
-  const { listenToChannel, cleanupChannel, getConversationId } = useChannelManager();
+  const { listenToChannel, cleanupChannel } = useChannelManager();
   const isListeningRef = useRef(false);
   const latestDataRef = useRef<any>(null);
   const localMessagesRef = useRef<MessageWithMedia[]>([]);
@@ -161,10 +162,10 @@ export const useMessageChannel = (
     // Set connection status to connecting
     setConnectionStatus('connecting');
 
-    // Create unique channel name and path
-    const convId = getConversationId(currentUserId, selectedUserId);
-    const channelName = `messages_${convId}`;
-    const path = `messages/${convId}`;
+    // Create unique channel name and path using our utilities
+    const conversationId = getConversationId(currentUserId, selectedUserId);
+    const channelName = getMessageChannelName(conversationId);
+    const path = getMessagesPath(conversationId);
     
     // Store the channel name for cleanup
     channelNameRef.current = channelName;
@@ -205,7 +206,6 @@ export const useMessageChannel = (
   }, [
     currentUserId,
     selectedUserId,
-    getConversationId,
     listenToChannel,
     cleanupChannel,
     handleRealTimeUpdate

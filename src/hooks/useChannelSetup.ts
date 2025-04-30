@@ -4,6 +4,7 @@ import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 import { useChannelManager } from './chat/useChannelManager';
 import { useChatConnection } from './chat/useChatConnection';
+import { syncService } from '@/services/syncService';
 import { toast } from 'sonner';
 
 export const useChannelSetup = (
@@ -17,6 +18,7 @@ export const useChannelSetup = (
     messages: false,
     reactions: false
   });
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Track setup state with refs
   const setupAttemptRef = useRef(false);
@@ -47,6 +49,28 @@ export const useChannelSetup = (
       setupRetryCountRef.current = 0;
     }
   }, [messageStatus]);
+
+  // Sync messages between Firestore and Realtime Database 
+  const syncMessages = async () => {
+    if (!currentUserId || !selectedUserId) return false;
+    
+    setIsSyncing(true);
+    try {
+      const synced = await syncService.checkAndSyncConversation(currentUserId, selectedUserId);
+      
+      if (!synced) {
+        console.warn("Message sync was not successful, falling back to direct fetch");
+        // If sync fails, fetch messages directly from Firestore
+        fetchMessages();
+      }
+      return synced;
+    } catch (error) {
+      console.error("Error syncing messages:", error);
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Setup effect for channel initialization with improved retry logic
   useEffect(() => {
@@ -84,8 +108,13 @@ export const useChannelSetup = (
       // Reset retry count for new user
       setupRetryCountRef.current = 0;
       
-      // Fetch messages right away
-      fetchMessages();
+      // Sync messages first, then fetch if needed
+      syncMessages().then(synced => {
+        if (!synced) {
+          // If sync failed, fetch directly
+          fetchMessages();
+        }
+      });
       
       // Give time for setup to complete
       setupTimeoutRef.current = setTimeout(() => {
@@ -96,8 +125,13 @@ export const useChannelSetup = (
           console.log(`Channel setup incomplete, trying another approach (${setupRetryCountRef.current + 1}/2)`);
           setupRetryCountRef.current += 1;
           
-          // Force a direct fetch instead of more retries
-          fetchMessages();
+          // Try sync again on failure
+          syncMessages().then(synced => {
+            if (!synced) {
+              // If sync still fails, fetch directly
+              fetchMessages();
+            }
+          });
         } else if (!channelStatus.messages) {
           // If we're still not connected after retries, inform the user but don't keep retrying
           toast.info("Using cached messages. Reconnecting in background...");
@@ -126,6 +160,7 @@ export const useChannelSetup = (
   return { 
     isConnected,
     isSettingUp,
-    channelStatus
+    channelStatus,
+    isSyncing
   };
 };

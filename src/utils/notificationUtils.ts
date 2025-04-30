@@ -12,10 +12,10 @@ interface NotificationTracker {
 let recentNotifications: NotificationTracker[] = [];
 
 // Constants
-const COOLDOWN_PERIOD = 60000; // 1 minute cooldown per sender
-const DUPLICATE_TIMEOUT = 10000; // 10 seconds for duplicate detection
+const COOLDOWN_PERIOD = 120000; // 2 minute cooldown per sender (increased from 1 minute)
+const DUPLICATE_TIMEOUT = 30000; // 30 seconds for duplicate detection (increased from 10 seconds)
 const MAX_RECENT_NOTIFICATIONS = 20; // Only track the last 20 notifications
-const GLOBAL_COOLDOWN = 3000; // Minimum 3 seconds between any notifications
+const GLOBAL_COOLDOWN = 5000; // Minimum 5 seconds between any notifications (increased from 3 seconds)
 
 // Load from localStorage
 let lastGlobalNotification = 0;
