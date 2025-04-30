@@ -1,6 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { UserList } from '@/components/UserList';
+import { toast } from 'sonner';
 
 // Define proper online user type that matches what UserList expects
 interface OnlineUser {
@@ -39,6 +40,18 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
       onlineUsersCount: onlineUsers.length,
       onlineUsers,
       selectedUserId
+    });
+    
+    // Add a toast notification if no users are visible
+    if (onlineUsers.length === 0) {
+      console.warn('No online users detected in sidebar');
+    }
+    
+    // Check if each user has the required fields
+    onlineUsers.forEach((user, index) => {
+      if (!user.user_id || !user.nickname) {
+        console.error(`Invalid user data at index ${index}:`, user);
+      }
     });
   }, [onlineUsers, selectedUserId]);
 

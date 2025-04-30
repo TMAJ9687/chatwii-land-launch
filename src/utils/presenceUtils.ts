@@ -1,18 +1,28 @@
 
 import { ref, set, serverTimestamp, onDisconnect, onValue } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
+import { toast } from 'sonner';
 
 // Enhanced presence utilities with proper cleanup and error handling
 export const updateUserPresence = async (userId: string, profile: any) => {
-  if (!userId) return null;
+  if (!userId) {
+    console.error("Cannot update presence: No user ID provided");
+    return null;
+  }
 
   try {
+    console.log(`Setting up presence for ${userId}`, profile);
     const userStatusRef = ref(realtimeDb, `presence/${userId}`);
     const connectedRef = ref(realtimeDb, '.info/connected');
 
     // Setup presence handling
     const unsub = onValue(connectedRef, async (snapshot) => {
-      if (!snapshot.val()) return;
+      if (!snapshot.val()) {
+        console.log("Not connected to Firebase");
+        return;
+      }
+      
+      console.log(`Connected to Firebase, setting up presence for ${userId}`);
 
       try {
         // Register cleanup on disconnect
@@ -32,27 +42,39 @@ export const updateUserPresence = async (userId: string, profile: any) => {
           status: 'online',
           is_current_user: true
         });
+        console.log(`Presence successfully set for ${userId}`);
       } catch (error) {
-        console.warn('Failed to set up presence:', error);
+        console.error('Failed to set up presence:', error);
+        toast.error('Could not update your online status');
       }
+    }, (error) => {
+      // Error handler for onValue
+      console.error('Error connecting to presence system:', error);
+      toast.error('Failed to connect to chat system');
     });
 
     return userStatusRef;
   } catch (error) {
     console.error('Failed to update user presence:', error);
+    toast.error('Failed to update your online status');
     return null;
   }
 };
 
 export const removeUserPresence = async (userId: string) => {
-  if (!userId) return false;
+  if (!userId) {
+    console.warn("Cannot remove presence: No user ID provided");
+    return false;
+  }
 
   try {
+    console.log(`Removing presence for ${userId}`);
     const userPresenceRef = ref(realtimeDb, `presence/${userId}`);
 
     // Cancel the onDisconnect operation first, with error handling
     try {
       await onDisconnect(userPresenceRef).cancel();
+      console.log(`Cancelled onDisconnect for ${userId}`);
     } catch (error) {
       // If this fails with permission error, it's usually because the user is already logged out
       // or the session has expired, so we can safely continue with logout
@@ -63,6 +85,7 @@ export const removeUserPresence = async (userId: string) => {
     // Then try to remove the presence
     try {
       await set(userPresenceRef, null);
+      console.log(`Successfully removed presence for ${userId}`);
       return true;
     } catch (error) {
       // Silently handle permission errors during logout

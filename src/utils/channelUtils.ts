@@ -23,7 +23,9 @@ export const getConversationId = (user1Id: string, user2Id: string): string => {
   // Log the original IDs for debugging
   console.log(`Creating conversation ID from: "${id1}" and "${id2}"`);
   
-  // Create sorted ID to ensure consistency
+  // Create sorted ID to ensure consistency - We want IDs in a fixed order
+  // This ensures that conversations between the same users always have the same ID
+  // regardless of who initiated them
   const sortedIds = [id1, id2].sort();
   const conversationId = sortedIds.join('_');
   
@@ -112,13 +114,17 @@ export const debugConversationAccess = (
     };
   }
 
-  const parts = conversationId.split('_');
+  // Update to match new security rules logic using .contains()
   const userIdStr = String(userId);
   const containsUserId = conversationId.includes(userIdStr);
+  
+  // For detailed debugging
+  const parts = conversationId.split('_');
   const indexOfUserId = parts.indexOf(userIdStr);
   
   return {
-    allowed: indexOfUserId !== -1,
+    // With new rules, we're checking if the conversation contains the user ID
+    allowed: containsUserId,
     details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, IndexOf: ${indexOfUserId}, Contains: ${containsUserId}`
   };
 };

@@ -1,11 +1,11 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, onValue, set, serverTimestamp, onDisconnect } from 'firebase/database';
+import { ref, onValue, set, serverTimestamp, onDisconnect, DatabaseReference } from 'firebase/database';
 import { toast } from 'sonner';
 import { MOCK_VIP_USER } from '@/utils/mockUsers';
 import { getUserProfile } from '@/lib/firebase';
 import { getFlagEmoji, getCountryCode } from '@/utils/countryTools';
+import { debugConversationAccess } from '@/utils/channelUtils';
 
 interface PresenceUser {
   user_id: string;
@@ -54,7 +54,9 @@ const getAvatarColors = (userId: string): { bg: string, text: string } => {
 
 export const usePresence = (currentUserId: string | null) => {
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
-  const userPresenceRef = useRef<any>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const userPresenceRef = useRef<DatabaseReference | null>(null);
+  const presenceListenerRef = useRef<(() => void) | null>(null);
 
   // --- Handle presence setup/cleanup ---
   useEffect(() => {
@@ -76,6 +78,7 @@ export const usePresence = (currentUserId: string | null) => {
 
         if (!userProfile) {
           console.warn('No user profile found for current user');
+          toast.error("Could not load your profile. Please try logging in again.");
           return;
         }
 
@@ -122,14 +125,91 @@ export const usePresence = (currentUserId: string | null) => {
         const presenceRef = ref(realtimeDb, 'presence');
         console.log('Listening to all presence at:', 'presence');
         
-        unsubPresenceListener = onValue(presenceRef, (snapshot) => {
-          console.log('Presence data received, exists:', snapshot.exists());
-          
-          const users: PresenceUser[] = [];
-          
-          if (!snapshot.exists()) {
-            console.log('No users present, adding mock user');
-            // Add required fields to mock VIP user
+        // Test database rules for reading presence
+        console.log('Testing database access to presence:', 
+          debugConversationAccess('presence', currentUserId));
+        
+        // Add error handling to onValue listener
+        unsubPresenceListener = onValue(
+          presenceRef, 
+          (snapshot) => {
+            console.log('Presence data received, exists:', snapshot.exists());
+            setConnectionError(null); // Clear any previous errors
+            
+            const users: PresenceUser[] = [];
+            
+            if (!snapshot.exists()) {
+              console.log('No users present, adding mock user');
+              // Add required fields to mock VIP user
+              const mockUserWithRequiredFields = {
+                ...MOCK_VIP_USER,
+                avatarInitial: getAvatarInitial(MOCK_VIP_USER.nickname),
+                avatarBgColor: 'bg-yellow-100',
+                avatarTextColor: 'text-yellow-600',
+                flagEmoji: '🇺🇸'
+              };
+              setOnlineUsers([mockUserWithRequiredFields]);
+              return;
+            }
+            
+            snapshot.forEach((childSnapshot) => {
+              const userData = childSnapshot.val();
+              const userId = childSnapshot.key;
+              
+              if (userData && userId) {
+                console.log(`User present: ${userId} (${userData.nickname})`);
+                
+                // If user data doesn't have required fields, add them
+                if (!userData.avatarInitial || !userData.avatarBgColor) {
+                  const avatarColors = getAvatarColors(userId);
+                  const avatarInitial = getAvatarInitial(userData.nickname || 'Anonymous');
+                  const countryCode = getCountryCode(userData.country || '');
+                  const flagEmoji = getFlagEmoji(countryCode);
+                  
+                  users.push({
+                    ...userData,
+                    user_id: userId,
+                    is_current_user: userId === currentUserId,
+                    avatarInitial: avatarInitial,
+                    avatarBgColor: avatarColors.bg,
+                    avatarTextColor: avatarColors.text,
+                    flagEmoji: flagEmoji || '🏳️' // Fallback to neutral flag
+                  });
+                } else {
+                  users.push({
+                    ...userData,
+                    user_id: userId,
+                    is_current_user: userId === currentUserId
+                  });
+                }
+              }
+            });
+            
+            // Always include mock VIP user with required fields
+            const mockUser = users.find(u => u.user_id === MOCK_VIP_USER.user_id);
+            if (!mockUser) {
+              console.log('Adding mock VIP user to presence list');
+              // Add required fields to mock VIP user
+              const mockUserWithRequiredFields = {
+                ...MOCK_VIP_USER,
+                avatarInitial: getAvatarInitial(MOCK_VIP_USER.nickname),
+                avatarBgColor: 'bg-yellow-100',
+                avatarTextColor: 'text-yellow-600',
+                flagEmoji: '🇺🇸'
+              };
+              users.push(mockUserWithRequiredFields);
+            }
+            
+            console.log(`Total online users: ${users.length}`);
+            console.log('Online users data:', users);
+            setOnlineUsers(users);
+          },
+          (error) => {
+            // New error handling
+            console.error('Error listening to presence:', error);
+            setConnectionError(`Failed to connect to presence system: ${error.message}`);
+            
+            // Add fallback mock user so UI is not empty
             const mockUserWithRequiredFields = {
               ...MOCK_VIP_USER,
               avatarInitial: getAvatarInitial(MOCK_VIP_USER.nickname),
@@ -138,64 +218,17 @@ export const usePresence = (currentUserId: string | null) => {
               flagEmoji: '🇺🇸'
             };
             setOnlineUsers([mockUserWithRequiredFields]);
-            return;
-          }
-          
-          snapshot.forEach((childSnapshot) => {
-            const userData = childSnapshot.val();
-            const userId = childSnapshot.key;
             
-            if (userData && userId) {
-              console.log(`User present: ${userId} (${userData.nickname})`);
-              
-              // If user data doesn't have required fields, add them
-              if (!userData.avatarInitial || !userData.avatarBgColor) {
-                const avatarColors = getAvatarColors(userId);
-                const avatarInitial = getAvatarInitial(userData.nickname || 'Anonymous');
-                const countryCode = getCountryCode(userData.country || '');
-                const flagEmoji = getFlagEmoji(countryCode);
-                
-                users.push({
-                  ...userData,
-                  user_id: userId,
-                  is_current_user: userId === currentUserId,
-                  avatarInitial: avatarInitial,
-                  avatarBgColor: avatarColors.bg,
-                  avatarTextColor: avatarColors.text,
-                  flagEmoji: flagEmoji || '🏳️' // Fallback to neutral flag
-                });
-              } else {
-                users.push({
-                  ...userData,
-                  user_id: userId,
-                  is_current_user: userId === currentUserId
-                });
-              }
-            }
-          });
-          
-          // Always include mock VIP user with required fields
-          const mockUser = users.find(u => u.user_id === MOCK_VIP_USER.user_id);
-          if (!mockUser) {
-            console.log('Adding mock VIP user to presence list');
-            // Add required fields to mock VIP user
-            const mockUserWithRequiredFields = {
-              ...MOCK_VIP_USER,
-              avatarInitial: getAvatarInitial(MOCK_VIP_USER.nickname),
-              avatarBgColor: 'bg-yellow-100',
-              avatarTextColor: 'text-yellow-600',
-              flagEmoji: '🇺🇸'
-            };
-            users.push(mockUserWithRequiredFields);
+            // Show error toast
+            toast.error('Failed to connect to user presence system. Please check your connection.');
           }
-          
-          console.log(`Total online users: ${users.length}`);
-          console.log('Online users data:', users);
-          setOnlineUsers(users);
-        });
+        );
+        
+        presenceListenerRef.current = unsubPresenceListener;
 
       } catch (error) {
         console.error('Error in presence system:', error);
+        setConnectionError(`Error in presence system: ${error instanceof Error ? error.message : String(error)}`);
         toast.error('Failed to connect to presence system');
       }
     };
@@ -205,15 +238,25 @@ export const usePresence = (currentUserId: string | null) => {
     // Cleanup on unmount
     return () => {
       console.log('Cleaning up presence for user:', currentUserId);
+      
+      // Remove user presence
       if (userPresenceRef.current) {
         set(userPresenceRef.current, null)
           .catch(err => console.error('Error clearing presence:', err));
+        userPresenceRef.current = null;
       }
+      
+      // Unsubscribe from presence listener
+      if (typeof presenceListenerRef.current === 'function') {
+        presenceListenerRef.current();
+        presenceListenerRef.current = null;
+      }
+      
       if (typeof unsubPresenceListener === 'function') {
         unsubPresenceListener();
       }
     };
   }, [currentUserId]);
 
-  return { onlineUsers };
+  return { onlineUsers, connectionError };
 };

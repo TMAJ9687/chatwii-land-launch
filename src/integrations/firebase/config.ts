@@ -22,23 +22,23 @@ export const realtimeDatabaseRules = {
     },
     "messages": {
       "$conversation_id": {
-        // Fixed: replaced contains with indexOf
-        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        // Fixed: using contains which is supported in RTDB
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
     "message_reactions": {
       "$conversation_id": {
-        // Fixed: replaced contains with indexOf
-        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        // Fixed: using contains which is supported in RTDB
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
     "typing_status": {
       "$conversation_id": {
-        // Fixed: replaced contains with indexOf
-        ".read": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)",
-        ".write": "auth !== null && ($conversation_id.split('_').indexOf(auth.uid) !== -1)"
+        // Fixed: using contains which is supported in RTDB
+        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
     ".read": false,
