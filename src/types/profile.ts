@@ -13,6 +13,9 @@ export interface Profile {
   profile_theme?: string;
 }
 
+// Gender type for better type safety
+export type Gender = "Male" | "Female" | "Other" | string;
+
 export interface UserInterest {
   interests: {
     name: string;

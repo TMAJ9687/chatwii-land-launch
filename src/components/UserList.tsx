@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Ensure React is imported
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { getFlagEmoji, getCountryCode } from '@/utils/countryTools'; // Import getFlagEmoji
+import { Gender } from '@/types/profile'; // Import the Gender type
 
 // --- Define a more complete User type (adjust based on your actual data) ---
 interface OnlineUser {
@@ -22,6 +22,11 @@ interface OnlineUser {
   avatar_url?: string;
   profile_theme?: string; // Keep if used elsewhere, otherwise remove
   is_current_user?: boolean;
+  // Added properties
+  avatarInitial?: string;
+  avatarBgColor?: string;
+  avatarTextColor?: string;
+  flagEmoji?: string;
 }
 // --- End of User type ---
 
@@ -94,15 +99,22 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
   }, [users]);
   // --- End of fetching interests ---
 
-  // --- Filtering logic (keep as is) ---
+  // --- Filtering logic with type-safe gender check ---
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => !user.is_current_user) // Ensure user exists
       .filter(user => {
         if (!user) return false; // Basic check
-        if (filters.selectedGenders.length > 0 && !filters.selectedGenders.includes(user.gender)) return false;
+        
+        // Fixed type issue: use type safe comparison for gender
+        if (filters.selectedGenders.length > 0 && 
+            !filters.selectedGenders.includes(user.gender as Gender)) {
+          return false;
+        }
+        
         if ((user.age ?? 0) < filters.ageRange.min || (user.age ?? 0) > filters.ageRange.max) return false;
         if (filters.selectedCountries.length > 0 && !filters.selectedCountries.includes(user.country)) return false;
+        
         return true;
       });
   }, [users, filters]);
@@ -122,16 +134,19 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
   // --- Process users to add required UserListItem props ---
   const processedUsers = useMemo(() => {
     return filteredUsers.map(user => {
-      // Get avatar colors based on user ID
-      const colors = getAvatarColors(user.user_id);
+      // Use existing properties if available or generate them
+      const avatarInitial = user.avatarInitial ?? getAvatarInitial(user.nickname);
+      const colors = user.avatarBgColor && user.avatarTextColor
+        ? { bg: user.avatarBgColor, text: user.avatarTextColor }
+        : getAvatarColors(user.user_id);
       
-      // Get country code and flag emoji
+      // Get country code and flag emoji if not already provided
       const countryCode = getCountryCode(user.country);
-      const flagEmoji = getFlagEmoji(countryCode);
+      const flagEmoji = user.flagEmoji ?? getFlagEmoji(countryCode);
       
       return {
         ...user,
-        avatarInitial: getAvatarInitial(user.nickname),
+        avatarInitial,
         avatarBgColor: colors.bg,
         avatarTextColor: colors.text,
         flagEmoji: flagEmoji || '🏳️' // Fallback to neutral flag if no emoji found
@@ -233,15 +248,15 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
                       gender={user.gender}
                       age={user.age}
                       country={user.country}
-                      flagEmoji={user.flagEmoji}
+                      flagEmoji={user.flagEmoji || '🏳️'}
                       isVip={user.role === 'vip' || user.vip_status}
                       interests={userInterests[user.user_id] || []}
                       isSelected={selectedUserId === user.user_id}
                       onClick={() => handleUserSelection(user.user_id)}
                       avatarUrl={user.avatar_url}
-                      avatarInitial={user.avatarInitial}
-                      avatarBgColor={user.avatarBgColor}
-                      avatarTextColor={user.avatarTextColor}
+                      avatarInitial={user.avatarInitial || getAvatarInitial(user.nickname)}
+                      avatarBgColor={user.avatarBgColor || getAvatarColors(user.user_id).bg}
+                      avatarTextColor={user.avatarTextColor || getAvatarColors(user.user_id).text}
                       isBlocked={blockedUsers.includes(user.user_id)}
                       onUnblock={
                           blockedUsers.includes(user.user_id)
