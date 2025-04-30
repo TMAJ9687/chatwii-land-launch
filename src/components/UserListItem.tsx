@@ -1,162 +1,137 @@
-import { useEffect, useState, useMemo } from "react";
-import { Crown, Bot } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { getFlagUrl } from "@/utils/countryTools";
+import React from 'react'; // Import React
+import { Crown } from 'lucide-react'; // Keep lucide-react for Crown
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'; // Assuming shadcn/ui Avatar
+import { Button } from '@/components/ui/button'; // Keep Button for unblock
+
+// --- CSS for the pulsing glow (Place this in your global CSS file) ---
+/*
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 6px rgba(255, 215, 0, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 6px rgba(255, 215, 0, 0.2);
+    }
+}
+
+.vip-pulsing-glow {
+    position: relative;
+    z-index: 1;
+    animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+// Optional: Style for flag emoji if needed
+.flag-icon {
+    display: inline-block;
+    width: 1.1em;
+    height: 1.1em;
+    line-height: 1.1em;
+    text-align: center;
+    flex-shrink: 0;
+}
+*/
+// --- End of CSS ---
 
 interface UserListItemProps {
   name: string;
   gender: string;
   age: number;
   country: string;
+  flagEmoji: string; // Added prop for flag emoji
   isVip?: boolean;
   interests: string[];
   isSelected?: boolean;
   onClick?: () => void;
-  avatar?: string;
-  profileTheme?: string;
+  avatarUrl?: string; // Renamed from avatar for clarity
+  avatarInitial: string; // Added prop for initial
+  avatarBgColor: string; // Added prop for background color class (e.g., 'bg-purple-100')
+  avatarTextColor: string; // Added prop for text color class (e.g., 'text-purple-600')
   isBlocked?: boolean;
   onUnblock?: () => void;
-  role?: string;
-  isCurrentUser?: boolean;
+  // role?: string; // Role might be redundant if isVip covers it
 }
 
-export const UserListItem = ({
+export const UserListItem: React.FC<UserListItemProps> = ({
   name,
   gender,
   age,
   country,
+  flagEmoji,
   isVip = false,
   interests = [],
   isSelected = false,
   onClick,
-  avatar,
-  profileTheme = "default",
+  avatarUrl,
+  avatarInitial,
+  avatarBgColor,
+  avatarTextColor,
   isBlocked = false,
   onUnblock,
-  role = "standard",
-  isCurrentUser = false,
-}: UserListItemProps) => {
-  const firstLetter = name?.charAt(0)?.toUpperCase() || "?";
-  const genderColor = useMemo(
-    () => (gender === "Female" ? "text-pink-500" : "text-blue-500"),
-    [gender]
-  );
-  const [flagUrl, setFlagUrl] = useState<string>("");
-  const [showFlag, setShowFlag] = useState<boolean>(false);
+}) => {
+  const genderColor = gender === 'Female' ? 'text-pink-600' : 'text-blue-600';
 
-  useEffect(() => {
-    if (!country) {
-      setShowFlag(false);
-      setFlagUrl("");
-      return;
-    }
-    try {
-      const url = getFlagUrl(country);
-      if (url) {
-        setFlagUrl(url);
-        setShowFlag(true);
-      } else {
-        setShowFlag(false);
-      }
-    } catch (error) {
-      setShowFlag(false);
-    }
-  }, [country]);
-
-  // Theme border for VIP users
-  const themeBorderClass = useMemo(() => {
-    if (!isVip) return "";
-    switch (profileTheme) {
-      case "gold":
-        return "border-2 border-yellow-500";
-      case "blue":
-        return "border-2 border-blue-400 shadow shadow-blue-300";
-      case "purple":
-        return "border-2 border-purple-500";
-      case "green":
-        return "border-2 border-green-500";
-      default:
-        return "border-2 border-gray-300";
-    }
-  }, [isVip, profileTheme]);
+  // Combine base classes with conditional glow class
+  const cardClasses = `
+    flex items-center bg-white p-3 rounded-lg shadow-sm ml-4 mr-4
+    ${isBlocked ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer'}
+    ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+    ${isVip ? 'vip-pulsing-glow' : ''}
+  `;
 
   return (
     <div
-      className={`flex items-start p-4 gap-4
-        ${isSelected ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800"}
-        ${isBlocked ? "opacity-50 grayscale" : ""}
-        cursor-pointer transition-all`}
-      onClick={onClick}
+      className={cardClasses}
+      onClick={!isBlocked ? onClick : undefined}
       aria-selected={isSelected}
-      tabIndex={0}
       role="listitem"
+      tabIndex={!isBlocked ? 0 : -1}
     >
-      <div className={`flex-shrink-0 ${isVip ? themeBorderClass : ""} rounded-full`}>
-        <Avatar className="w-12 h-12">
-          {avatar ? (
-            <AvatarImage src={avatar} alt={name} />
+      {/* Avatar */}
+      <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center font-semibold mr-3 ${avatarBgColor} ${avatarTextColor}`}>
+        <Avatar className="w-11 h-11">
+          {avatarUrl ? (
+            <AvatarImage src={avatarUrl} alt={name} className="object-cover"/>
           ) : (
-            <AvatarFallback className="bg-gray-200 dark:bg-gray-700">
-              {firstLetter}
+            <AvatarFallback className={`${avatarBgColor} ${avatarTextColor} text-lg`}>
+              {avatarInitial}
             </AvatarFallback>
           )}
         </Avatar>
       </div>
 
-      <div className="flex flex-col flex-grow min-w-0 gap-2">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-base truncate">{name}</h3>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className={`${genderColor} text-sm font-medium`}>
-              {gender}, {age}
-            </span>
-            {isVip && (
-              <span className="flex items-center text-xs font-bold text-yellow-500">
-                <Crown className="h-3.5 w-3.5 mr-0.5" />
-                VIP
-              </span>
-            )}
-            {role === "bot" && (
-              <span className="flex items-center text-xs font-bold text-blue-500">
-                <Bot className="h-3.5 w-3.5 mr-0.5" />
-                BOT
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Country & Flag */}
-        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-          {country && (
-            <div className="flex items-center">
-              {showFlag && flagUrl && (
-                <img
-                  src={flagUrl}
-                  alt={`${country} flag`}
-                  className="w-5 h-4 mr-2 rounded-sm shadow-sm object-cover"
-                  onError={() => setShowFlag(false)}
-                  loading="lazy"
-                  draggable={false}
-                />
-              )}
-              <span>{country}</span>
-            </div>
+      {/* User Details */}
+      <div className="flex-grow min-w-0">
+        {/* Top line: Name, Crown, VIP */}
+        <div className="flex items-center space-x-1.5 mb-1">
+          <span className="font-semibold text-sm text-gray-800 truncate">{name}</span>
+          {isVip && (
+            <>
+              <span className="text-yellow-500 text-xs flex-shrink-0">👑</span>
+              <span className="text-xs font-medium bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded flex-shrink-0">VIP</span>
+            </>
           )}
         </div>
 
-        {/* Interests */}
+        {/* Second line: Country, Flag, Separator, Gender/Age */}
+        <div className="flex items-center text-xs text-gray-500 space-x-1.5 mb-1.5">
+          <span className="truncate">{country}</span>
+          {flagEmoji && <span className="flag-icon">{flagEmoji}</span>}
+          <span className="text-gray-300">|</span>
+          <span className={`${genderColor} font-medium whitespace-nowrap`}>
+            {gender}, {age}
+          </span>
+        </div>
+
+        {/* Third line: Interests */}
         {interests.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
+          <div className="flex flex-wrap gap-1">
             {interests.map((interest, idx) => (
               <span
                 key={idx}
-                className={`px-2 py-0.5 text-xs rounded-full
-                  ${
-                    isVip
-                      ? "bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                  }`}
+                className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
               >
                 {interest}
               </span>
@@ -164,22 +139,22 @@ export const UserListItem = ({
           </div>
         )}
 
-        {/* Blocked User Unblock Button */}
-        {isBlocked && onUnblock && (
-          <div className="mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={e => {
-                e.stopPropagation();
-                onUnblock();
-              }}
-              className="text-xs h-7 px-2"
-            >
-              Unblock
-            </Button>
-          </div>
-        )}
+         {/* Blocked User Unblock Button */}
+         {isBlocked && onUnblock && (
+           <div className="mt-2">
+             <Button
+               variant="ghost"
+               size="sm"
+               onClick={(e) => {
+                 e.stopPropagation(); // Prevent card click
+                 onUnblock();
+               }}
+               className="text-xs h-7 px-2 text-blue-600 hover:bg-blue-50"
+             >
+               Unblock
+             </Button>
+           </div>
+         )}
       </div>
     </div>
   );
