@@ -6,9 +6,11 @@ import { HistorySidebar } from '@/components/sidebar/HistorySidebar';
 import { BlockedUsersSidebar } from '@/components/sidebar/BlockedUsersSidebar';
 import { RulesPopup } from '@/components/RulesPopup';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
-import { usePresence } from '@/hooks/usePresence';
-import { useGlobalMessages } from '@/hooks/useGlobalMessages';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useAuthProfile } from '@/hooks/useAuthProfile';
+import { usePresenceState } from '@/hooks/usePresenceState';
+import { useOnlineUsers } from '@/hooks/useOnlineUsers';
+import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useConversation } from '@/hooks/useConversation';
 import { useMessages } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
@@ -46,15 +48,19 @@ const ChatInterfaceContent = () => {
     loading: profileLoading 
   } = useAuthProfile();
 
-  const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
-  const { onlineUsers } = usePresence(currentUserId);
+  // Setup user presence
+  const { isOnline } = usePresenceState(currentUserId);
 
-  // Create an async wrapper function for messages hook to match expected Promise<void> return type
+  // Get unread message counts
+  const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
+
+  // Create an async wrapper function for messages hook
   const markMessagesAsReadAsync = async () => {
     fetchUnreadCount();
     return Promise.resolve();
   };
 
+  // Get messages for the selected conversation
   const { 
     messages, 
     setMessages,
@@ -63,31 +69,35 @@ const ChatInterfaceContent = () => {
     error: messagesError
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
 
+  // Setup conversation functionality
   const {
     handleSendMessage,
     handleDeleteConversation,
   } = useConversation(currentUserId, selectedUserId, currentUserRole, isVipUser);
 
+  // Setup typing indicator
   const { isTyping, setIsTyping, broadcastTypingStatus } = useTypingIndicator(
     currentUserId,
     selectedUserId,
     isVipUser
   );
 
-  // Simply call the hook without destructuring now
+  // Setup channel listeners
   useChannelSetup(currentUserId, selectedUserId, setMessages, fetchMessages);
 
+  // Check if rules are accepted
   useEffect(() => {
     if (currentUserId) {
       checkRulesAccepted();
     }
   }, [currentUserId, checkRulesAccepted]);
 
+  // Handle typing status change
   const handleTypingStatusChange = (isTyping: boolean) => {
     setIsTyping(isTyping);
   };
 
-  // Update handleUserSelect to match the expected signature in UserList component
+  // Update handleUserSelect to match the expected signature
   const handleUserSelect = (userId: string) => {
     contextHandleUserSelect(userId, '');
   };
@@ -109,9 +119,9 @@ const ChatInterfaceContent = () => {
     <ChatLayout unreadCount={unreadCount} isVipUser={isVipUser}>
       <div className="flex h-[calc(100vh-60px)]">
         <UserListSidebar
-          onlineUsers={onlineUsers}
           onUserSelect={handleUserSelect}
           selectedUserId={selectedUserId}
+          currentUserId={currentUserId}
         />
 
         <main className="flex-1 flex flex-col">
@@ -144,6 +154,7 @@ const ChatInterfaceContent = () => {
         </main>
       </div>
 
+      {/* Sidebar containers */}
       <SidebarContainer
         isOpen={activeSidebar === 'inbox'}
         onClose={() => setActiveSidebar('none')}
@@ -168,6 +179,7 @@ const ChatInterfaceContent = () => {
         <BlockedUsersSidebar />
       </SidebarContainer>
 
+      {/* Popups */}
       {!acceptedRules && (
         <RulesPopup
           open={showRules}

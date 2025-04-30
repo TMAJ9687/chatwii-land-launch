@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { createDocument, queryDocuments } from '@/lib/firebase';
+import { queryDocuments, createDocument } from '@/lib/firebase';
 
 interface BlockedUser {
   id: string;
@@ -39,11 +39,8 @@ export const useBlockedUsers = () => {
       
     } catch (error) {
       console.error('Error fetching blocked users:', error);
+      // Handle permissions error gracefully - don't show error toast on normal startup
       setError('Failed to load blocked users');
-      // Only show toast on actual errors, not during normal startup
-      if (currentUserId) {
-        toast.error('Failed to load blocked users');
-      }
       // Return empty array to avoid UI issues
       setBlockedUsers([]);
     } finally {

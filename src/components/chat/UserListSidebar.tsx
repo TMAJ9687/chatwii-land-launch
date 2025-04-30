@@ -1,65 +1,42 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { UserList } from '@/components/UserList';
-import { toast } from 'sonner';
-
-// Define proper online user type that matches what UserList expects
-interface OnlineUser {
-  user_id: string;
-  nickname: string;
-  gender: string;
-  age: number;
-  country: string;
-  role?: string;
-  vip_status?: boolean;
-  avatar_url?: string;
-  profile_theme?: string;
-  is_current_user?: boolean;
-  // These fields were added in usePresence but missing in the type definition
-  avatarInitial?: string;
-  avatarBgColor?: string;
-  avatarTextColor?: string;
-  flagEmoji?: string;
-}
+import { useOnlineUsers } from '@/hooks/useOnlineUsers';
+import { useConnectionMonitor } from '@/hooks/useConnectionMonitor';
+import { useChatConnection } from '@/hooks/chat/useChatConnection';
+import { OnlineUser } from '@/hooks/useOnlineUsers';
 
 interface UserListSidebarProps {
-  onlineUsers: OnlineUser[];
   onUserSelect: (userId: string) => void;
   selectedUserId: string | null;
+  currentUserId: string | null;
 }
 
 export const UserListSidebar: React.FC<UserListSidebarProps> = ({
-  onlineUsers,
   onUserSelect,
-  selectedUserId
+  selectedUserId,
+  currentUserId
 }) => {
+  // Get online users from our new hook
+  const { 
+    onlineUsers, 
+    isLoading, 
+    error, 
+    hasUsers 
+  } = useOnlineUsers({ 
+    currentUserId,
+    includeMockUsers: true
+  });
   
-  // Debug: Log props on component mount and when they change
-  useEffect(() => {
-    console.log('UserListSidebar rendered with:', {
-      onlineUsersCount: onlineUsers.length,
-      onlineUsers,
-      selectedUserId
-    });
-    
-    // Add a toast notification if no users are visible
-    if (onlineUsers.length === 0) {
-      console.warn('No online users detected in sidebar');
-      // Show toast only if there are really no users (not on first render)
-      setTimeout(() => {
-        if (onlineUsers.length === 0) {
-          toast.error("No online users found. Please check your connection.");
-        }
-      }, 3000);
-    }
-    
-    // Check if each user has the required fields
-    onlineUsers.forEach((user, index) => {
-      if (!user.user_id || !user.nickname) {
-        console.error(`Invalid user data at index ${index}:`, user);
-      }
-    });
-  }, [onlineUsers, selectedUserId]);
+  // Monitor connection status
+  const { isConnected, reconnect } = useChatConnection(true);
+  
+  // Convert connection status for the UserList component
+  const connectionStatus = isLoading 
+    ? 'connecting'
+    : isConnected 
+      ? 'connected' 
+      : 'disconnected';
 
   return (
     <aside className="w-full max-w-xs border-r border-border">
@@ -67,6 +44,8 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
         users={onlineUsers}
         onUserSelect={onUserSelect}
         selectedUserId={selectedUserId ?? undefined}
+        connectionStatus={connectionStatus}
+        onRetryConnection={reconnect}
       />
     </aside>
   );

@@ -1,3 +1,4 @@
+
 /**
  * Utility functions for managing Firebase Realtime Database channels
  */
@@ -22,9 +23,7 @@ export const getConversationId = (user1Id: string, user2Id: string): string => {
   // Log the original IDs for debugging
   console.log(`Creating conversation ID from: "${id1}" and "${id2}"`);
   
-  // Create sorted ID to ensure consistency - We want IDs in a fixed order
-  // This ensures that conversations between the same users always have the same ID
-  // regardless of who initiated them
+  // Create sorted ID to ensure consistency
   const sortedIds = [id1, id2].sort();
   const conversationId = sortedIds.join('_');
   
@@ -34,56 +33,29 @@ export const getConversationId = (user1Id: string, user2Id: string): string => {
   return conversationId;
 };
 
-/**
- * Generate a channel name for messages in a conversation
- * @param conversationId The conversation ID
- * @returns Channel name for messages
- */
+// Message channel helpers
 export const getMessageChannelName = (conversationId: string): string => {
   return `messages_${conversationId}`;
 };
 
-/**
- * Generate a Firebase path for messages in a conversation
- * @param conversationId The conversation ID
- * @returns Firebase path for messages
- */
 export const getMessageChannelPath = (conversationId: string): string => {
   return `messages/${conversationId}`;
 };
 
-/**
- * Generate a channel name for reactions in a conversation
- * @param conversationId The conversation ID
- * @returns Channel name for reactions
- */
+// Reactions channel helpers
 export const getReactionsChannelName = (conversationId: string): string => {
   return `reactions_${conversationId}`;
 };
 
-/**
- * Generate a Firebase path for reactions in a conversation
- * @param conversationId The conversation ID
- * @returns Firebase path for reactions
- */
 export const getReactionsChannelPath = (conversationId: string): string => {
   return `message_reactions/${conversationId}`;
 };
 
-/**
- * Generate a channel name for typing status in a conversation
- * @param conversationId The conversation ID
- * @returns Channel name for typing status
- */
+// Typing status channel helpers
 export const getTypingChannelName = (conversationId: string): string => {
   return `typing_${conversationId}`;
 };
 
-/**
- * Generate a Firebase path for typing status in a conversation
- * @param conversationId The conversation ID
- * @returns Firebase path for typing status
- */
 export const getTypingChannelPath = (conversationId: string): string => {
   return `typing_status/${conversationId}`;
 };
@@ -100,7 +72,6 @@ export const normalizeSnapshotValue = (snapshot: any): any => {
 
 /**
  * Debug function to verify if a user ID is part of a conversation ID
- * Helps troubleshoot Realtime Database security rules
  */
 export const debugConversationAccess = (
   conversationId: string,
@@ -113,7 +84,7 @@ export const debugConversationAccess = (
     };
   }
 
-  // Match the security rules using contains()
+  // Match the security rules using contains() - Firebase RTDB method
   const userIdStr = String(userId);
   const containsUserId = conversationId.includes(userIdStr);
   
@@ -123,10 +94,7 @@ export const debugConversationAccess = (
   };
 };
 
-/**
- * Store the current user ID in localStorage for easy access
- * @param userId The user ID to store
- */
+// User ID storage
 export const storeCurrentUserId = (userId: string | null) => {
   if (userId) {
     console.log('Storing current user ID in localStorage:', userId);
@@ -137,10 +105,6 @@ export const storeCurrentUserId = (userId: string | null) => {
   }
 };
 
-/**
- * Get the current user ID from localStorage
- * @returns The current user ID or null if not found
- */
 export const getCurrentUserId = (): string | null => {
   const userId = localStorage.getItem('userId');
   console.log('Retrieved current user ID from localStorage:', userId);
