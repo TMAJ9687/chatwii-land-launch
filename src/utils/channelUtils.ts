@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for managing Firebase Realtime Database channels
  */
@@ -114,18 +113,13 @@ export const debugConversationAccess = (
     };
   }
 
-  // Update to match new security rules logic using .contains()
+  // Match the security rules using contains()
   const userIdStr = String(userId);
   const containsUserId = conversationId.includes(userIdStr);
   
-  // For detailed debugging
-  const parts = conversationId.split('_');
-  const indexOfUserId = parts.indexOf(userIdStr);
-  
   return {
-    // With new rules, we're checking if the conversation contains the user ID
     allowed: containsUserId,
-    details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, IndexOf: ${indexOfUserId}, Contains: ${containsUserId}`
+    details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, Contains: ${containsUserId}`
   };
 };
 

@@ -45,6 +45,12 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
     // Add a toast notification if no users are visible
     if (onlineUsers.length === 0) {
       console.warn('No online users detected in sidebar');
+      // Show toast only if there are really no users (not on first render)
+      setTimeout(() => {
+        if (onlineUsers.length === 0) {
+          toast.error("No online users found. Please check your connection.");
+        }
+      }, 3000);
     }
     
     // Check if each user has the required fields

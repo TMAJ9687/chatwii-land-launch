@@ -15,28 +15,30 @@ export const firebaseConfig = {
 export const realtimeDatabaseRules = {
   "rules": {
     "presence": {
+      // Allow reading all presence data for any authenticated user
+      ".read": "auth !== null",
       "$uid": {
-        ".read": true,
+        // Only the owner can write their own presence
         ".write": "$uid === auth.uid"
       }
     },
     "messages": {
       "$conversation_id": {
-        // Fixed: using contains which is supported in RTDB
+        // Check if conversation ID contains the user's ID (fixed for RTDB)
         ".read": "auth !== null && $conversation_id.contains(auth.uid)",
         ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
     "message_reactions": {
       "$conversation_id": {
-        // Fixed: using contains which is supported in RTDB
+        // Check if conversation ID contains the user's ID (fixed for RTDB)
         ".read": "auth !== null && $conversation_id.contains(auth.uid)",
         ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
     "typing_status": {
       "$conversation_id": {
-        // Fixed: using contains which is supported in RTDB
+        // Check if conversation ID contains the user's ID (fixed for RTDB)
         ".read": "auth !== null && $conversation_id.contains(auth.uid)",
         ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }

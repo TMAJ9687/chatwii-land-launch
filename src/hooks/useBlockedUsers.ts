@@ -13,11 +13,17 @@ interface BlockedUser {
 export const useBlockedUsers = () => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch blocked users on mount
   const fetchBlockedUsers = useCallback(async (currentUserId: string | null) => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
+    setError(null);
     
     try {
       const blockedRecords = await queryDocuments('blocked_users', [
@@ -33,7 +39,13 @@ export const useBlockedUsers = () => {
       
     } catch (error) {
       console.error('Error fetching blocked users:', error);
-      toast.error('Failed to load blocked users');
+      setError('Failed to load blocked users');
+      // Only show toast on actual errors, not during normal startup
+      if (currentUserId) {
+        toast.error('Failed to load blocked users');
+      }
+      // Return empty array to avoid UI issues
+      setBlockedUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -115,6 +127,7 @@ export const useBlockedUsers = () => {
   return {
     blockedUsers,
     isLoading,
+    error,
     fetchBlockedUsers,
     blockUser,
     unblockUser,
