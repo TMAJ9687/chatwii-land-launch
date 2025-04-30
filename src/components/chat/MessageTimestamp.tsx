@@ -1,23 +1,20 @@
 
 import React from 'react';
-import { Timestamp } from 'firebase/firestore';
-import { formatTimestamp } from './message/MessageTimeFormatter';
+import { format } from 'date-fns';
 
 interface MessageTimestampProps {
-  timestamp: string | Date | Timestamp;
+  timestamp: string;
   isCurrentUser: boolean;
 }
 
 export const MessageTimestamp: React.FC<MessageTimestampProps> = ({ timestamp, isCurrentUser }) => {
-  const formattedTime = formatTimestamp(timestamp);
-  
   return (
     <span className={`text-xs ${
       isCurrentUser
         ? 'text-primary-foreground/70'
         : 'text-muted-foreground'
     }`}>
-      {formattedTime}
+      {format(new Date(timestamp), 'HH:mm')}
     </span>
   );
 };

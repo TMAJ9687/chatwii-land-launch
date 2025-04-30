@@ -3,9 +3,6 @@ import React from 'react';
 import { MessageWithMedia } from '@/types/message';
 import { cn } from '@/lib/utils';
 import { MessageReplyContent } from './MessageReplyContent';
-import { createLogger } from '@/utils/logger';
-
-const logger = createLogger('MessageBubbleWrapper');
 
 interface MessageBubbleWrapperProps {
   message: MessageWithMedia;
@@ -25,7 +22,7 @@ export const MessageBubbleWrapper: React.FC<MessageBubbleWrapperProps> = ({
   return (
     <div 
       className={cn(
-        "flex mb-4 relative group", 
+        "flex mb-4", 
         isCurrentUser ? "justify-end" : "justify-start"
       )}
       data-message-id={message.id}

@@ -1,5 +1,4 @@
 
-import React, { useState, useCallback } from 'react';
 import { MoreHorizontal, ReplyIcon, SmileIcon, Trash2, Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageWithMedia } from '@/types/message';
@@ -10,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EmojiPicker } from './EmojiPicker';
+import { useState, useCallback } from 'react';
 
 interface MessageActionsProps {
   message: MessageWithMedia;
@@ -22,7 +22,7 @@ interface MessageActionsProps {
   translating?: boolean;
 }
 
-export const MessageActions: React.FC<MessageActionsProps> = ({
+export const MessageActions = ({
   message,
   isCurrentUser,
   isVipUser,
@@ -31,7 +31,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   onReact,
   onTranslate,
   translating = false,
-}) => {
+}: MessageActionsProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const handleReactClick = useCallback(() => {

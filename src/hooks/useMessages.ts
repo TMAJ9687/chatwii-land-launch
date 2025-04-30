@@ -1,14 +1,10 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
-import { createLogger } from '@/utils/logger';
-import { handleMessageError, isPermissionError, isNetworkError } from '@/utils/errorHandler';
-import { useFirebaseCleanup } from '@/hooks/useFirebaseCleanup';
-
-const logger = createLogger('useMessages');
 
 // Helper function to convert any timestamp format to a numeric value for comparison
 const getTimestampValue = (timestamp: string | Date | Timestamp | undefined): number => {
@@ -38,7 +34,6 @@ export const useMessages = (
   const maxRetries = 3;
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchedUserIdRef = useRef<string | null>(null);
-  const { registerCleanup } = useFirebaseCleanup();
 
   const resetState = useCallback(() => {
     setMessages([]);
@@ -51,6 +46,7 @@ export const useMessages = (
   }, []);
 
   const fetchMessages = useCallback(async (retryCount = 0) => {
+    // Return early if already loading or if userIds are missing
     if (
       !selectedUserId || 
       !currentUserId || 
@@ -60,10 +56,12 @@ export const useMessages = (
       return;
     }
     
+    // Set state to prevent concurrent fetches
     isFetchingRef.current = true;
     lastFetchedUserIdRef.current = selectedUserId;
     setIsLoading(true);
     
+    // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
       const mockMessages = getMockVipMessages(currentUserId);
       
@@ -92,41 +90,32 @@ export const useMessages = (
     }
     
     try {
+      // Simplified query approach with batch processing
       const messages = await fetchAllMessages(currentUserId, selectedUserId);
       
       setMessages(messages);
       setError(null);
       
+      // Mark messages as read after fetching
       if (selectedUserId) {
         await markMessagesAsRead(selectedUserId).catch(err => {
-          logger.warn('Error marking messages as read:', err);
-          // Don't show toast for permission errors on reading messages
-          if (!isPermissionError(err)) {
-            toast.error('Failed to mark messages as read');
-          }
+          console.error('Error marking messages as read:', err);
         });
       }
     } catch (err: any) {
-      // Use our error handler for consistent error handling
-      const appError = handleMessageError(err, 'Error fetching messages');
+      console.error('Error fetching messages:', err);
+      setError(`Failed to load messages: ${err.message || 'Unknown error'}`);
       
-      // Set the error message for display
-      setError(appError.message);
-      
-      // If it's a permission error, provide more guidance
-      if (isPermissionError(err)) {
-        logger.warn('Permission error fetching messages. This might be due to missing Firebase security rules.');
-        setError('Unable to load messages due to permission settings. Please contact support.');
-      }
-      // If it's a network error, provide different guidance
-      else if (isNetworkError(err)) {
-        setError('Network connection issue. Please check your internet connection.');
+      if (err.message?.includes('index')) {
+        toast.error("Firebase index required. Please check console for details.");
+      } else {
+        toast.error("Failed to load messages");
       }
       
-      // Retry logic for non-permission errors
-      if (retryCount < maxRetries && !isPermissionError(err)) {
+      // Implement retry logic
+      if (retryCount < maxRetries) {
         retryTimeoutRef.current = setTimeout(() => {
-          logger.info(`Retrying fetch messages (attempt ${retryCount + 1})`);
+          console.log(`Retrying fetch messages (attempt ${retryCount + 1})`);
           isFetchingRef.current = false; // Reset fetching state to allow retry
           fetchMessages(retryCount + 1);
         }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
@@ -141,7 +130,9 @@ export const useMessages = (
     }
   }, [selectedUserId, currentUserId, markMessagesAsRead]);
 
+  // Helper function to fetch and process all messages between two users
   const fetchAllMessages = async (userId1: string, userId2: string): Promise<MessageWithMedia[]> => {
+    // Fetch both directions at once
     const [fromUser1, fromUser2] = await Promise.all([
       queryDocuments('messages', [
         { field: 'sender_id', operator: '==', value: userId1 },
@@ -153,14 +144,17 @@ export const useMessages = (
       ])
     ]);
     
+    // Combine and filter valid messages
     const allMessages = [...fromUser1, ...fromUser2].filter(msg => msg && typeof msg === 'object');
     
     if (allMessages.length === 0) {
       return [];
     }
     
+    // Get message IDs for batch queries
     const messageIds = allMessages.map(msg => msg.id).filter(Boolean);
     
+    // Make batch queries for media and reactions
     const [mediaRecords, reactionRecords] = await Promise.all([
       queryDocuments('message_media', [
         { field: 'message_id', operator: 'in', value: messageIds }
@@ -170,6 +164,7 @@ export const useMessages = (
       ])
     ]);
     
+    // Create lookup maps
     const mediaByMessageId = mediaRecords.reduce((acc, media) => {
       if (media && media.message_id) {
         acc[media.message_id] = media;
@@ -187,6 +182,7 @@ export const useMessages = (
       return acc;
     }, {} as Record<string, any[]>);
     
+    // Process all messages
     const processedMessages = allMessages.map(message => {
       let createdAt = message.created_at;
       if (createdAt) {
@@ -219,6 +215,7 @@ export const useMessages = (
       };
     });
     
+    // Sort by creation date
     return processedMessages.sort((a, b) => {
       const dateA = getTimestampValue(a.created_at);
       const dateB = getTimestampValue(b.created_at);
@@ -226,6 +223,7 @@ export const useMessages = (
     });
   };
 
+  // Clean up any pending retries when component unmounts or dependencies change
   useEffect(() => {
     return () => {
       if (retryTimeoutRef.current) {
@@ -234,22 +232,13 @@ export const useMessages = (
     };
   }, [selectedUserId, currentUserId]);
 
+  // Reset state and trigger fetch when selecting a new user
   useEffect(() => {
     if (selectedUserId !== lastFetchedUserIdRef.current) {
       resetState();
       fetchMessages();
     }
   }, [selectedUserId, resetState, fetchMessages]);
-
-  // Register the cleanup function
-  useEffect(() => {
-    registerCleanup(() => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = null;
-      }
-    });
-  }, [registerCleanup]);
 
   return {
     messages,

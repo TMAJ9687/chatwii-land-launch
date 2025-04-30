@@ -18,11 +18,7 @@ export const useLogout = (defaultRedirect = "/feedback") => {
     'firebase_user_role',
     'firebase_user_provider',
     'vip_registration_email',
-    'vip_registration_nickname',
-    'revealedImages',
-    'acceptedRules',
-    'lastNotificationTime',
-    'notificationTracker'
+    'vip_registration_nickname'
   ];
 
   // Hard force logout - for emergency situations
@@ -38,20 +34,6 @@ export const useLogout = (defaultRedirect = "/feedback") => {
     
     // Clear all related localStorage items
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    // Clear IndexedDB if available
-    try {
-      const dbs = window.indexedDB.databases();
-      dbs.then(databases => {
-        databases.forEach(db => {
-          if (db.name && (db.name.includes('firebase') || db.name.includes('firestore'))) {
-            window.indexedDB.deleteDatabase(db.name);
-          }
-        });
-      });
-    } catch (e) {
-      console.warn('Could not clear IndexedDB:', e);
-    }
     
     // Redirect immediately
     window.location.replace(defaultRedirect);

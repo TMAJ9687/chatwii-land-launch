@@ -17,28 +17,11 @@ export const realtimeDatabaseRules = {
     "presence": {
       "$uid": {
         ".read": true,
-        ".write": "auth !== null && auth.uid === $uid"
-      }
-    },
-    "typing": {
-      "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
-        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
-      }
-    },
-    "messages": {
-      "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
-        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
-      }
-    },
-    "message_reactions": {
-      "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0",
-        ".write": "auth !== null && $conversation_id.indexOf(auth.uid) >= 0"
+        ".write": "$uid === auth.uid"
       }
     },
     ".read": false,
     ".write": false
   }
 };
+

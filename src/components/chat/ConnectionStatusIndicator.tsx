@@ -1,57 +1,93 @@
 
-import React from 'react';
-import { AlertCircle, Loader2, SignalHigh, SignalMedium, SignalLow } from 'lucide-react';
-import { Button } from '../ui/button';
+import React, { useCallback, useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button"; 
+import { Wifi, WifiOff, RefreshCcw, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 interface ConnectionStatusIndicatorProps {
   isConnected: boolean;
   onReconnect: () => void;
   error: string | null;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
   isConnected,
   onReconnect,
   error,
-  isLoading = false
+  isLoading
 }) => {
-  // If there's no error and we're connected, don't show anything
-  if (!error && isConnected && !isLoading) {
+  const [lastReconnectAttempt, setLastReconnectAttempt] = useState<number>(0);
+  
+  // Handle reconnection attempts with throttling
+  const handleRetryConnection = useCallback(() => {
+    const now = Date.now();
+    // Prevent multiple retries within 5 seconds
+    if (now - lastReconnectAttempt < 5000) {
+      toast.info("Please wait before retrying again");
+      return;
+    }
+    
+    setLastReconnectAttempt(now);
+    onReconnect();
+    toast.info("Attempting to reconnect...");
+  }, [onReconnect, lastReconnectAttempt]);
+
+  // If loading, don't show any connection status
+  if (isLoading) {
     return null;
   }
 
-  return (
-    <div className="bg-muted/50 py-1 px-4 flex items-center justify-between text-sm">
-      <div className="flex items-center gap-2">
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span>Loading messages...</span>
-          </>
-        ) : isConnected ? (
-          <>
-            <SignalHigh className="h-4 w-4 text-green-500" />
-            <span>Connected</span>
-          </>
-        ) : error ? (
-          <>
-            <AlertCircle className="h-4 w-4 text-destructive" />
-            <span className="text-destructive">{error}</span>
-          </>
-        ) : (
-          <>
-            <SignalLow className="h-4 w-4 text-amber-500" />
-            <span>Connecting...</span>
-          </>
-        )}
+  // Error alert
+  if (error && !error.includes('index')) {
+    return (
+      <Alert variant="destructive" className="mx-4 mt-4">
+        <AlertTriangle className="h-4 w-4 mr-2" />
+        <AlertTitle>Error loading messages</AlertTitle>
+        <AlertDescription className="flex items-center justify-between">
+          <span>{error}</span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRetryConnection}
+          >
+            <RefreshCcw className="h-4 w-4 mr-1" /> Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Disconnected warning
+  if (!isConnected && !error) {
+    return (
+      <Alert variant="default" className="mx-4 mt-4 bg-amber-50 border-amber-500">
+        <WifiOff className="h-4 w-4 text-amber-500 mr-2" />
+        <AlertTitle>Connection Status</AlertTitle>
+        <AlertDescription className="flex items-center justify-between">
+          <span>Connecting to message service...</span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRetryConnection}
+          >
+            <RefreshCcw className="h-4 w-4 mr-1" /> Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Connected status
+  if (isConnected && !error) {
+    return (
+      <div className="mx-4 mt-1 flex items-center text-xs text-green-600 justify-end">
+        <Wifi className="h-3 w-3 mr-1" /> 
+        <span>Connected</span>
       </div>
-      
-      {(!isConnected || error) && !isLoading && (
-        <Button variant="ghost" size="sm" onClick={onReconnect} className="h-6 px-2">
-          Reconnect
-        </Button>
-      )}
-    </div>
-  );
+    );
+  }
+
+  return null;
 };

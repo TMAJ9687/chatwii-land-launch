@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { isMockUser } from '@/utils/mockUsers';

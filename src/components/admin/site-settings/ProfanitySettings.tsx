@@ -30,17 +30,13 @@ export const ProfanitySettings = () => {
   const fetchSettings = async () => {
     setIsLoading(true);
     try {
-      const settingsDoc = await getDoc(doc(db, "site_settings", "profanity"));
+      // Mock fetching settings
+      await new Promise(resolve => setTimeout(resolve, 800));
       
-      if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data() as SiteSettingsJson);
-      } else {
-        // Initialize with default empty arrays if document doesn't exist
-        setSettings({
-          profanity_nickname: [],
-          profanity_chat: [],
-        });
-      }
+      setSettings({
+        profanity_nickname: ["badword1", "badword2"],
+        profanity_chat: ["offensive1", "offensive2"],
+      });
     } catch (e) {
       toast.error("Failed to load profanity data");
     } finally {
@@ -48,21 +44,18 @@ export const ProfanitySettings = () => {
     }
   };
 
-  const updateSettingsInFirestore = async (newFields: Partial<SiteSettingsJson>) => {
+  const updateSettingsInSupabase = async (newFields: Partial<SiteSettingsJson>) => {
+    // Mock update settings
     try {
-      setIsLoading(true);
-      const settingsRef = doc(db, "site_settings", "profanity");
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Merge with previous settings
       const updated = { ...settings, ...newFields };
-      
-      await updateDoc(settingsRef, newFields);
       setSettings(updated);
+      
       toast.success("Updated successfully!");
     } catch (e) {
       toast.error("Failed to update settings");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -75,7 +68,7 @@ export const ProfanitySettings = () => {
     if (settings[type]?.includes(word)) return toast.error("Duplicate word");
     
     const updatedArr = [...(settings[type] || []), word];
-    updateSettingsInFirestore({ [type]: updatedArr });
+    updateSettingsInSupabase({ [type]: updatedArr });
     
     if (type === "profanity_nickname") setNicknameWord("");
     else setChatWord("");
@@ -84,7 +77,7 @@ export const ProfanitySettings = () => {
   // DELETE word
   const handleDeleteWord = (type: "profanity_nickname" | "profanity_chat", word: string) => {
     const updatedArr = (settings[type] || []).filter((w: string) => w !== word);
-    updateSettingsInFirestore({ [type]: updatedArr });
+    updateSettingsInSupabase({ [type]: updatedArr });
   };
 
   return (

@@ -1,57 +1,85 @@
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { createLogger } from '@/utils/logger';
-import { messageService, conversationService } from '@/services/message';
-
-const logger = createLogger('useMessageDeletion');
 
 export const useMessageDeletion = (currentUserId: string, isVipUser: boolean) => {
-  const [isDeletingMessage, setIsDeletingMessage] = useState<string | null>(null);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
-  const handleUnsendMessage = useCallback(async (messageId: string, senderId: string) => {
-    // Only allow deleting your own messages
-    if (senderId !== currentUserId) {
-      toast.error("You can only unsend your own messages");
-      return false;
-    }
+  const handleUnsendMessage = async (messageId: string) => {
+    if (!isVipUser) return;
 
-    setIsDeletingMessage(messageId);
     try {
-      await messageService.deleteMessage(messageId);
-      toast.success("Message unsent");
-      return true;
+      const messageRef = doc(db, 'messages', messageId);
+      
+      await updateDoc(messageRef, { 
+        deleted_at: new Date().toISOString() 
+      });
+      
+      toast.success('Message unsent');
     } catch (error) {
-      logger.error("Error unsending message:", error);
-      toast.error("Failed to unsend message");
-      return false;
-    } finally {
-      setIsDeletingMessage(null);
+      console.error('Error unsending message:', error);
+      toast.error('Failed to unsend message');
     }
-  }, [currentUserId]);
+  };
 
-  const deleteConversation = useCallback(async (receiverId: string) => {
-    if (!currentUserId) return false;
+  const deleteConversation = async (partnerId: string): Promise<void> => {
+    if (!isVipUser || isDeletingConversation) return;
 
-    setIsDeletingConversation(true);
     try {
-      await conversationService.deleteConversation(currentUserId, receiverId);
-      toast.success("Conversation deleted");
-      return true;
+      setIsDeletingConversation(true);
+      toast.loading('Deleting conversation...');
+      
+      // Get messages sent by current user to partner
+      const sentMessagesQuery = query(
+        collection(db, 'messages'),
+        where('sender_id', '==', currentUserId),
+        where('receiver_id', '==', partnerId)
+      );
+      
+      const sentMessagesDocs = await getDocs(sentMessagesQuery);
+      
+      // Get messages received by current user from partner
+      const receivedMessagesQuery = query(
+        collection(db, 'messages'),
+        where('sender_id', '==', partnerId),
+        where('receiver_id', '==', currentUserId)
+      );
+      
+      const receivedMessagesDocs = await getDocs(receivedMessagesQuery);
+      
+      // Update all messages to mark as deleted
+      const updatePromises = [];
+      
+      for (const doc of sentMessagesDocs.docs) {
+        updatePromises.push(
+          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
+        );
+      }
+      
+      for (const doc of receivedMessagesDocs.docs) {
+        updatePromises.push(
+          updateDoc(doc.ref, { deleted_at: new Date().toISOString() })
+        );
+      }
+      
+      await Promise.all(updatePromises);
+      
+      toast.dismiss();
+      toast.success('Conversation deleted');
     } catch (error) {
-      logger.error("Error deleting conversation:", error);
-      toast.error("Failed to delete conversation");
-      return false;
+      console.error('Error deleting conversation:', error);
+      toast.dismiss();
+      toast.error('Failed to delete conversation');
     } finally {
       setIsDeletingConversation(false);
     }
-  }, [currentUserId]);
+  };
 
   return {
     handleUnsendMessage,
     deleteConversation,
-    isDeletingMessage,
     isDeletingConversation
   };
 };

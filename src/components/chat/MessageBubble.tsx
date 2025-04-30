@@ -9,8 +9,6 @@ import { MessageReactions } from './MessageReactions';
 import { MessageBubbleWrapper } from './message/MessageBubbleWrapper';
 import { MessageVisibilityStatus } from './message/MessageVisibilityStatus';
 import { MessageReplyFetcher } from './message/MessageReplyFetcher';
-import { MessageTimeFormatter } from './message/MessageTimeFormatter';
-import { handleMessageError } from '@/utils/errorHandler';
 
 interface MessageBubbleProps {
   message: MessageWithMedia;
@@ -46,20 +44,22 @@ export const MessageBubble = ({
     [revealedImages]
   );
 
-  // Handler for when reply message is loaded
-  const handleReplyLoaded = useCallback((loadedMessage: MessageWithMedia | null) => {
-    setReplyMessage(loadedMessage);
-  }, []);
+  const formatTimestamp = (timestamp: string | Date | any): string => {
+    if (typeof timestamp === 'string') return timestamp;
+    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
+    if (timestamp instanceof Date) return timestamp.toISOString();
+    return new Date().toISOString();
+  };
 
   // Handlers
   const handleToggleImageReveal = () => {
     if (message.id) toggleImageReveal(message.id);
   };
 
-  // Error handler for message action failures
-  const handleMessageActionError = (error: any, context: string) => {
-    handleMessageError(error, context);
-  };
+  // Handler for when reply message is loaded
+  const handleReplyLoaded = useCallback((loadedMessage: MessageWithMedia | null) => {
+    setReplyMessage(loadedMessage);
+  }, []);
 
   return (
     <>
@@ -91,7 +91,7 @@ export const MessageBubble = ({
           message={message}
           isCurrentUser={isCurrentUser}
           isVipUser={isVipUser}
-          onUnsend={() => handleUnsendMessage(message.id, message.sender_id)}
+          onUnsend={() => handleUnsendMessage(message.id)}
           onReply={() => startReply(message.id)}
           onReact={emoji => handleReactToMessage(message.id, emoji)}
           onTranslate={() => translateMessage(message)}
@@ -99,7 +99,7 @@ export const MessageBubble = ({
         />
 
         <MessageVisibilityStatus
-          timestamp={message.created_at}
+          timestamp={formatTimestamp(message.created_at)}
           isRead={message.is_read}
           isCurrentUser={isCurrentUser}
           isVipUser={isVipUser}

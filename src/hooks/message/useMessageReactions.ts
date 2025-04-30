@@ -1,44 +1,42 @@
 
-import { useCallback } from 'react';
+import { doc, collection, query, where, getDocs, addDoc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { createDocument, queryDocuments, deleteDocument } from '@/lib/firebase';
 
 export const useMessageReactions = (currentUserId: string, isVipUser: boolean) => {
-  // Add or remove a reaction to a message
-  const handleReactToMessage = useCallback(async (messageId: string, emoji: string) => {
-    if (!isVipUser || !currentUserId) {
-      toast.error('Only VIP users can react to messages');
-      return;
-    }
-    
+  const handleReactToMessage = async (messageId: string, emoji: string) => {
+    if (!isVipUser) return;
+
     try {
-      // Check if user already reacted with this emoji
-      const existingReactions = await queryDocuments('message_reactions', [
-        { field: 'message_id', operator: '==', value: messageId },
-        { field: 'user_id', operator: '==', value: currentUserId },
-        { field: 'emoji', operator: '==', value: emoji }
-      ]);
+      // Check for existing reaction
+      const reactionsQuery = query(
+        collection(db, 'message_reactions'),
+        where('message_id', '==', messageId),
+        where('user_id', '==', currentUserId)
+      );
       
-      if (existingReactions.length > 0) {
-        // Remove the reaction
-        await deleteDocument('message_reactions', existingReactions[0].id);
-        return;
+      const existingReactions = await getDocs(reactionsQuery);
+      
+      if (!existingReactions.empty) {
+        // Update existing reaction
+        const existingReaction = existingReactions.docs[0];
+        await updateDoc(existingReaction.ref, { emoji });
+      } else {
+        // Create new reaction
+        await addDoc(collection(db, 'message_reactions'), {
+          message_id: messageId,
+          user_id: currentUserId,
+          emoji,
+          created_at: new Date().toISOString()
+        });
       }
       
-      // Add the new reaction
-      await createDocument('message_reactions', {
-        message_id: messageId,
-        user_id: currentUserId,
-        emoji: emoji,
-        created_at: new Date().toISOString()
-      });
+      toast.success('Reaction added');
     } catch (error) {
-      console.error('Error handling reaction:', error);
+      console.error('Error reacting to message:', error);
       toast.error('Failed to add reaction');
     }
-  }, [currentUserId, isVipUser]);
-  
-  return {
-    handleReactToMessage
   };
+
+  return { handleReactToMessage };
 };

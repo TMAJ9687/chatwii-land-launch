@@ -1,8 +1,6 @@
 
 import React from 'react';
-import { AlertTriangle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 
 interface FirebaseIndexMessageProps {
   indexUrl?: string;
@@ -10,28 +8,23 @@ interface FirebaseIndexMessageProps {
 
 export const FirebaseIndexMessage: React.FC<FirebaseIndexMessageProps> = ({ indexUrl }) => {
   return (
-    <Alert className="mb-4 max-w-2xl mx-auto">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Firebase Index Required</AlertTitle>
-      <AlertDescription className="mt-2">
-        <p className="mb-2">
-          This operation requires a Firebase index to be created. This is normally required for complex
-          queries and custom sorting. 
-        </p>
+    <Alert className="mb-4 bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700">
+      <AlertTitle className="text-amber-800 dark:text-amber-200">Firebase Index Required</AlertTitle>
+      <AlertDescription className="text-amber-700 dark:text-amber-300">
+        <p>To enable the full chat functionality, a Firebase index needs to be created.</p>
         {indexUrl ? (
-          <div className="mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(indexUrl, '_blank')}
+          <p className="mt-2">
+            <a 
+              href={indexUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
             >
-              Create Index in Firebase Console
-            </Button>
-          </div>
-        ) : (
-          <p className="text-sm italic">
-            Please check the Firebase console and create the required index.
+              Click here to create the required index
+            </a>
           </p>
+        ) : (
+          <p className="mt-2">Check your console for the index creation link.</p>
         )}
       </AlertDescription>
     </Alert>
