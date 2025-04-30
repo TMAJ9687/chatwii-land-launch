@@ -66,7 +66,7 @@ export function useProfileSubmission() {
         ]);
 
         // Delete existing user interests
-        const userInterests = await queryDocuments('user_interests', [
+        const userInterests = await queryDocuments('interests', [
           { field: 'user_id', operator: '==', value: userId }
         ]);
 
