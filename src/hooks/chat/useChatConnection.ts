@@ -1,95 +1,106 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { syncService } from '@/services/syncService';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, onValue } from 'firebase/database';
+import { ref, set, get, onDisconnect } from 'firebase/database';
 
-/**
- * Hook to monitor and manage Firebase Realtime Database connection
- * @param enabled Whether connection monitoring should be active
- * @returns Connection state and reconnect function
- */
-export const useChatConnection = (enabled: boolean = true) => {
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [lastConnectionTime, setLastConnectionTime] = useState<number | null>(null);
-  const connectionListenerRef = useRef<() => void | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function useChatConnection(active: boolean = true) {
+  const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [lastReconnectTime, setLastReconnectTime] = useState<number>(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectionCheckedRef = useRef<boolean>(false);
 
-  // Set up connection monitoring
-  useEffect(() => {
-    if (!enabled) return;
+  // Check database connectivity
+  const checkConnection = useCallback(async () => {
+    if (!active) return;
     
     try {
-      const connectedRef = ref(realtimeDb, '.info/connected');
+      // Try a simple read operation to see if we're connected
+      const testRef = ref(realtimeDb, '.info/connected');
+      const snapshot = await get(testRef);
+      const isOnline = snapshot.val() === true;
       
-      const onConnection = onValue(connectedRef, (snap) => {
-        const connected = snap.val() === true;
-        console.log(`Firebase Realtime Database connection status: ${connected ? 'connected' : 'disconnected'}`);
-        
-        setIsConnected(connected);
-        if (connected) {
-          setLastConnectionTime(Date.now());
-        }
-      });
+      setIsConnected(isOnline);
+      connectionCheckedRef.current = true;
       
-      connectionListenerRef.current = onConnection;
-      
-      // Clean up on unmount
-      return () => {
-        if (connectionListenerRef.current) {
-          connectionListenerRef.current();
-          connectionListenerRef.current = null;
-        }
-        
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-          reconnectTimeoutRef.current = null;
-        }
-      };
-    } catch (err) {
-      console.error('Error setting up connection monitoring:', err);
-      return () => {};
-    }
-  }, [enabled]);
-  
-  // Reconnect function
-  const reconnect = useCallback(() => {
-    console.log('Attempting to reconnect to Firebase Realtime Database');
-    
-    // Clear any pending reconnect
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    
-    try {
-      // Reestablish the connection listener
-      if (connectionListenerRef.current) {
-        connectionListenerRef.current();
+      // Also check rules
+      if (isOnline) {
+        syncService.checkRealtimeDatabaseRules()
+          .catch(err => console.error('Error checking database rules:', err));
       }
       
-      const connectedRef = ref(realtimeDb, '.info/connected');
-      
-      const onConnection = onValue(connectedRef, (snap) => {
-        const connected = snap.val() === true;
-        console.log(`Firebase Realtime Database connection status: ${connected ? 'connected' : 'disconnected'}`);
-        
-        setIsConnected(connected);
-        if (connected) {
-          setLastConnectionTime(Date.now());
-        }
-      });
-      
-      connectionListenerRef.current = onConnection;
-    } catch (err) {
-      console.error('Error during reconnection:', err);
-      
-      // Schedule a retry
-      reconnectTimeoutRef.current = setTimeout(reconnect, 5000);
+      return isOnline;
+    } catch (error) {
+      console.error('Error checking connection:', error);
+      setIsConnected(false);
+      return false;
     }
+  }, [active]);
+
+  // Setup connection monitoring
+  useEffect(() => {
+    if (!active) return;
+    
+    // Initial check
+    if (!connectionCheckedRef.current) {
+      checkConnection();
+    }
+    
+    // Monitor connection state
+    const connectedRef = ref(realtimeDb, '.info/connected');
+    const unsubscribe = onDisconnect(connectedRef).then(() => {
+      setIsConnected(false);
+    });
+    
+    return () => {
+      // Handle cleanup
+      unsubscribe.catch(err => console.error('Error removing disconnect listener:', err));
+    };
+  }, [active, checkConnection]);
+
+  // Reconnect function with throttling
+  const reconnect = useCallback(async () => {
+    const now = Date.now();
+    
+    // Throttle reconnection attempts (max one every 5 seconds)
+    if (now - lastReconnectTime < 5000) {
+      console.log('Throttling reconnect attempt');
+      return;
+    }
+    
+    // Clear any pending reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    
+    setLastReconnectTime(now);
+    console.log('Attempting to reconnect to chat...');
+    
+    try {
+      // Check connection
+      const isOnline = await checkConnection();
+      
+      if (isOnline) {
+        console.log('Successfully reconnected to chat');
+      } else {
+        console.log('Failed to reconnect immediately, will retry in 5s');
+        reconnectTimerRef.current = setTimeout(reconnect, 5000);
+      }
+    } catch (error) {
+      console.error('Error during reconnect:', error);
+      reconnectTimerRef.current = setTimeout(reconnect, 5000);
+    }
+  }, [lastReconnectTime, checkConnection]);
+
+  // Clean up any timers on unmount
+  useEffect(() => {
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+    };
   }, []);
-  
-  return {
-    isConnected,
-    lastConnectionTime,
-    reconnect
-  };
-};
+
+  return { isConnected, reconnect, checkConnection };
+}

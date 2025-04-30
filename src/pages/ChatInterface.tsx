@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
 import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
@@ -83,7 +82,12 @@ const ChatInterfaceContent = () => {
   );
 
   // Setup channel listeners
-  useChannelSetup(currentUserId, selectedUserId, setMessages, fetchMessages);
+  const { isConnected, onRetryConnection } = useChannelSetup(
+    currentUserId, 
+    selectedUserId, 
+    setMessages, 
+    fetchMessages
+  );
 
   // Check if rules are accepted
   useEffect(() => {
@@ -150,6 +154,8 @@ const ChatInterfaceContent = () => {
             onTypingStatusChange={handleTypingStatusChange}
             isLoading={messagesLoading}
             error={messagesError}
+            isConnected={isConnected}
+            onRetryConnection={onRetryConnection}
           />
         </main>
       </div>

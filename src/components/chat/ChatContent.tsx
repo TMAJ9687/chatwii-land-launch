@@ -23,6 +23,8 @@ interface ChatContentProps {
   onTypingStatusChange?: (isTyping: boolean) => void;
   isLoading?: boolean;
   error?: string | null;
+  onRetryConnection?: () => void;
+  isConnected?: boolean;
 }
 
 export const ChatContent: React.FC<ChatContentProps> = ({
@@ -38,13 +40,12 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   onTypingStatusChange,
   isLoading = false,
   error = null,
+  onRetryConnection,
+  isConnected = true,
 }) => {
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  
-  // Ensure we maintain connection when a chat is selected
-  const { isConnected, reconnect } = useChatConnection(!!selectedUserId);
   
   // Check for Firebase index error in the error message
   useEffect(() => {
@@ -72,6 +73,13 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     }
   }, [onSendMessage]);
 
+  // Handle retry connection
+  const handleRetryConnection = useCallback(() => {
+    if (onRetryConnection) {
+      onRetryConnection();
+    }
+  }, [onRetryConnection]);
+
   if (!selectedUserId) {
     return <EmptyStateView />;
   }
@@ -86,7 +94,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
       {/* Connection Status Component */}
       <ConnectionStatusIndicator 
         isConnected={isConnected}
-        onReconnect={reconnect}
+        onReconnect={handleRetryConnection}
         error={localError}
         isLoading={isLoading}
       />

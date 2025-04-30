@@ -2,8 +2,8 @@
 import React from 'react';
 import { UserList } from '@/components/UserList';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
-import { useConnectionMonitor } from '@/hooks/useConnectionMonitor';
-import { useChatConnection } from '@/hooks/chat/useChatConnection';
+import { useChannelSetup } from '@/hooks/useChannelSetup';
+import { useMessages } from '@/hooks/useMessages';
 
 interface UserListSidebarProps {
   onUserSelect: (userId: string) => void;
@@ -11,44 +11,37 @@ interface UserListSidebarProps {
   currentUserId: string | null;
 }
 
-export const UserListSidebar: React.FC<UserListSidebarProps> = ({
-  onUserSelect,
-  selectedUserId,
-  currentUserId
+export const UserListSidebar: React.FC<UserListSidebarProps> = ({ 
+  onUserSelect, 
+  selectedUserId, 
+  currentUserId 
 }) => {
-  // Get online users from our hook with the fixed implementation
-  const { 
-    onlineUsers, 
-    isLoading, 
-    error, 
-    hasUsers 
-  } = useOnlineUsers({ 
+  // Get online users
+  const { onlineUsers } = useOnlineUsers();
+  
+  // For passing to useChannelSetup as a placeholder - we don't need these values here
+  const setDummyMessages = React.useCallback(() => {}, []);
+  const dummyFetchMessages = React.useCallback(() => {}, []);
+  
+  // Get connection status and retry function
+  const { isConnected, onRetryConnection } = useChannelSetup(
     currentUserId,
-    includeMockUsers: true
-  });
+    selectedUserId,
+    setDummyMessages,
+    dummyFetchMessages
+  );
   
-  // Monitor connection status
-  const { isConnected, reconnect } = useChatConnection(true);
+  // Map connection status to string
+  const connectionStatus = isConnected ? 'connected' : 'disconnected';
   
-  // Convert connection status for the UserList component
-  const connectionStatus = isLoading 
-    ? 'connecting'
-    : isConnected 
-      ? 'connected' 
-      : 'disconnected';
-
-  // Log current status to help debugging
-  console.log(`UserListSidebar status: connected=${isConnected}, loading=${isLoading}, hasUsers=${hasUsers}, userCount=${onlineUsers.length}`);
-  if (error) console.error('UserListSidebar error:', error);
-
   return (
-    <aside className="w-full max-w-xs border-r border-border">
-      <UserList
-        users={onlineUsers}
-        onUserSelect={onUserSelect}
-        selectedUserId={selectedUserId ?? undefined}
+    <aside className="w-72 border-r border-border flex-shrink-0 h-full">
+      <UserList 
+        users={onlineUsers} 
+        onUserSelect={onUserSelect} 
+        selectedUserId={selectedUserId || undefined}
         connectionStatus={connectionStatus}
-        onRetryConnection={reconnect}
+        onRetryConnection={onRetryConnection}
       />
     </aside>
   );

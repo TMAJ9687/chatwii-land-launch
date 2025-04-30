@@ -1,10 +1,11 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
 import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
 import { useChannelManager } from './chat/useChannelManager';
 import { useChatConnection } from './chat/useChatConnection';
 import { toast } from 'sonner';
+import { syncService } from '@/services/syncService';
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -27,10 +28,15 @@ export const useChannelSetup = (
   const { cleanupAllChannels } = useChannelManager();
   
   // Ensure we maintain connection whenever chat is open
-  const { isConnected } = useChatConnection(true);
+  const { isConnected, reconnect } = useChatConnection(true);
   
   // Call hooks to set up channels
-  const { connectionStatus: messageStatus } = useMessageChannel(currentUserId, selectedUserId, setMessages);
+  const { connectionStatus: messageStatus, reconnect: reconnectMessages } = useMessageChannel(
+    currentUserId, 
+    selectedUserId, 
+    setMessages
+  );
+  
   useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
   
   // Update channel status based on connection status
@@ -47,6 +53,20 @@ export const useChannelSetup = (
       setupRetryCountRef.current = 0;
     }
   }, [messageStatus]);
+
+  // Reconnect all channels
+  const handleRetryConnection = useCallback(() => {
+    reconnect();
+    reconnectMessages();
+    
+    // Force sync messages again
+    if (currentUserId && selectedUserId) {
+      syncService.queueSync(currentUserId, selectedUserId)
+        .catch(err => console.error('Error queuing sync on retry:', err));
+    }
+    
+    toast.info("Attempting to reconnect...");
+  }, [reconnect, reconnectMessages, currentUserId, selectedUserId]);
 
   // Setup effect for channel initialization with improved retry logic
   useEffect(() => {
@@ -84,6 +104,12 @@ export const useChannelSetup = (
       // Reset retry count for new user
       setupRetryCountRef.current = 0;
       
+      // Ensure data is synced
+      if (currentUserId && selectedUserId) {
+        syncService.queueSync(currentUserId, selectedUserId)
+          .catch(err => console.error('Error queuing sync on user change:', err));
+      }
+      
       // Fetch messages right away
       fetchMessages();
       
@@ -98,13 +124,16 @@ export const useChannelSetup = (
           
           // Force a direct fetch instead of more retries
           fetchMessages();
-        } else if (!channelStatus.messages) {
-          // If we're still not connected after retries, inform the user but don't keep retrying
-          toast.info("Using cached messages. Reconnecting in background...");
+          
+          // Try explicit sync
+          if (currentUserId && selectedUserId) {
+            syncService.queueSync(currentUserId, selectedUserId)
+              .catch(err => console.error('Error queuing sync on retry:', err));
+          }
         }
       }, 5000); // Increased timeout to give more time for setup
     }
-  }, [currentUserId, selectedUserId, fetchMessages, isSettingUp, channelStatus, cleanupAllChannels]);
+  }, [currentUserId, selectedUserId, fetchMessages, channelStatus, cleanupAllChannels]);
 
   // Only clean up everything when component unmounts
   useEffect(() => {
@@ -126,6 +155,7 @@ export const useChannelSetup = (
   return { 
     isConnected,
     isSettingUp,
-    channelStatus
+    channelStatus,
+    onRetryConnection: handleRetryConnection
   };
 };

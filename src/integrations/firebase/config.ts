@@ -29,7 +29,7 @@ export const realtimeDatabaseRules = {
         ".write": "auth !== null && $conversation_id.contains(auth.uid)"
       }
     },
-    "message_reactions": {
+    "reactions": {
       "$conversation_id": {
         ".read": "auth !== null && $conversation_id.contains(auth.uid)",
         ".write": "auth !== null && $conversation_id.contains(auth.uid)"
@@ -38,10 +38,26 @@ export const realtimeDatabaseRules = {
     "typing_status": {
       "$conversation_id": {
         ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        ".write": "auth !== null && $conversation_id.contains(auth.uid)" 
       }
     },
+    // Deny all other read/write access by default
     ".read": false,
     ".write": false
   }
+};
+
+/**
+ * Helper function to check if the Realtime Database rules are configured correctly
+ * This can be called on application startup
+ */
+export const checkRealtimeDatabaseRules = () => {
+  // Print the expected rules to the console for easy copying
+  console.log("===== REALTIME DATABASE RULES =====");
+  console.log(JSON.stringify(realtimeDatabaseRules, null, 2));
+  console.log("==================================");
+  console.log("To configure your Realtime Database rules:");
+  console.log("1. Go to Firebase Console > Your Project > Realtime Database > Rules");
+  console.log("2. Copy and paste the rules above");
+  console.log("3. Click 'Publish' to save the changes");
 };

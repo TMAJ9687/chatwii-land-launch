@@ -1,9 +1,7 @@
 
-import React, { useCallback, useState } from 'react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button"; 
-import { Wifi, WifiOff, RefreshCcw, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import React from 'react';
+import { AlertCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ConnectionStatusIndicatorProps {
   isConnected: boolean;
@@ -18,76 +16,54 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   error,
   isLoading
 }) => {
-  const [lastReconnectAttempt, setLastReconnectAttempt] = useState<number>(0);
-  
-  // Handle reconnection attempts with throttling
-  const handleRetryConnection = useCallback(() => {
-    const now = Date.now();
-    // Prevent multiple retries within 5 seconds
-    if (now - lastReconnectAttempt < 5000) {
-      toast.info("Please wait before retrying again");
-      return;
-    }
-    
-    setLastReconnectAttempt(now);
-    onReconnect();
-    toast.info("Attempting to reconnect...");
-  }, [onReconnect, lastReconnectAttempt]);
-
-  // If loading, don't show any connection status
-  if (isLoading) {
+  // Don't show anything if everything is working properly
+  if (isConnected && !error && !isLoading) {
     return null;
   }
 
-  // Error alert
-  if (error && !error.includes('index')) {
-    return (
-      <Alert variant="destructive" className="mx-4 mt-4">
-        <AlertTriangle className="h-4 w-4 mr-2" />
-        <AlertTitle>Error loading messages</AlertTitle>
-        <AlertDescription className="flex items-center justify-between">
-          <span>{error}</span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRetryConnection}
-          >
-            <RefreshCcw className="h-4 w-4 mr-1" /> Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  return (
+    <div className="px-4 py-2 bg-muted/80 border-b flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : isConnected ? (
+          <Wifi className="h-4 w-4 text-green-500" />
+        ) : (
+          <WifiOff className="h-4 w-4 text-amber-500" />
+        )}
+        
+        <span className="text-sm font-medium">
+          {isLoading
+            ? "Loading messages..."
+            : isConnected
+              ? "Connected"
+              : "Connection issue"}
+        </span>
 
-  // Disconnected warning
-  if (!isConnected && !error) {
-    return (
-      <Alert variant="default" className="mx-4 mt-4 bg-amber-50 border-amber-500">
-        <WifiOff className="h-4 w-4 text-amber-500 mr-2" />
-        <AlertTitle>Connection Status</AlertTitle>
-        <AlertDescription className="flex items-center justify-between">
-          <span>Connecting to message service...</span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRetryConnection}
-          >
-            <RefreshCcw className="h-4 w-4 mr-1" /> Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Connected status
-  if (isConnected && !error) {
-    return (
-      <div className="mx-4 mt-1 flex items-center text-xs text-green-600 justify-end">
-        <Wifi className="h-3 w-3 mr-1" /> 
-        <span>Connected</span>
+        {error && (
+          <>
+            <AlertCircle className="h-4 w-4 text-destructive ml-1" />
+            <span className="text-sm text-destructive truncate max-w-[200px]">
+              {error.includes("index")
+                ? "Database index issue"
+                : error.includes("permission")
+                  ? "Permission denied"
+                  : "Error loading messages"}
+            </span>
+          </>
+        )}
       </div>
-    );
-  }
-
-  return null;
+      
+      {!isConnected && !isLoading && (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={onReconnect} 
+          className="text-xs h-7 px-2"
+        >
+          Reconnect
+        </Button>
+      )}
+    </div>
+  );
 };
