@@ -2,6 +2,7 @@
 /**
  * Helper utilities for user display and avatars
  */
+import { getFlagEmoji, getCountryCode } from './countryTools';
 
 /**
  * Get the initial letter for a user's avatar from their nickname
@@ -47,11 +48,8 @@ export const enhanceUserWithDisplayProps = (user: any) => {
   
   const avatarInitial = getAvatarInitial(user.nickname || '');
   const colors = getAvatarColors(user.user_id);
-  const countryCode = user.country_code || '';
-  
-  // Import dynamically to avoid circular dependencies
-  const { getFlagEmoji } = require('@/utils/countryTools');
-  const flagEmoji = getFlagEmoji(countryCode) || '🏳️';
+  const countryCode = getCountryCode(user.country || '');
+  const flagEmoji = getFlagEmoji(countryCode || '') || '🏳️';
   
   return {
     ...user,

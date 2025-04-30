@@ -1,354 +1,256 @@
-// Country name to ISO code mapping
-const COUNTRY_TO_ISO: Record<string, string> = {
-  'Afghanistan': 'af',
-  'Albania': 'al',
-  'Algeria': 'dz',
-  'Andorra': 'ad',
-  'Angola': 'ao',
-  'Antigua and Barbuda': 'ag',
-  'Argentina': 'ar',
-  'Armenia': 'am',
-  'Australia': 'au',
-  'Austria': 'at',
-  'Azerbaijan': 'az',
-  'Bahamas': 'bs',
-  'Bahrain': 'bh',
-  'Bangladesh': 'bd',
-  'Barbados': 'bb',
-  'Belarus': 'by',
-  'Belgium': 'be',
-  'Belize': 'bz',
-  'Benin': 'bj',
-  'Bhutan': 'bt',
-  'Bolivia': 'bo',
-  'Bosnia and Herzegovina': 'ba',
-  'Botswana': 'bw',
-  'Brazil': 'br',
-  'Brunei': 'bn',
-  'Bulgaria': 'bg',
-  'Burkina Faso': 'bf',
-  'Burundi': 'bi',
-  'Cabo Verde': 'cv',
-  'Cambodia': 'kh',
-  'Cameroon': 'cm',
-  'Canada': 'ca',
-  'Central African Republic': 'cf',
-  'Chad': 'td',
-  'Chile': 'cl',
-  'China': 'cn',
-  'Colombia': 'co',
-  'Comoros': 'km',
-  'Congo': 'cg',
-  'Costa Rica': 'cr',
-  'Croatia': 'hr',
-  'Cuba': 'cu',
-  'Cyprus': 'cy',
-  'Czech Republic': 'cz',
-  'Democratic Republic of the Congo': 'cd',
-  'Denmark': 'dk',
-  'Djibouti': 'dj',
-  'Dominica': 'dm',
-  'Dominican Republic': 'do',
-  'Ecuador': 'ec',
-  'Egypt': 'eg',
-  'El Salvador': 'sv',
-  'Equatorial Guinea': 'gq',
-  'Eritrea': 'er',
-  'Estonia': 'ee',
-  'Eswatini': 'sz',
-  'Ethiopia': 'et',
-  'Fiji': 'fj',
-  'Finland': 'fi',
-  'France': 'fr',
-  'Gabon': 'ga',
-  'Gambia': 'gm',
-  'Georgia': 'ge',
-  'Germany': 'de',
-  'Ghana': 'gh',
-  'Greece': 'gr',
-  'Grenada': 'gd',
-  'Guatemala': 'gt',
-  'Guinea': 'gn',
-  'Guinea-Bissau': 'gw',
-  'Guyana': 'gy',
-  'Haiti': 'ht',
-  'Honduras': 'hn',
-  'Hungary': 'hu',
-  'Iceland': 'is',
-  'India': 'in',
-  'Indonesia': 'id',
-  'Iran': 'ir',
-  'Iraq': 'iq', // Fixed: Iraq now has correct code 'iq' instead of missing
-  'Ireland': 'ie',
-  'Italy': 'it',
-  'Jamaica': 'jm',
-  'Japan': 'jp',
-  'Jordan': 'jo',
-  'Kazakhstan': 'kz',
-  'Kenya': 'ke',
-  'Kiribati': 'ki',
-  'Korea, North': 'kp',
-  'Korea, South': 'kr',
-  'Kosovo': 'xk',
-  'Kuwait': 'kw',
-  'Kyrgyzstan': 'kg',
-  'Laos': 'la',
-  'Latvia': 'lv',
-  'Lebanon': 'lb',
-  'Lesotho': 'ls',
-  'Liberia': 'lr',
-  'Libya': 'ly',
-  'Liechtenstein': 'li',
-  'Lithuania': 'lt',
-  'Luxembourg': 'lu',
-  'Madagascar': 'mg',
-  'Malawi': 'mw',
-  'Malaysia': 'my',
-  'Maldives': 'mv',
-  'Mali': 'ml',
-  'Malta': 'mt',
-  'Marshall Islands': 'mh',
-  'Mauritania': 'mr',
-  'Mauritius': 'mu',
-  'Mexico': 'mx',
-  'Micronesia': 'fm',
-  'Moldova': 'md',
-  'Monaco': 'mc',
-  'Mongolia': 'mn',
-  'Montenegro': 'me',
-  'Morocco': 'ma',
-  'Mozambique': 'mz',
-  'Myanmar': 'mm',
-  'Namibia': 'na',
-  'Nauru': 'nr',
-  'Nepal': 'np',
-  'Netherlands': 'nl',
-  'New Zealand': 'nz',
-  'Nicaragua': 'ni',
-  'Niger': 'ne',
-  'Nigeria': 'ng',
-  'North Macedonia': 'mk',
-  'Norway': 'no',
-  'Oman': 'om',
-  'Pakistan': 'pk',
-  'Palau': 'pw',
-  'Palestine': 'ps',
-  'Panama': 'pa',
-  'Papua New Guinea': 'pg',
-  'Paraguay': 'py',
-  'Peru': 'pe',
-  'Philippines': 'ph',
-  'Poland': 'pl',
-  'Portugal': 'pt',
-  'Qatar': 'qa',
-  'Romania': 'ro',
-  'Russia': 'ru',
-  'Rwanda': 'rw',
-  'Saint Kitts and Nevis': 'kn',
-  'Saint Lucia': 'lc',
-  'Saint Vincent and the Grenadines': 'vc',
-  'Samoa': 'ws',
-  'San Marino': 'sm',
-  'Sao Tome and Principe': 'st',
-  'Saudi Arabia': 'sa',
-  'Senegal': 'sn',
-  'Serbia': 'rs',
-  'Seychelles': 'sc',
-  'Sierra Leone': 'sl',
-  'Singapore': 'sg',
-  'Slovakia': 'sk',
-  'Slovenia': 'si',
-  'Solomon Islands': 'sb',
-  'Somalia': 'so',
-  'South Africa': 'za',
-  'South Sudan': 'ss',
-  'Spain': 'es',
-  'Sri Lanka': 'lk',
-  'Sudan': 'sd',
-  'Suriname': 'sr',
-  'Sweden': 'se',
-  'Switzerland': 'ch',
-  'Syria': 'sy',
-  'Taiwan': 'tw',
-  'Tajikistan': 'tj',
-  'Tanzania': 'tz',
-  'Thailand': 'th',
-  'Timor-Leste': 'tl',
-  'Togo': 'tg',
-  'Tonga': 'to',
-  'Trinidad and Tobago': 'tt',
-  'Tunisia': 'tn',
-  'Turkey': 'tr',
-  'Turkmenistan': 'tm',
-  'Tuvalu': 'tv',
-  'Uganda': 'ug',
-  'Ukraine': 'ua',
-  'United Arab Emirates': 'ae',
-  'United Kingdom': 'gb',
-  'United States': 'us',
-  'Uruguay': 'uy',
-  'Uzbekistan': 'uz',
-  'Vanuatu': 'vu',
-  'Vatican City': 'va',
-  'Venezuela': 've',
-  'Vietnam': 'vn',
-  'Yemen': 'ye',
-  'Zambia': 'zm',
-  'Zimbabwe': 'zw'
+
+/**
+ * Country code and emoji utilities
+ */
+
+// This map contains country name to ISO code mappings
+const countryToCodeMap: Record<string, string> = {
+  'Afghanistan': 'AF',
+  'Albania': 'AL',
+  'Algeria': 'DZ',
+  'Andorra': 'AD',
+  'Angola': 'AO',
+  'Argentina': 'AR',
+  'Armenia': 'AM',
+  'Australia': 'AU',
+  'Austria': 'AT',
+  'Azerbaijan': 'AZ',
+  'Bahamas': 'BS',
+  'Bahrain': 'BH',
+  'Bangladesh': 'BD',
+  'Barbados': 'BB',
+  'Belarus': 'BY',
+  'Belgium': 'BE',
+  'Belize': 'BZ',
+  'Benin': 'BJ',
+  'Bhutan': 'BT',
+  'Bolivia': 'BO',
+  'Bosnia and Herzegovina': 'BA',
+  'Botswana': 'BW',
+  'Brazil': 'BR',
+  'Brunei': 'BN',
+  'Bulgaria': 'BG',
+  'Burkina Faso': 'BF',
+  'Burundi': 'BI',
+  'Cambodia': 'KH',
+  'Cameroon': 'CM',
+  'Canada': 'CA',
+  'Cape Verde': 'CV',
+  'Central African Republic': 'CF',
+  'Chad': 'TD',
+  'Chile': 'CL',
+  'China': 'CN',
+  'Colombia': 'CO',
+  'Comoros': 'KM',
+  'Congo': 'CG',
+  'Costa Rica': 'CR',
+  'Croatia': 'HR',
+  'Cuba': 'CU',
+  'Cyprus': 'CY',
+  'Czech Republic': 'CZ',
+  'Denmark': 'DK',
+  'Djibouti': 'DJ',
+  'Dominica': 'DM',
+  'Dominican Republic': 'DO',
+  'Ecuador': 'EC',
+  'Egypt': 'EG',
+  'El Salvador': 'SV',
+  'Equatorial Guinea': 'GQ',
+  'Eritrea': 'ER',
+  'Estonia': 'EE',
+  'Ethiopia': 'ET',
+  'Fiji': 'FJ',
+  'Finland': 'FI',
+  'France': 'FR',
+  'Gabon': 'GA',
+  'Gambia': 'GM',
+  'Georgia': 'GE',
+  'Germany': 'DE',
+  'Ghana': 'GH',
+  'Greece': 'GR',
+  'Grenada': 'GD',
+  'Guatemala': 'GT',
+  'Guinea': 'GN',
+  'Guinea-Bissau': 'GW',
+  'Guyana': 'GY',
+  'Haiti': 'HT',
+  'Honduras': 'HN',
+  'Hungary': 'HU',
+  'Iceland': 'IS',
+  'India': 'IN',
+  'Indonesia': 'ID',
+  'Iran': 'IR',
+  'Iraq': 'IQ',
+  'Ireland': 'IE',
+  'Israel': 'IL',
+  'Italy': 'IT',
+  'Jamaica': 'JM',
+  'Japan': 'JP',
+  'Jordan': 'JO',
+  'Kazakhstan': 'KZ',
+  'Kenya': 'KE',
+  'Kiribati': 'KI',
+  'North Korea': 'KP',
+  'South Korea': 'KR',
+  'Kuwait': 'KW',
+  'Kyrgyzstan': 'KG',
+  'Laos': 'LA',
+  'Latvia': 'LV',
+  'Lebanon': 'LB',
+  'Lesotho': 'LS',
+  'Liberia': 'LR',
+  'Libya': 'LY',
+  'Liechtenstein': 'LI',
+  'Lithuania': 'LT',
+  'Luxembourg': 'LU',
+  'Macedonia': 'MK',
+  'Madagascar': 'MG',
+  'Malawi': 'MW',
+  'Malaysia': 'MY',
+  'Maldives': 'MV',
+  'Mali': 'ML',
+  'Malta': 'MT',
+  'Marshall Islands': 'MH',
+  'Mauritania': 'MR',
+  'Mauritius': 'MU',
+  'Mexico': 'MX',
+  'Micronesia': 'FM',
+  'Moldova': 'MD',
+  'Monaco': 'MC',
+  'Mongolia': 'MN',
+  'Montenegro': 'ME',
+  'Morocco': 'MA',
+  'Mozambique': 'MZ',
+  'Myanmar': 'MM',
+  'Namibia': 'NA',
+  'Nauru': 'NR',
+  'Nepal': 'NP',
+  'Netherlands': 'NL',
+  'New Zealand': 'NZ',
+  'Nicaragua': 'NI',
+  'Niger': 'NE',
+  'Nigeria': 'NG',
+  'Norway': 'NO',
+  'Oman': 'OM',
+  'Pakistan': 'PK',
+  'Palau': 'PW',
+  'Panama': 'PA',
+  'Papua New Guinea': 'PG',
+  'Paraguay': 'PY',
+  'Peru': 'PE',
+  'Philippines': 'PH',
+  'Poland': 'PL',
+  'Portugal': 'PT',
+  'Qatar': 'QA',
+  'Romania': 'RO',
+  'Russia': 'RU',
+  'Rwanda': 'RW',
+  'Saint Kitts and Nevis': 'KN',
+  'Saint Lucia': 'LC',
+  'Saint Vincent': 'VC',
+  'Samoa': 'WS',
+  'San Marino': 'SM',
+  'Sao Tome and Principe': 'ST',
+  'Saudi Arabia': 'SA',
+  'Senegal': 'SN',
+  'Serbia': 'RS',
+  'Seychelles': 'SC',
+  'Sierra Leone': 'SL',
+  'Singapore': 'SG',
+  'Slovakia': 'SK',
+  'Slovenia': 'SI',
+  'Solomon Islands': 'SB',
+  'Somalia': 'SO',
+  'South Africa': 'ZA',
+  'South Sudan': 'SS',
+  'Spain': 'ES',
+  'Sri Lanka': 'LK',
+  'Sudan': 'SD',
+  'Suriname': 'SR',
+  'Swaziland': 'SZ',
+  'Sweden': 'SE',
+  'Switzerland': 'CH',
+  'Syria': 'SY',
+  'Taiwan': 'TW',
+  'Tajikistan': 'TJ',
+  'Tanzania': 'TZ',
+  'Thailand': 'TH',
+  'Togo': 'TG',
+  'Tonga': 'TO',
+  'Trinidad and Tobago': 'TT',
+  'Tunisia': 'TN',
+  'Turkey': 'TR',
+  'Turkmenistan': 'TM',
+  'Tuvalu': 'TV',
+  'Uganda': 'UG',
+  'Ukraine': 'UA',
+  'United Arab Emirates': 'AE',
+  'United Kingdom': 'GB',
+  'United States': 'US',
+  'Uruguay': 'UY',
+  'Uzbekistan': 'UZ',
+  'Vanuatu': 'VU',
+  'Vatican City': 'VA',
+  'Venezuela': 'VE',
+  'Vietnam': 'VN',
+  'Yemen': 'YE',
+  'Zambia': 'ZM',
+  'Zimbabwe': 'ZW'
 };
 
-// Get country ISO code from country name
-export const getCountryCode = (countryName?: string): string => {
+/**
+ * Get country code from country name
+ * @param countryName The name of the country
+ * @returns ISO country code or empty string if not found
+ */
+export const getCountryCode = (countryName: string | null): string => {
   if (!countryName) return '';
-  
-  // If input is already a two-letter code, return it as lowercase
-  if (countryName.length === 2) {
-    return countryName.toLowerCase();
-  }
-  
-  // Handle special cases with different formatting
-  const normalizedName = countryName.trim();
-
-  // Direct lookup
-  if (COUNTRY_TO_ISO[normalizedName]) {
-    return COUNTRY_TO_ISO[normalizedName];
-  }
-  
-  // Try to match regardless of case
-  const lowerCaseName = normalizedName.toLowerCase();
-  const countryEntry = Object.entries(COUNTRY_TO_ISO).find(
-    ([name]) => name.toLowerCase() === lowerCaseName
-  );
-  
-  if (countryEntry) {
-    return countryEntry[1];
-  }
-  
-  // Handle special cases
-  if (lowerCaseName === 'iraq') return 'iq';
-  if (lowerCaseName === 'france') return 'fr';
-  if (lowerCaseName === 'usa' || lowerCaseName === 'united states of america') return 'us';
-  if (lowerCaseName === 'uk' || lowerCaseName === 'great britain') return 'gb';
-  
-  // Fallback
-  return '';
+  return countryToCodeMap[countryName] || '';
 };
 
-// Get flag URL from country code or country name with fallback
-export const getFlagUrl = (codeOrName: string): string => {
-  if (!codeOrName) return '';
-  
-  // Normalize to lowercase for consistency
-  let code = codeOrName.toLowerCase();
-  
-  // If input is longer than 2 characters, it's likely a country name
-  if (code.length > 2) {
-    code = getCountryCode(codeOrName);
-  }
-  
-  // Only return a URL if we have a valid 2-letter code
-  if (code && code.length === 2) {
-    // Use CDN that supports most country flags
-    return `https://flagcdn.com/w20/${code.toLowerCase()}.png`;
-  }
-  
-  // Fallback to a different CDN if needed
-  if (code && code.length === 2) {
-    return `https://flagsapi.com/${code.toUpperCase()}/flat/32.png`;
-  }
-  
-  // No valid code found
-  return '';
-};
-
-// Get flag emoji from country code
-export const getFlagEmoji = (countryCode?: string): string => {
-  if (!countryCode || countryCode.length !== 2) return '';
-  
-  // Emoji flags are created using Regional Indicator Symbols
-  // Each letter is represented by a Unicode Regional Indicator Symbol
-  // A-Z are represented by Unicode code points U+1F1E6 through U+1F1FF
-  const OFFSET = 127397; // The value to add to ASCII to get the Regional Indicator Symbol
-  
-  // Convert country code to uppercase (just to be safe)
-  const code = countryCode.toUpperCase();
-  
-  // Convert the two letters to the corresponding Regional Indicator Symbols
-  const firstLetter = code.charCodeAt(0) + OFFSET;
-  const secondLetter = code.charCodeAt(1) + OFFSET;
-  
-  // Return the flag emoji
-  return String.fromCodePoint(firstLetter) + String.fromCodePoint(secondLetter);
-};
-
-// Detect user's country using their IP - with better error handling and caching
-export const detectUserCountry = async (): Promise<{ country: string; countryCode: string }> => {
-  // Try to get from sessionStorage first for better performance
-  const cachedCountry = sessionStorage.getItem('user_country');
-  const cachedCountryCode = sessionStorage.getItem('user_country_code');
-  
-  if (cachedCountry && cachedCountryCode) {
-    return { country: cachedCountry, countryCode: cachedCountryCode };
-  }
+/**
+ * Get flag emoji from country code
+ * @param countryCode ISO country code
+ * @returns Flag emoji for the country or placeholder if not found
+ */
+export const getFlagEmoji = (countryCode: string): string => {
+  if (!countryCode) return '🏳️';
   
   try {
-    // Using ipapi.co as a more reliable free service
-    const response = await fetch('https://ipapi.co/json/', { 
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    });
+    // Convert country code to regional indicator symbols
+    const codePoints = [...countryCode.toUpperCase()]
+      .map(char => 127397 + char.charCodeAt(0));
     
-    if (!response.ok) {
-      throw new Error(`Failed to detect country: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data.country_name || !data.country_code) {
-      throw new Error('Invalid country data received');
-    }
-    
-    const result = {
-      country: data.country_name,
-      countryCode: data.country_code.toLowerCase()
-    };
-    
-    // Cache the result in sessionStorage
-    sessionStorage.setItem('user_country', result.country);
-    sessionStorage.setItem('user_country_code', result.countryCode);
-    
-    return result;
-  } catch (error) {
-    console.error('Error detecting country:', error);
-    
-    // Fallback to another service if the first one fails
-    try {
-      const fallbackResponse = await fetch('https://geolocation-db.com/json/', {
-        signal: AbortSignal.timeout(5000)
-      });
-      
-      if (!fallbackResponse.ok) {
-        throw new Error('Fallback service failed');
+    return String.fromCodePoint(...codePoints);
+  } catch (e) {
+    console.warn('Error generating flag emoji:', e);
+    return '🏳️';
+  }
+};
+
+/**
+ * Debug function to test Realtime Database access paths
+ * Used only in development to diagnose security rule issues
+ */
+export const debugConversationAccess = (path: string, userId: string | null): string => {
+  if (!userId) return 'User not authenticated';
+  
+  if (path === 'presence') {
+    return `User ${userId} should have access to presence data with auth !== null`;
+  }
+  
+  // For conversation paths like messages/{conversation_id}
+  if (path.includes('/')) {
+    const parts = path.split('/');
+    if (parts.length >= 2) {
+      const conversationId = parts[1];
+      if (conversationId.includes(userId)) {
+        return `User ${userId} should have access to ${path} (userId in conversationId)`;
+      } else {
+        return `User ${userId} should NOT have access to ${path} (userId not in conversationId)`;
       }
-      
-      const fallbackData = await fallbackResponse.json();
-      
-      if (fallbackData.country_name && fallbackData.country_code) {
-        const result = {
-          country: fallbackData.country_name,
-          countryCode: fallbackData.country_code.toLowerCase()
-        };
-        
-        // Cache the result in sessionStorage
-        sessionStorage.setItem('user_country', result.country);
-        sessionStorage.setItem('user_country_code', result.countryCode);
-        
-        return result;
-      }
-      
-      throw new Error('Invalid data from fallback service');
-    } catch (fallbackError) {
-      console.error('Fallback country detection failed:', fallbackError);
-      return { country: 'Unknown', countryCode: '' };
     }
   }
+  
+  return `Path ${path} access rights unclear`;
 };

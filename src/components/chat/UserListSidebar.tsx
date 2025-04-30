@@ -4,7 +4,6 @@ import { UserList } from '@/components/UserList';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useConnectionMonitor } from '@/hooks/useConnectionMonitor';
 import { useChatConnection } from '@/hooks/chat/useChatConnection';
-import { OnlineUser } from '@/hooks/useOnlineUsers';
 
 interface UserListSidebarProps {
   onUserSelect: (userId: string) => void;
@@ -17,7 +16,7 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
   selectedUserId,
   currentUserId
 }) => {
-  // Get online users from our new hook
+  // Get online users from our hook with the fixed implementation
   const { 
     onlineUsers, 
     isLoading, 
@@ -37,6 +36,10 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
     : isConnected 
       ? 'connected' 
       : 'disconnected';
+
+  // Log current status to help debugging
+  console.log(`UserListSidebar status: connected=${isConnected}, loading=${isLoading}, hasUsers=${hasUsers}, userCount=${onlineUsers.length}`);
+  if (error) console.error('UserListSidebar error:', error);
 
   return (
     <aside className="w-full max-w-xs border-r border-border">

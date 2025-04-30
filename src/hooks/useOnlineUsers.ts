@@ -63,30 +63,75 @@ export const useOnlineUsers = (options: UseOnlineUsersOptions = {}) => {
                   return;
                 }
                 
-                // Ensure user has all required display properties
-                const enhancedUser = enhanceUserWithDisplayProps({
+                // Enhance user with display properties directly here
+                const avatarInitial = userData.nickname ? userData.nickname.charAt(0).toUpperCase() : '?';
+                
+                // Create a simple hash from the user ID for consistent colors
+                const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                
+                // Define color sets
+                const colorSets = [
+                  { bg: 'bg-purple-100', text: 'text-purple-600' },
+                  { bg: 'bg-blue-100', text: 'text-blue-600' },
+                  { bg: 'bg-green-100', text: 'text-green-600' },
+                  { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+                  { bg: 'bg-red-100', text: 'text-red-600' },
+                  { bg: 'bg-pink-100', text: 'text-pink-600' },
+                  { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+                ];
+                
+                // Use hash to select a color set
+                const colorIndex = hash % colorSets.length;
+                const colors = colorSets[colorIndex];
+                
+                // Get flag emoji (simple version)
+                let flagEmoji = '🏳️';
+                if (userData.country) {
+                  try {
+                    // Simple country code detection - first try direct country code
+                    let countryCode = userData.country;
+                    if (countryCode.length > 2) {
+                      // If it's a full country name, use first two letters as a fallback
+                      countryCode = userData.country.substring(0, 2).toUpperCase();
+                    }
+                    
+                    // Convert to regional indicator symbols
+                    const codePoints = [...countryCode.substring(0, 2).toUpperCase()]
+                      .map(char => 127397 + char.charCodeAt(0));
+                    flagEmoji = String.fromCodePoint(...codePoints);
+                  } catch (e) {
+                    console.warn('Error generating flag emoji');
+                    flagEmoji = '🏳️';
+                  }
+                }
+                
+                const enhancedUser = {
                   ...userData,
                   user_id: userId,
-                  is_current_user: userId === currentUserId
-                });
+                  is_current_user: userId === currentUserId,
+                  avatarInitial,
+                  avatarBgColor: colors.bg,
+                  avatarTextColor: colors.text,
+                  flagEmoji
+                };
                 
-                if (enhancedUser) {
-                  onlineUsers.push(enhancedUser as OnlineUser);
-                }
+                onlineUsers.push(enhancedUser as OnlineUser);
               }
             });
           }
           
           // Add mock VIP user if needed and no users are present
           if (includeMockUsers && onlineUsers.length === 0) {
-            const mockUser = enhanceUserWithDisplayProps({
+            const mockUser = {
               ...MOCK_VIP_USER,
-              is_current_user: false
-            });
+              is_current_user: false,
+              avatarInitial: 'V',
+              avatarBgColor: 'bg-yellow-100',
+              avatarTextColor: 'text-yellow-600',
+              flagEmoji: '🇺🇸'
+            };
             
-            if (mockUser) {
-              onlineUsers.push(mockUser as OnlineUser);
-            }
+            onlineUsers.push(mockUser as OnlineUser);
           }
           
           console.log(`Online users found: ${onlineUsers.length}`);
@@ -99,14 +144,16 @@ export const useOnlineUsers = (options: UseOnlineUsersOptions = {}) => {
           
           // Add fallback mock user when there's an error
           if (includeMockUsers) {
-            const mockUser = enhanceUserWithDisplayProps({
+            const mockUser = {
               ...MOCK_VIP_USER,
-              is_current_user: false
-            });
+              is_current_user: false,
+              avatarInitial: 'V',
+              avatarBgColor: 'bg-yellow-100',
+              avatarTextColor: 'text-yellow-600',
+              flagEmoji: '🇺🇸'
+            };
             
-            if (mockUser) {
-              setUsers([mockUser as OnlineUser]);
-            }
+            setUsers([mockUser as OnlineUser]);
           }
           
           toast.error('Could not connect to chat server');
@@ -121,14 +168,16 @@ export const useOnlineUsers = (options: UseOnlineUsersOptions = {}) => {
       
       // Add fallback mock user
       if (includeMockUsers) {
-        const mockUser = enhanceUserWithDisplayProps({
+        const mockUser = {
           ...MOCK_VIP_USER,
-          is_current_user: false
-        });
+          is_current_user: false,
+          avatarInitial: 'V',
+          avatarBgColor: 'bg-yellow-100',
+          avatarTextColor: 'text-yellow-600',
+          flagEmoji: '🇺🇸'
+        };
         
-        if (mockUser) {
-          setUsers([mockUser as OnlineUser]);
-        }
+        setUsers([mockUser as OnlineUser]);
       }
     }
     

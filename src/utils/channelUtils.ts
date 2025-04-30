@@ -1,112 +1,63 @@
 
 /**
- * Utility functions for managing Firebase Realtime Database channels
+ * Utilities for chat channel management
  */
 
-/**
- * Generate a consistent conversation ID regardless of user order
- * @param user1Id First user ID
- * @param user2Id Second user ID
- * @returns Normalized conversation ID string
- */
-export const getConversationId = (user1Id: string, user2Id: string): string => {
-  if (!user1Id || !user2Id) {
-    console.error("Invalid user IDs for conversation:", user1Id, user2Id);
-    // Return a fallback that won't match any messages
-    return "invalid_conversation";
-  }
-  
-  // Ensure both IDs are strings
-  const id1 = String(user1Id).trim();
-  const id2 = String(user2Id).trim();
-  
-  // Log the original IDs for debugging
-  console.log(`Creating conversation ID from: "${id1}" and "${id2}"`);
-  
-  // Create sorted ID to ensure consistency
-  const sortedIds = [id1, id2].sort();
-  const conversationId = sortedIds.join('_');
-  
-  // Log the final conversation ID
-  console.log(`Generated conversation ID: "${conversationId}"`);
-  
-  return conversationId;
-};
-
-// Message channel helpers
-export const getMessageChannelName = (conversationId: string): string => {
-  return `messages_${conversationId}`;
-};
-
-export const getMessageChannelPath = (conversationId: string): string => {
-  return `messages/${conversationId}`;
-};
-
-// Reactions channel helpers
-export const getReactionsChannelName = (conversationId: string): string => {
-  return `reactions_${conversationId}`;
-};
-
-export const getReactionsChannelPath = (conversationId: string): string => {
-  return `message_reactions/${conversationId}`;
-};
-
-// Typing status channel helpers
-export const getTypingChannelName = (conversationId: string): string => {
-  return `typing_${conversationId}`;
-};
-
-export const getTypingChannelPath = (conversationId: string): string => {
-  return `typing_status/${conversationId}`;
-};
-
-/**
- * Normalize a Firebase snapshot value
- * @param snapshot Firebase snapshot value
- * @returns Normalized data object or null
- */
-export const normalizeSnapshotValue = (snapshot: any): any => {
-  if (!snapshot || !snapshot.val) return null;
-  return snapshot.val();
-};
-
-/**
- * Debug function to verify if a user ID is part of a conversation ID
- */
-export const debugConversationAccess = (
-  conversationId: string,
-  userId: string
-): { allowed: boolean; details: string } => {
-  if (!conversationId || !userId) {
-    return { 
-      allowed: false,
-      details: `Invalid params: conversationId=${conversationId}, userId=${userId}`
-    };
-  }
-
-  // Match the security rules using contains() - Firebase RTDB method
-  const userIdStr = String(userId);
-  const containsUserId = conversationId.includes(userIdStr);
-  
-  return {
-    allowed: containsUserId,
-    details: `ConversationId: ${conversationId}, UserId: ${userIdStr}, Contains: ${containsUserId}`
-  };
-};
-
-// User ID storage
+// Store or fetch the current user ID from localStorage
 export const storeCurrentUserId = (userId: string | null) => {
   if (userId) {
     console.log('Storing current user ID in localStorage:', userId);
-    localStorage.setItem('userId', userId);
+    localStorage.setItem('currentUserId', userId);
   } else {
-    console.log('Clearing current user ID from localStorage');
-    localStorage.removeItem('userId');
+    console.log('Removing current user ID from localStorage');
+    localStorage.removeItem('currentUserId');
   }
 };
 
 export const getCurrentUserId = (): string | null => {
-  const userId = localStorage.getItem('userId');
-  console.log('Retrieved current user ID from localStorage:', userId);
+  const userId = localStorage.getItem('currentUserId');
   return userId;
+};
+
+/**
+ * Creates a consistent conversation ID from two user IDs
+ * @param userId1 First user ID
+ * @param userId2 Second user ID
+ * @returns Alphabetically sorted IDs joined with underscore
+ */
+export const getConversationId = (
+  userId1: string | null | undefined,
+  userId2: string | null | undefined
+): string | null => {
+  if (!userId1 || !userId2) {
+    console.log('Missing user IDs, skipping channel setup');
+    return null;
+  }
+  
+  // Sort user IDs alphabetically for consistency
+  const sortedIds = [userId1, userId2].sort();
+  return `${sortedIds[0]}_${sortedIds[1]}`;
+};
+
+/**
+ * Debug function to check conversation access
+ */
+export const debugConversationAccess = (path: string, userId: string | null): boolean => {
+  if (!userId) return false;
+  
+  if (path.startsWith('presence')) {
+    // All authenticated users can read presence data
+    return true;
+  }
+  
+  if (path.includes('/')) {
+    const parts = path.split('/');
+    if (parts.length >= 2) {
+      const conversationId = parts[1];
+      // Check if userId is included in the conversation ID
+      return conversationId.includes(userId);
+    }
+  }
+  
+  return false;
 };

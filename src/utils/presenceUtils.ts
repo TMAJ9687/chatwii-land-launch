@@ -2,6 +2,8 @@
 import { ref, set, serverTimestamp, onDisconnect, onValue } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { toast } from 'sonner';
+import { getAvatarInitial, getAvatarColors } from '@/utils/userUtils';
+import { getCountryCode, getFlagEmoji } from '@/utils/countryTools';
 
 // Enhanced presence utilities with proper cleanup and error handling
 export const updateUserPresence = async (userId: string, profile: any) => {
@@ -25,6 +27,12 @@ export const updateUserPresence = async (userId: string, profile: any) => {
       console.log(`Connected to Firebase, setting up presence for ${userId}`);
 
       try {
+        // Calculate avatar and flag properties
+        const avatarInitial = getAvatarInitial(profile?.nickname || 'Anonymous');
+        const colors = getAvatarColors(userId);
+        const countryCode = getCountryCode(profile?.country || '');
+        const flagEmoji = getFlagEmoji(countryCode || '');
+
         // Register cleanup on disconnect
         await onDisconnect(userStatusRef).remove();
 
@@ -40,7 +48,11 @@ export const updateUserPresence = async (userId: string, profile: any) => {
           vip_status: profile?.vip_status || false,
           last_seen: serverTimestamp(),
           status: 'online',
-          is_current_user: true
+          is_current_user: true,
+          avatarInitial,
+          avatarBgColor: colors.bg,
+          avatarTextColor: colors.text,
+          flagEmoji
         });
         console.log(`Presence successfully set for ${userId}`);
       } catch (error) {
