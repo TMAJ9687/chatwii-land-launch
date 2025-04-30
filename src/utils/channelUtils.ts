@@ -62,6 +62,15 @@ export const getReactionsChannelPath = (conversationId: string | null): string =
 };
 
 /**
+ * Validate a conversation ID format
+ */
+export const isValidConversationId = (conversationId: string | null): boolean => {
+  if (!conversationId) return false;
+  const parts = conversationId.split('_');
+  return parts.length === 2 && parts[0].length > 0 && parts[1].length > 0;
+};
+
+/**
  * Debug function to check conversation access
  */
 export const debugConversationAccess = (path: string, userId: string | null): boolean => {
@@ -77,7 +86,7 @@ export const debugConversationAccess = (path: string, userId: string | null): bo
     if (parts.length >= 2) {
       const conversationId = parts[1];
       // Check if userId is included in the conversation ID
-      return conversationId.includes(userId);
+      return conversationId.indexOf(userId) !== -1;
     }
   }
   

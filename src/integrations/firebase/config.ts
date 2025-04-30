@@ -24,21 +24,21 @@ export const realtimeDatabaseRules = {
     },
     "messages": {
       "$conversation_id": {
-        // Allow access if conversation contains user's ID
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        // Instead of .contains, use string comparison and check if conversation ID has user's ID
+        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)"
       }
     },
     "reactions": {
       "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)"
+        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)"
       }
     },
     "typing_status": {
       "$conversation_id": {
-        ".read": "auth !== null && $conversation_id.contains(auth.uid)",
-        ".write": "auth !== null && $conversation_id.contains(auth.uid)" 
+        ".read": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)",
+        ".write": "auth !== null && ($conversation_id.indexOf(auth.uid) !== -1)" 
       }
     },
     // Deny all other read/write access by default

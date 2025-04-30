@@ -2,8 +2,9 @@
 import { useRef, useCallback } from 'react';
 import { ref, onValue, off, DatabaseReference } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { getConversationId } from '@/utils/channelUtils';
+import { getConversationId, isValidConversationId } from '@/utils/channelUtils';
 import { syncService } from '@/services/syncService';
+import { toast } from 'sonner';
 
 // Type for channel registry
 interface ChannelRegistry {
@@ -49,6 +50,14 @@ export const useChannelManager = () => {
       return () => {};
     }
     
+    // Validate path
+    if (!path || path.includes('undefined') || path.includes('null')) {
+      log(`Invalid path: ${path} for channel: ${channelName}`);
+      toast.error("Invalid database path. Check user IDs.");
+      callback(null); // Call with null to indicate error
+      return () => {};
+    }
+    
     // Check if channel already exists and is active
     if (channelsRef.current[channelName]?.isActive) {
       log(`Channel ${channelName} already active, updating timestamp and callback`);
@@ -71,7 +80,6 @@ export const useChannelManager = () => {
         (snapshot) => {
           const data = snapshot.val();
           log(`Received data on channel ${channelName}: ${data ? 'has data' : 'no data'}`);
-          console.log(`Channel data for ${channelName}:`, data);
           
           if (isMountedRef.current && channelsRef.current[channelName]) {
             callback(data);
@@ -81,6 +89,9 @@ export const useChannelManager = () => {
           console.error(`Error on channel ${channelName}:`, error);
           // Still call the callback with null to allow UI to handle error state
           if (isMountedRef.current && channelsRef.current[channelName]) {
+            if (error.toString().includes('PERMISSION_DENIED')) {
+              toast.error("Firebase permission denied. Check database rules.");
+            }
             callback(null);
           }
         }
@@ -100,7 +111,7 @@ export const useChannelManager = () => {
       if (match && match[1] && match[1].includes('_')) {
         const possibleConversationId = match[1];
         // Try to sync this conversation data
-        if (possibleConversationId.includes('_')) {
+        if (isValidConversationId(possibleConversationId)) {
           log(`Attempting to sync conversation: ${possibleConversationId}`);
           const userIds = possibleConversationId.split('_');
           if (userIds.length === 2) {
@@ -114,6 +125,7 @@ export const useChannelManager = () => {
       return () => cleanupChannel(channelName);
     } catch (error) {
       console.error(`Error setting up channel ${channelName}:`, error);
+      toast.error(`Error setting up chat channel: ${(error as Error).message}`);
       return () => {};
     }
   }, [log]);

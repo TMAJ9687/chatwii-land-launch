@@ -43,19 +43,11 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   onRetryConnection,
   isConnected = true,
 }) => {
-  const [indexUrl, setIndexUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
   
-  // Check for Firebase index error in the error message
+  // Update local error when props change
   useEffect(() => {
-    if (error && error.includes('index')) {
-      const urlMatch = error.match(/https:\/\/console\.firebase\.google\.com[^\s"]*/);
-      if (urlMatch) {
-        setIndexUrl(urlMatch[0]);
-      }
-    }
-    
     setLocalError(error);
   }, [error]);
 
@@ -67,7 +59,9 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     try {
       await onSendMessage(content, imageUrl);
     } catch (e) {
-      setLocalError('Failed to send message. Please try again.');
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      setLocalError('Failed to send message. Please try again. ' + errorMessage);
+      toast.error('Failed to send message');
     } finally {
       setIsSending(false);
     }
@@ -76,6 +70,7 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   // Handle retry connection
   const handleRetryConnection = useCallback(() => {
     if (onRetryConnection) {
+      toast.info('Attempting to reconnect...');
       onRetryConnection();
     }
   }, [onRetryConnection]);
@@ -84,11 +79,20 @@ export const ChatContent: React.FC<ChatContentProps> = ({
     return <EmptyStateView />;
   }
 
+  // Determine if we have a Firebase error to show
+  const hasFirebaseError = localError && (
+    localError.includes('firebase') || 
+    localError.includes('permission') || 
+    localError.includes('PERMISSION_DENIED') ||
+    localError.includes('index') ||
+    localError.includes('Invalid token')
+  );
+
   return (
     <>
-      {/* Firebase Index Error */}
-      {error && error.includes('index') && (
-        <FirebaseIndexMessage indexUrl={indexUrl || undefined} />
+      {/* Firebase Errors (Index or Permissions) */}
+      {hasFirebaseError && (
+        <FirebaseIndexMessage error={localError} />
       )}
       
       {/* Connection Status Component */}

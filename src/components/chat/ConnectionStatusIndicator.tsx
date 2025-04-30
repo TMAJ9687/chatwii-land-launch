@@ -48,7 +48,9 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                 ? "Database index issue"
                 : error.includes("permission")
                   ? "Permission denied"
-                  : "Error loading messages"}
+                  : error.includes("Invalid token") || error.includes("PERMISSION_DENIED")
+                    ? "Firebase rules issue"
+                    : "Error loading messages"}
             </span>
           </>
         )}
