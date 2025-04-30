@@ -73,3 +73,45 @@ export const getFlagEmoji = (countryCode: string): string => {
     return '🏳️';
   }
 };
+
+/**
+ * Generate a URL for a country flag image
+ */
+export const getFlagUrl = (countryCode: string): string => {
+  if (!countryCode || countryCode.length !== 2) {
+    return '';
+  }
+  
+  // Using a free flag API service
+  return `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
+};
+
+/**
+ * Detect user's country based on IP address
+ * @returns Promise with country name and code
+ */
+export const detectUserCountry = async (): Promise<{ country: string; countryCode: string }> => {
+  try {
+    const response = await fetch('https://ipapi.co/json/');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user location: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(`IP API error: ${data.reason}`);
+    }
+    
+    return {
+      country: data.country_name || "Unknown",
+      countryCode: data.country_code || ""
+    };
+  } catch (error) {
+    console.error("Error detecting country:", error);
+    return {
+      country: "Unknown",
+      countryCode: ""
+    };
+  }
+};
