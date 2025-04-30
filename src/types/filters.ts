@@ -1,5 +1,6 @@
 
-export type Gender = 'Male' | 'Female';
+export type Gender = "Male" | "Female" | "Other" | string;
+
 export type FilterState = {
   selectedGenders: Gender[];
   ageRange: {

@@ -1,15 +1,13 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Ensure React is imported
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserListItem } from '@/components/UserListItem'; // Import updated UserListItem
 import { FilterPopup } from '@/components/FilterPopup';
-import { FilterState, DEFAULT_FILTERS } from '@/types/filters';
+import { FilterState, DEFAULT_FILTERS, Gender } from '@/types/filters'; // Import the Gender type from filters.ts
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { getFlagEmoji, getCountryCode } from '@/utils/countryTools'; // Import getFlagEmoji
-import { Gender } from '@/types/profile'; // Import the Gender type
 
 // --- Define a more complete User type (adjust based on your actual data) ---
 interface OnlineUser {
@@ -110,9 +108,8 @@ export const UserList: React.FC<UserListProps> = ({ users, onUserSelect, selecte
         // Fixed type issue: use type safe comparison for gender
         // Check if the user's gender is in the selected genders array
         if (filters.selectedGenders.length > 0) {
-          // Cast the user.gender to a Gender type to avoid type errors
-          const userGender = user.gender as Gender;
-          if (!filters.selectedGenders.includes(userGender)) {
+          // No need for casting since we updated the Gender type to include string
+          if (!filters.selectedGenders.includes(user.gender)) {
             return false;
           }
         }
