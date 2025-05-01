@@ -1,12 +1,12 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChatArea } from '@/components/ChatArea';
 import { MessageInput } from '@/components/MessageInput';
 import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
-import { useConnection } from '@/contexts/ConnectionContext';
+import { useChatConnection } from '@/hooks/chat/useChatConnection';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { toast } from 'sonner';
 
@@ -16,7 +16,7 @@ interface ChatContentProps {
   currentUserId: string;
   messages: MessageWithMedia[];
   onClose: () => void;
-  onSendMessage: (content: string, imageUrl?: string) => Promise<boolean>;
+  onSendMessage: (content: string, imageUrl?: string) => void;
   onMessagesRead: () => void;
   isVipUser?: boolean;
   isTyping?: boolean;
@@ -24,6 +24,7 @@ interface ChatContentProps {
   isLoading?: boolean;
   error?: string | null;
   onRetryConnection?: () => void;
+  isConnected?: boolean;
 }
 
 export const ChatContent: React.FC<ChatContentProps> = ({
@@ -40,10 +41,16 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   isLoading = false,
   error = null,
   onRetryConnection,
+  isConnected = true,
 }) => {
   const [isSending, setIsSending] = useState<boolean>(false);
-  const { isConnected } = useConnection();
+  const [localError, setLocalError] = useState<string | null>(null);
   
+  // Update local error when props change
+  useEffect(() => {
+    setLocalError(error);
+  }, [error]);
+
   // Memoize the send handler to prevent unnecessary rerenders
   const handleSendMessage = useCallback(async (content: string, imageUrl?: string) => {
     if (!content && !imageUrl) return;
@@ -53,7 +60,8 @@ export const ChatContent: React.FC<ChatContentProps> = ({
       await onSendMessage(content, imageUrl);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      toast.error('Failed to send message. ' + errorMessage);
+      setLocalError('Failed to send message. Please try again. ' + errorMessage);
+      toast.error('Failed to send message');
     } finally {
       setIsSending(false);
     }
@@ -72,26 +80,26 @@ export const ChatContent: React.FC<ChatContentProps> = ({
   }
 
   // Determine if we have a Firebase error to show
-  const hasFirebaseError = error && (
-    error.includes('firebase') || 
-    error.includes('permission') || 
-    error.includes('PERMISSION_DENIED') ||
-    error.includes('index') ||
-    error.includes('Invalid token')
+  const hasFirebaseError = localError && (
+    localError.includes('firebase') || 
+    localError.includes('permission') || 
+    localError.includes('PERMISSION_DENIED') ||
+    localError.includes('index') ||
+    localError.includes('Invalid token')
   );
 
   return (
     <>
       {/* Firebase Errors (Index or Permissions) */}
       {hasFirebaseError && (
-        <FirebaseIndexMessage error={error} />
+        <FirebaseIndexMessage error={localError} />
       )}
       
       {/* Connection Status Component */}
       <ConnectionStatusIndicator 
         isConnected={isConnected}
         onReconnect={handleRetryConnection}
-        error={error}
+        error={localError}
         isLoading={isLoading}
       />
 

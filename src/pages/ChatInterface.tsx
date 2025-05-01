@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
 import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
@@ -8,11 +7,13 @@ import { RulesPopup } from '@/components/RulesPopup';
 import { ReportUserPopup } from '@/components/ReportUserPopup';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { useAuthProfile } from '@/hooks/useAuthProfile';
+import { usePresenceState } from '@/hooks/usePresenceState';
+import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useConversation } from '@/hooks/useConversation';
 import { useMessages } from '@/hooks/useMessages';
-import { useChannelSetup } from '@/hooks/useChannelSetup';
 import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
+import { useChannelSetup } from '@/hooks/useChannelSetup';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
@@ -46,6 +47,9 @@ const ChatInterfaceContent = () => {
     loading: profileLoading 
   } = useAuthProfile();
 
+  // Setup user presence
+  const { isOnline } = usePresenceState(currentUserId);
+
   // Get unread message counts
   const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
 
@@ -59,15 +63,10 @@ const ChatInterfaceContent = () => {
   const { 
     messages, 
     setMessages,
+    fetchMessages,
+    isLoading: messagesLoading,
+    error: messagesError
   } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
-
-  // Setup channel listeners
-  const { 
-    isConnected,
-    channelError,
-    isLoading: channelLoading,
-    onRetryConnection
-  } = useChannelSetup(currentUserId, selectedUserId, setMessages);
 
   // Setup conversation functionality
   const {
@@ -76,10 +75,18 @@ const ChatInterfaceContent = () => {
   } = useConversation(currentUserId, selectedUserId, currentUserRole, isVipUser);
 
   // Setup typing indicator
-  const { isTyping, setIsTyping } = useTypingIndicator(
+  const { isTyping, setIsTyping, broadcastTypingStatus } = useTypingIndicator(
     currentUserId,
     selectedUserId,
     isVipUser
+  );
+
+  // Setup channel listeners
+  const { isConnected, onRetryConnection } = useChannelSetup(
+    currentUserId, 
+    selectedUserId, 
+    setMessages, 
+    fetchMessages
   );
 
   // Check if rules are accepted
@@ -112,15 +119,6 @@ const ChatInterfaceContent = () => {
     setActiveSidebar('none');
   };
 
-  // Custom message sending handler with optimistic update
-  const sendMessage = async (content: string, imageUrl?: string) => {
-    const result = await handleSendMessage(content, imageUrl, setMessages);
-    if (result) {
-      fetchUnreadCount();
-    }
-    return result;
-  };
-
   return (
     <ChatLayout unreadCount={unreadCount} isVipUser={isVipUser}>
       <div className="flex h-[calc(100vh-60px)]">
@@ -149,19 +147,20 @@ const ChatInterfaceContent = () => {
             currentUserId={currentUserId || ''}
             messages={messages}
             onClose={handleCloseChat}
-            onSendMessage={sendMessage}
+            onSendMessage={handleSendMessage}
             onMessagesRead={() => fetchUnreadCount()}
             isVipUser={isVipUser}
             isTyping={isTyping}
             onTypingStatusChange={handleTypingStatusChange}
-            isLoading={channelLoading}
-            error={channelError?.message || null}
+            isLoading={messagesLoading}
+            error={messagesError}
+            isConnected={isConnected}
             onRetryConnection={onRetryConnection}
           />
         </main>
       </div>
 
-      {/* Sidebars */}
+      {/* Sidebar containers */}
       <SidebarContainer
         isOpen={activeSidebar === 'inbox'}
         onClose={() => setActiveSidebar('none')}
