@@ -1,81 +1,38 @@
 // src/hooks/chat/useChatConnection.ts
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, get, onValue } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 
 export function useChatConnection(active: boolean = true) {
-  const [isConnected, setIsConnected] = useState<boolean>(true);
-  const [lastReconnectTime, setLastReconnectTime] = useState<number>(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectionCheckedRef = useRef<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  // 1) A one-off check using get()
-  const checkConnection = useCallback(async () => {
-    if (!active) return false;
-
-    try {
-      // ⚠️ MUST be '.info/connected' NOT '/.info/connected'
-      const connectedRef = ref(realtimeDb, '.info/connected');
-      const snap = await get(connectedRef);
-      const online = snap.val() === true;
-      setIsConnected(online);
-      connectionCheckedRef.current = true;
-      return online;
-    } catch (err) {
-      console.error('Error checking connection:', err);
-      setIsConnected(false);
-      return false;
-    }
-  }, [active]);
-
-  // 2) Subscribe to realtime updates
+  // 1) Subscribe to '.info/connected' and update state
   useEffect(() => {
     if (!active) return;
 
-    // run our initial check once
-    if (!connectionCheckedRef.current) {
-      checkConnection();
-    }
-
-    // subscribe
-    // ⚠️ AGAIN: no leading '/'
     const connectedRef = ref(realtimeDb, '.info/connected');
-    const unsubscribe = onValue(connectedRef, (snap) => {
-      setIsConnected(snap.val() === true);
-    });
-
-    return () => unsubscribe();
-  }, [active, checkConnection]);
-
-  // 3) “Reconnect” helper with simple back-off
-  const reconnect = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastReconnectTime < 5_000) {
-      // throttle to once every 5s
-      return;
-    }
-    setLastReconnectTime(now);
-
-    try {
-      const online = await checkConnection();
-      if (!online) {
-        // try again in 5s
-        reconnectTimerRef.current = setTimeout(reconnect, 5_000);
+    const unsubscribe = onValue(
+      connectedRef,
+      (snap) => {
+        setIsConnected(!!snap.val());
+      },
+      (err) => {
+        console.error('Connection monitor error:', err);
+        setIsConnected(false);
       }
-    } catch {
-      reconnectTimerRef.current = setTimeout(reconnect, 5_000);
-    }
-  }, [lastReconnectTime, checkConnection]);
+    );
 
-  // 4) Cleanup any pending timer on unmount
-  useEffect(() => {
     return () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
+      unsubscribe();
     };
+  }, [active]);
+
+  // 2) Placeholder reconnect (if you want to force a reconnection you can toggle
+  //    the SDK back online/offline, or just rely on the onValue above)
+  const reconnect = useCallback(() => {
+    console.log('useChatConnection: reconnect() called — nothing to do; onValue will auto-recover.');
   }, []);
 
-  return { isConnected, reconnect, checkConnection };
+  return { isConnected, reconnect };
 }
