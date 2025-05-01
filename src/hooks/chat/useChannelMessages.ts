@@ -56,25 +56,33 @@ export const useChannelMessages = (
       const messageArray = Object.values(data);
       return messageArray
         .filter((msg: any) => msg && typeof msg === 'object' && msg.id)
-        .map((msg: any) => ({
-          id: msg.id,
-          content: msg.content || '',
-          sender_id: msg.sender_id,
-          receiver_id: msg.receiver_id,
-          is_read: msg.is_read || false,
-          created_at: formatTimestamp(msg.created_at),
-          media: msg.media || null,
-          // Ensure all required properties from MessageWithMedia are included
-          reactions: msg.reactions || [],
-          updated_at: formatTimestamp(msg.updated_at),
-          deleted_at: msg.deleted_at ? formatTimestamp(msg.deleted_at) : null,
-          translated_content: msg.translated_content || null,
-          language_code: msg.language_code || null,
-          reply_to: msg.reply_to || null
-        } as MessageWithMedia))
+        .map((msg: any) => {
+          // Convert timestamps to strings early to avoid type issues
+          const createdAt = formatTimestamp(msg.created_at);
+          const updatedAt = formatTimestamp(msg.updated_at);
+          const deletedAt = msg.deleted_at ? formatTimestamp(msg.deleted_at) : null;
+          
+          return {
+            id: msg.id,
+            content: msg.content || '',
+            sender_id: msg.sender_id,
+            receiver_id: msg.receiver_id,
+            is_read: msg.is_read || false,
+            created_at: createdAt,
+            media: msg.media || null,
+            // Ensure all required properties from MessageWithMedia are included
+            reactions: msg.reactions || [],
+            updated_at: updatedAt,
+            deleted_at: deletedAt,
+            translated_content: msg.translated_content || null,
+            language_code: msg.language_code || null,
+            reply_to: msg.reply_to || null
+          } as MessageWithMedia;
+        })
         .sort((a: MessageWithMedia, b: MessageWithMedia) => {
-          const dateA = new Date(a.created_at).getTime();
-          const dateB = new Date(b.created_at).getTime();
+          // Since we've already converted to ISO strings, we can safely create Date objects
+          const dateA = new Date(String(a.created_at)).getTime();
+          const dateB = new Date(String(b.created_at)).getTime();
           return dateA - dateB;
         });
     } catch (err) {
