@@ -1,85 +1,119 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
-import { debounce } from 'lodash';
-import { useChannelManagement } from './useChannelManagement';
-import { getTypingStatusPath, getConversationId, getSortedUserIds } from '@/utils/channelUtils';
+import { ref, onValue, set, off } from 'firebase/database';
+import { getTypingStatusPath, getConversationId } from '@/utils/channelUtils';
+import { isMockUser } from '@/utils/mockUsers';
 
-export const useTypingIndicator = (
+interface TypingStatus {
+  isTyping: boolean;
+  userId: string;
+  timestamp: number;
+}
+
+export function useTypingIndicator(
   currentUserId: string | null,
   selectedUserId: string | null,
-  isVipUser: boolean
-) => {
+  isVipUser: boolean = false
+) {
   const [isTyping, setIsTyping] = useState(false);
-  const { registerChannel } = useChannelManagement();
-  
-  // Generate a stable channel name
-  const getTypingChannelName = useCallback(() => {
-    if (!currentUserId || !selectedUserId) return '';
-    return `typing:${currentUserId}-${selectedUserId}`;
-  }, [currentUserId, selectedUserId]);
-  
-  // Set up Firebase listener for typing events
-  useEffect(() => {
-    if (!isVipUser || !selectedUserId || !currentUserId) return;
-    
-    // Use new path structure
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingListenerRef = useRef<(() => void) | null>(null);
+
+  // Clear any existing typing timeout
+  const clearTypingTimeout = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Clean up typing listener
+  const clearTypingListener = useCallback(() => {
+    if (typingListenerRef.current) {
+      typingListenerRef.current();
+      typingListenerRef.current = null;
+    }
+  }, []);
+
+  // Broadcast current user's typing status
+  const broadcastTypingStatus = useCallback((isUserTyping: boolean) => {
+    if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) {
+      return;
+    }
+
     const conversationId = getConversationId(currentUserId, selectedUserId);
-    const typingPath = getTypingStatusPath(conversationId);
-    
-    const channelName = getTypingChannelName();
-    const typingRef = ref(realtimeDb, typingPath);
-    
-    const unsubscribe = onValue(typingRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.userId === selectedUserId) {
-        setIsTyping(data.isTyping);
+    if (!conversationId) return;
+
+    const path = getTypingStatusPath(conversationId);
+    const typingRef = ref(realtimeDb, `${path}/${currentUserId}`);
+
+    clearTypingTimeout();
+
+    // Set typing status in database
+    set(typingRef, {
+      isTyping: isUserTyping,
+      userId: currentUserId,
+      timestamp: Date.now()
+    }).catch(console.error);
+
+    // Auto-clear typing status after 5 seconds
+    if (isUserTyping) {
+      typingTimeoutRef.current = setTimeout(() => {
+        set(typingRef, {
+          isTyping: false,
+          userId: currentUserId,
+          timestamp: Date.now()
+        }).catch(console.error);
+      }, 5000);
+    }
+  }, [currentUserId, selectedUserId, clearTypingTimeout]);
+
+  // Listen for other user's typing status
+  useEffect(() => {
+    if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) {
+      return;
+    }
+
+    const conversationId = getConversationId(currentUserId, selectedUserId);
+    if (!conversationId) return;
+
+    // Clean up existing listener first
+    clearTypingListener();
+
+    const path = getTypingStatusPath(conversationId);
+    const otherUserTypingRef = ref(realtimeDb, `${path}/${selectedUserId}`);
+
+    // Set up new listener
+    const unsubscribe = onValue(otherUserTypingRef, (snapshot) => {
+      const typingData = snapshot.val() as TypingStatus | null;
+      
+      if (typingData && typingData.isTyping) {
+        // Check if typing status is recent (within last 10 seconds)
+        const isRecent = Date.now() - typingData.timestamp < 10000;
+        setIsTyping(isRecent);
+        
+        // Auto-clear typing status after 10 seconds if no updates
+        clearTimeout(typingTimeoutRef.current!);
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+        }, 10000);
+      } else {
+        setIsTyping(false);
       }
     });
-    
-    registerChannel(channelName, typingRef);
-    
+
+    typingListenerRef.current = unsubscribe;
+
     return () => {
-      off(typingRef);
+      clearTypingListener();
+      clearTypingTimeout();
     };
-  }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, registerChannel]);
-
-  // Auto-reset typing indicator after inactivity
-  useEffect(() => {
-    if (!isTyping || !isVipUser) return;
-    
-    const timeout = setTimeout(() => {
-      setIsTyping(false);
-    }, 5000);
-    
-    return () => clearTimeout(timeout);
-  }, [isTyping, isVipUser]);
-
-  // Function to broadcast typing status
-  const broadcastTypingStatus = useCallback(
-    debounce((isTyping: boolean) => {
-      if (!isVipUser || !selectedUserId || !currentUserId) return;
-      
-      // Use new path structure
-      const conversationId = getConversationId(currentUserId, selectedUserId);
-      const typingPath = getTypingStatusPath(conversationId);
-      const typingRef = ref(realtimeDb, typingPath);
-      
-      set(typingRef, {
-        userId: currentUserId,
-        isTyping,
-        timestamp: serverTimestamp()
-      }).catch(error => {
-        console.error('Error broadcasting typing status:', error);
-      });
-    }, 300),
-    [selectedUserId, currentUserId, isVipUser]
-  );
+  }, [currentUserId, selectedUserId, clearTypingListener, clearTypingTimeout]);
 
   return {
     isTyping,
-    setIsTyping,
+    setIsTyping: broadcastTypingStatus,
     broadcastTypingStatus
   };
-};
+}

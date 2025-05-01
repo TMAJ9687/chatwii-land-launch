@@ -28,7 +28,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     if (error.includes('permission') || error.includes('PERMISSION_DENIED')) {
       return 'Database permission issue';
     } else if (error.includes('Invalid token')) {
-      return 'Database path issue';
+      return 'Session expired';
     } else if (error.includes('index')) {
       return 'Database index issue';
     } else {
