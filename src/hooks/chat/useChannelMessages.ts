@@ -5,6 +5,27 @@ import { getMessagesPath } from '@/utils/channelPath';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { getMockVipMessages } from '@/utils/mockUsers';
+import { Timestamp } from 'firebase/firestore';
+
+/**
+ * Helper function to handle Firebase Timestamp conversion
+ */
+const formatTimestamp = (timestamp: string | Date | Timestamp | null | undefined): string => {
+  if (!timestamp) return new Date().toISOString();
+  
+  // Handle Firebase Timestamp objects
+  if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+    return timestamp.toDate().toISOString();
+  }
+  
+  // Handle Date objects
+  if (timestamp instanceof Date) {
+    return timestamp.toISOString();
+  }
+  
+  // Handle string timestamps
+  return String(timestamp);
+};
 
 /**
  * Hook for fetching and subscribing to messages between two users
@@ -41,16 +62,16 @@ export const useChannelMessages = (
           sender_id: msg.sender_id,
           receiver_id: msg.receiver_id,
           is_read: msg.is_read || false,
-          created_at: msg.created_at || new Date().toISOString(),
+          created_at: formatTimestamp(msg.created_at),
           media: msg.media || null,
           // Ensure all required properties from MessageWithMedia are included
           reactions: msg.reactions || [],
-          updated_at: msg.updated_at || null,
-          deleted_at: msg.deleted_at || null,
+          updated_at: formatTimestamp(msg.updated_at),
+          deleted_at: msg.deleted_at ? formatTimestamp(msg.deleted_at) : null,
           translated_content: msg.translated_content || null,
           language_code: msg.language_code || null,
           reply_to: msg.reply_to || null
-        } as MessageWithMedia)) // Explicitly cast to MessageWithMedia
+        } as MessageWithMedia))
         .sort((a: MessageWithMedia, b: MessageWithMedia) => {
           const dateA = new Date(a.created_at).getTime();
           const dateB = new Date(b.created_at).getTime();
@@ -82,7 +103,17 @@ export const useChannelMessages = (
     } else if (isMockUserSelected && currentUserId) {
       // Handle mock user data
       const mockMessages = getMockVipMessages(currentUserId);
-      setMessages(mockMessages as MessageWithMedia[]);
+      // Ensure mock messages have all required properties
+      const processedMockMessages = (mockMessages as any[]).map(msg => ({
+        ...msg,
+        reactions: msg.reactions || [],
+        updated_at: msg.updated_at || msg.created_at,
+        deleted_at: msg.deleted_at || null,
+        translated_content: msg.translated_content || null,
+        language_code: msg.language_code || null,
+        reply_to: msg.reply_to || null
+      })) as MessageWithMedia[];
+      setMessages(processedMockMessages);
     } else {
       setMessages([]);
     }
