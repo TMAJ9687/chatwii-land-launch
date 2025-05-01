@@ -1,5 +1,6 @@
+// src/hooks/chat/useChatConnection.ts
+
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { syncService } from '@/services/syncService';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, get, onValue } from 'firebase/database';
 
@@ -9,25 +10,17 @@ export function useChatConnection(active: boolean = true) {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectionCheckedRef = useRef<boolean>(false);
 
-  // Check database connectivity once
+  // 1) A one-off check using get()
   const checkConnection = useCallback(async () => {
     if (!active) return false;
 
     try {
-      // Always use the absolute path for the special info node
-      const testRef = ref(realtimeDb, '.info/connected');
-      const snapshot = await get(testRef);
-      const online = snapshot.val() === true;
-
+      // ⚠️ MUST be '.info/connected' NOT '/.info/connected'
+      const connectedRef = ref(realtimeDb, '.info/connected');
+      const snap = await get(connectedRef);
+      const online = snap.val() === true;
       setIsConnected(online);
       connectionCheckedRef.current = true;
-
-      if (online) {
-        syncService
-          .checkRealtimeDatabaseRules()
-          .catch(err => console.error('Error checking database rules:', err));
-      }
-
       return online;
     } catch (err) {
       console.error('Error checking connection:', err);
@@ -36,46 +29,46 @@ export function useChatConnection(active: boolean = true) {
     }
   }, [active]);
 
-  // Keep the isConnected state in sync with Realtime Database
+  // 2) Subscribe to realtime updates
   useEffect(() => {
     if (!active) return;
 
-    // Initial one-time check
+    // run our initial check once
     if (!connectionCheckedRef.current) {
       checkConnection();
     }
 
-    // Subscribe to connection changes at the absolute path
+    // subscribe
+    // ⚠️ AGAIN: no leading '/'
     const connectedRef = ref(realtimeDb, '.info/connected');
-    const unsubscribe = onValue(connectedRef, snapshot => {
-      setIsConnected(snapshot.val() === true);
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      setIsConnected(snap.val() === true);
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [active, checkConnection]);
 
-  // Throttled manual reconnect trigger
+  // 3) “Reconnect” helper with simple back-off
   const reconnect = useCallback(async () => {
     const now = Date.now();
-    if (now - lastReconnectTime < 5000) {
-      console.log('Throttling reconnect attempt');
+    if (now - lastReconnectTime < 5_000) {
+      // throttle to once every 5s
       return;
     }
     setLastReconnectTime(now);
 
-    console.log('Attempting to reconnect to chat...');
-    const online = await checkConnection();
-    if (online) {
-      console.log('Successfully reconnected to chat');
-    } else {
-      console.log('Reconnect failed, retry in 5s');
-      reconnectTimerRef.current = setTimeout(reconnect, 5000);
+    try {
+      const online = await checkConnection();
+      if (!online) {
+        // try again in 5s
+        reconnectTimerRef.current = setTimeout(reconnect, 5_000);
+      }
+    } catch {
+      reconnectTimerRef.current = setTimeout(reconnect, 5_000);
     }
   }, [lastReconnectTime, checkConnection]);
 
-  // Cleanup any pending timer on unmount
+  // 4) Cleanup any pending timer on unmount
   useEffect(() => {
     return () => {
       if (reconnectTimerRef.current) {
