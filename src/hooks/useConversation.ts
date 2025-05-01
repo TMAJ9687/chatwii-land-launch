@@ -1,16 +1,19 @@
+// src/hooks/chat/useConversation.ts
+
+import { useState, useCallback, useEffect } from 'react';
 import { ref, set } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { getConversationId, getMessageChannelPath } from '@/utils/channelUtils';
-import { v4 as uuidv4 } from 'uuid';
 import { createDocument, queryDocuments } from '@/lib/firebase';
-import { toast } from 'sonner';
-import { isMockUser } from '@/utils/mockUsers';
-import { insertTemporaryMessage } from '@/utils/messageUtils';
-import { MessageWithMedia } from '@/types/message';
-import { useMessageActions } from '@/hooks/useMessageActions';
 import { useMessages } from '@/hooks/useMessages';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
+import { useMessageActions } from '@/hooks/useMessageActions';
 import { useBot } from '@/hooks/useBot';
+import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
+import { isMockUser } from '@/utils/mockUsers';
+import { insertTemporaryMessage } from '@/utils/messageUtils';
+import { getConversationId, getMessageChannelPath } from '@/utils/channelUtils';
+import type { MessageWithMedia } from '@/types/message';
 
 export const useConversation = (
   currentUserId: string | null,
@@ -18,9 +21,10 @@ export const useConversation = (
   currentUserRole: string,
   isVipUser: boolean
 ) => {
-  // …omitted unrelated code for brevity…
+  const [hasSelectedNewUser, setHasSelectedNewUser] = useState(false);
   const { handleBotResponse } = useBot();
-  const { fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } = useGlobalMessages(currentUserId);
+  const { fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } =
+    useGlobalMessages(currentUserId);
 
   const {
     messages,
@@ -29,16 +33,73 @@ export const useConversation = (
     isLoading,
     error: messagesError,
     resetState
-  } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsRead);
+  } = useMessages(
+    currentUserId,
+    selectedUserId,
+    currentUserRole,
+    markMessagesAsRead
+  );
+
+  const { deleteConversation, isDeletingConversation } = useMessageActions(
+    currentUserId || '',
+    isVipUser
+  );
+
+  // keep global selected‐user in sync
+  useEffect(() => {
+    updateSelectedUserId(selectedUserId);
+  }, [selectedUserId, updateSelectedUserId]);
+
+  // reset & fetch messages on change
+  useEffect(() => {
+    if (selectedUserId && currentUserId) {
+      setHasSelectedNewUser(true);
+      resetState();
+      fetchMessages();
+    }
+  }, [selectedUserId, currentUserId, fetchMessages, resetState]);
+
+  useEffect(() => {
+    if (!hasSelectedNewUser) return;
+    const t = setTimeout(() => setHasSelectedNewUser(false), 1_000);
+    return () => clearTimeout(t);
+  }, [hasSelectedNewUser]);
+
+  useEffect(() => {
+    if (messagesError && !hasSelectedNewUser) {
+      console.error('Message error:', messagesError);
+      toast.error('Error loading messages. Please try again.');
+    }
+  }, [messagesError, hasSelectedNewUser]);
+
+  const handleDeleteConversation = useCallback(async () => {
+    if (!selectedUserId || !currentUserId || isDeletingConversation) return;
+    try {
+      await deleteConversation(selectedUserId);
+      resetState();
+      await fetchMessages();
+      toast.success('Conversation deleted');
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
+      toast.error('Failed to delete conversation');
+    }
+  }, [
+    selectedUserId,
+    currentUserId,
+    isDeletingConversation,
+    deleteConversation,
+    fetchMessages,
+    resetState
+  ]);
 
   const handleSendMessage = useCallback(
     async (content: string, imageUrl?: string) => {
       if (!selectedUserId || !currentUserId) {
-        toast.error("Cannot send message - missing user information");
+        toast.error('Cannot send message – missing user information');
         return false;
       }
       if (isMockUser(selectedUserId)) {
-        toast.error("Demo VIP user - messaging disabled");
+        toast.error('Demo VIP user – messaging disabled');
         return false;
       }
 
@@ -75,7 +136,7 @@ export const useConversation = (
         const recipientProfile = profiles?.[0] || null;
 
         const messageId = await createDocument('messages', {
-          content: content || (imageUrl ? '[Image]' : ''),
+          content: optimistic.content,
           sender_id: currentUserId,
           receiver_id: selectedUserId,
           is_read: false,
@@ -92,49 +153,48 @@ export const useConversation = (
             message_id: messageId,
             user_id: currentUserId,
             file_url: imageUrl,
-            media_type: imageUrl.includes('voice') ? 'voice' : 'image',
+            media_type: optimistic.media!.media_type,
             created_at: now
           });
         }
 
-        // 3) instant RTDB write
+        // 3) write into RTDB so your listeners pick it up immediately
         const convId = getConversationId(currentUserId, selectedUserId)!;
         const rtdbPath = `${getMessageChannelPath(convId)}/${messageId}`;
         await set(ref(realtimeDb, rtdbPath), {
           id: messageId,
-          content: content || (imageUrl ? '[Image]' : ''),
+          content: optimistic.content,
           sender_id: currentUserId,
           receiver_id: selectedUserId,
           is_read: false,
           created_at: now,
-          media: imageUrl
-            ? {
-                id: `media-${messageId}`,
-                message_id: messageId,
-                user_id: currentUserId,
-                file_url: imageUrl,
-                media_type: imageUrl.includes('voice') ? 'voice' : 'image',
-                created_at: now
-              }
-            : null,
+          media: optimistic.media,
           reactions: []
         });
 
         fetchUnreadCount();
         setTimeout(fetchMessages, 400);
-
         return true;
       } catch (err: any) {
         console.error('Error in handleSendMessage:', err);
-        // roll back optimistic
+        // rollback optimistic
         setMessages(cur => cur.filter(m => m.id !== tempId));
-        toast.error(err.message?.includes('storage')
-          ? "Media upload failed. Check your Storage rules."
-          : "Failed to send message. Try again.");
+        toast.error(
+          err.message?.includes('storage')
+            ? 'Media upload failed – check Storage rules.'
+            : 'Failed to send message. Try again.'
+        );
         return false;
       }
     },
-    [currentUserId, selectedUserId, setMessages, handleBotResponse, fetchUnreadCount, fetchMessages]
+    [
+      currentUserId,
+      selectedUserId,
+      setMessages,
+      handleBotResponse,
+      fetchUnreadCount,
+      fetchMessages
+    ]
   );
 
   return {
@@ -142,6 +202,8 @@ export const useConversation = (
     isLoading,
     messagesError,
     handleSendMessage,
-    // …other handlers…
+    handleDeleteConversation,
+    isDeletingConversation,
+    hasSelectedNewUser
   };
 };
