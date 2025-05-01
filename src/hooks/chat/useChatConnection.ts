@@ -46,7 +46,7 @@ export function useChatConnection(active: boolean = true) {
     }
 
     // Subscribe to connection changes at the absolute path
-    const connectedRef = ref(realtimeDb, '/.info/connected');
+    const connectedRef = ref(realtimeDb, '.info/connected');
     const unsubscribe = onValue(connectedRef, snapshot => {
       setIsConnected(snapshot.val() === true);
     });
