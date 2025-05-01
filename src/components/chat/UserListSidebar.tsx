@@ -2,8 +2,7 @@
 import React from 'react';
 import { UserList } from '@/components/UserList';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
-import { useChannelSetup } from '@/hooks/useChannelSetup';
-import { useMessages } from '@/hooks/useMessages';
+import { useChatConnection } from '@/hooks/chat/useChatConnection';
 
 interface UserListSidebarProps {
   onUserSelect: (userId: string) => void;
@@ -19,17 +18,8 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
   // Get online users
   const { onlineUsers } = useOnlineUsers();
   
-  // For passing to useChannelSetup as a placeholder - we don't need these values here
-  const setDummyMessages = React.useCallback(() => {}, []);
-  const dummyFetchMessages = React.useCallback(() => {}, []);
-  
-  // Get connection status and retry function
-  const { isConnected, onRetryConnection } = useChannelSetup(
-    currentUserId,
-    selectedUserId,
-    setDummyMessages,
-    dummyFetchMessages
-  );
+  // Get connection status
+  const { isConnected, reconnect } = useChatConnection();
   
   // Map connection status to string
   const connectionStatus = isConnected ? 'connected' : 'disconnected';
@@ -41,7 +31,7 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
         onUserSelect={onUserSelect} 
         selectedUserId={selectedUserId || undefined}
         connectionStatus={connectionStatus}
-        onRetryConnection={onRetryConnection}
+        onRetryConnection={reconnect}
       />
     </aside>
   );

@@ -1,3 +1,4 @@
+
 import { 
   collection, getDocs, query, WhereFilterOp
 } from 'firebase/firestore';
@@ -273,5 +274,5 @@ export const firebaseClient = {
   }
 };
 
-// Export for backward compatibility (will be removed in future)
-export { firebaseClient as supabase };
+// Firebase-only client
+export { firebaseClient };

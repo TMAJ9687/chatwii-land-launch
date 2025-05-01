@@ -2,20 +2,21 @@
 import React from 'react';
 import { AlertCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useConnection } from '@/contexts/ConnectionContext';
 
 interface ConnectionStatusIndicatorProps {
-  isConnected: boolean;
-  onReconnect: () => void;
+  onReconnect?: () => void;
   error: string | null;
   isLoading: boolean;
 }
 
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
-  isConnected,
   onReconnect,
   error,
   isLoading
 }) => {
+  const { isConnected } = useConnection();
+
   // Don't show anything if everything is working properly
   if (isConnected && !error && !isLoading) {
     return null;

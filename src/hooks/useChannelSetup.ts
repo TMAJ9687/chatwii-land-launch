@@ -1,10 +1,9 @@
+
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useMessageChannel } from '@/hooks/chat/useMessageChannel';
-import { useReactionsChannel } from '@/hooks/chat/useReactionsChannel';
-import { useChannelManager } from '@/hooks/chat/useChannelManager';
 import { useChatConnection } from '@/hooks/chat/useChatConnection';
+import { useChannel } from '@/hooks/chat/useChannel';
+import { getMessagesPath, getReactionsPath } from '@/utils/channelPath';
 import { toast } from 'sonner';
-import { syncService } from '@/services/syncService';
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -15,74 +14,96 @@ export const useChannelSetup = (
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [channelStatus, setChannelStatus] = useState({ messages: false, reactions: false });
   const setupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { cleanupAllChannels } = useChannelManager();
   const { isConnected, reconnect } = useChatConnection(true);
-
+  
+  // Get message channel path
+  const messagesPath = currentUserId && selectedUserId ? 
+    getMessagesPath(currentUserId, selectedUserId) : null;
+  
+  // Get reactions channel path
+  const reactionsPath = currentUserId && selectedUserId ? 
+    getReactionsPath(currentUserId, selectedUserId) : null;
+  
+  // Use our hook to subscribe to messages
   const {
-    connectionStatus: messageStatus,
+    status: messagesStatus,
+    data: messagesData,
     reconnect: reconnectMessages
-  } = useMessageChannel(currentUserId, selectedUserId, setMessages);
-
-  useReactionsChannel(currentUserId, selectedUserId, fetchMessages);
-
-  // mirror message channel status
+  } = useChannel('messages', messagesPath, !!currentUserId && !!selectedUserId);
+  
+  // Use our hook to subscribe to reactions
+  const {
+    status: reactionsStatus
+  } = useChannel('reactions', reactionsPath, !!currentUserId && !!selectedUserId);
+  
+  // Update messages when data changes
   useEffect(() => {
-    setChannelStatus(cs => ({ ...cs, messages: messageStatus === 'connected' }));
-    if (messageStatus === 'connected' && setupTimeoutRef.current) {
+    if (messagesData) {
+      try {
+        const processedMessages = Array.isArray(messagesData) 
+          ? messagesData 
+          : Object.values(messagesData || {}).filter(Boolean);
+        
+        setMessages(processedMessages);
+      } catch (err) {
+        console.error('Error processing messages:', err);
+      }
+    }
+  }, [messagesData, setMessages]);
+  
+  // Mirror connection status
+  useEffect(() => {
+    setChannelStatus({
+      messages: messagesStatus === 'connected',
+      reactions: reactionsStatus === 'connected'
+    });
+    
+    if (
+      messagesStatus === 'connected' && 
+      reactionsStatus === 'connected' && 
+      setupTimeoutRef.current
+    ) {
       clearTimeout(setupTimeoutRef.current);
       setupTimeoutRef.current = null;
+      setIsSettingUp(false);
     }
-  }, [messageStatus]);
-
+  }, [messagesStatus, reactionsStatus]);
+  
+  // Retry connection handler
   const handleRetryConnection = useCallback(() => {
     reconnect();
     reconnectMessages();
-    if (currentUserId && selectedUserId) {
-      syncService.queueSync(currentUserId, selectedUserId).catch(console.error);
-    }
+    fetchMessages();
     toast.info('Attempting to reconnect...');
-  }, [reconnect, reconnectMessages, currentUserId, selectedUserId]);
-
-  // whenever you pick a new user, *tear down* old channels first…
+  }, [reconnect, reconnectMessages, fetchMessages]);
+  
+  // Setup channels when users change
   useEffect(() => {
-    // if no user selected, just clean up
+    // If no users selected, just clean up
     if (!currentUserId || !selectedUserId) {
-      cleanupAllChannels();
       return;
     }
-
-    // 1) tear down
-    cleanupAllChannels();
-    if (setupTimeoutRef.current) {
-      clearTimeout(setupTimeoutRef.current);
-      setupTimeoutRef.current = null;
-    }
-
-    // 2) start fresh
+    
+    // Start fresh setup
     setIsSettingUp(true);
-    syncService.queueSync(currentUserId, selectedUserId).catch(console.error);
     fetchMessages();
-
-    // 3) after a bit, stop the “setting up…” spinner
+    
+    // After a timeout, stop the "setting up..." spinner
     setupTimeoutRef.current = setTimeout(() => {
       setIsSettingUp(false);
       if (!channelStatus.messages) {
         fetchMessages();
-        syncService.queueSync(currentUserId, selectedUserId).catch(console.error);
       }
-    }, 5_000);
-  }, [currentUserId, selectedUserId, fetchMessages, cleanupAllChannels, channelStatus.messages]);
-
-  // cleanup on unmount
-  useEffect(() => {
+    }, 5000);
+    
     return () => {
       if (setupTimeoutRef.current) {
         clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
       }
-      cleanupAllChannels(true);
     };
-  }, [cleanupAllChannels]);
-
+  }, [currentUserId, selectedUserId, fetchMessages, channelStatus.messages]);
+  
   return {
     isConnected,
     isSettingUp,

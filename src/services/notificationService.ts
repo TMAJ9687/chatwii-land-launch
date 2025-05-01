@@ -1,61 +1,62 @@
 
 import { toast } from 'sonner';
 
-// Centralized notification service for consistent messaging
+/**
+ * A service for consistent notifications throughout the app
+ */
 export const notificationService = {
-  // Success notifications
-  success: (message: string) => {
-    toast.success(message);
-    console.log('[Success]', message);
+  /**
+   * Show an informational toast
+   */
+  info: (message: string, options?: any) => {
+    return toast.info(message, {
+      id: options?.id || `info-${Date.now()}`,
+      duration: options?.duration || 4000,
+      ...options
+    });
   },
   
-  // Informational notifications
-  info: (message: string) => {
-    toast.info(message);
-    console.log('[Info]', message);
+  /**
+   * Show a success toast
+   */
+  success: (message: string, options?: any) => {
+    return toast.success(message, {
+      id: options?.id || `success-${Date.now()}`,
+      duration: options?.duration || 4000,
+      ...options
+    });
   },
   
-  // Warning notifications
-  warning: (message: string) => {
-    toast.warning(message);
-    console.warn('[Warning]', message);
+  /**
+   * Show an error toast
+   */
+  error: (message: string, error?: any, options?: any) => {
+    console.error(message, error);
+    
+    return toast.error(message, {
+      id: options?.id || `error-${Date.now()}`,
+      duration: options?.duration || 5000,
+      ...options
+    });
   },
   
-  // Error notifications
-  error: (message: string, error?: any) => {
-    toast.error(message);
-    if (error) {
-      console.error('[Error]', message, error);
-    } else {
-      console.error('[Error]', message);
-    }
+  /**
+   * Show a warning toast
+   */
+  warning: (message: string, options?: any) => {
+    return toast.warning(message, {
+      id: options?.id || `warning-${Date.now()}`,
+      duration: options?.duration || 5000,
+      ...options
+    });
   },
   
-  // Connection status notifications
-  connectionChange: (connected: boolean) => {
-    if (connected) {
-      toast.success('Connection established');
-      console.log('[Connection] Established');
-    } else {
-      toast.error('Connection lost');
-      console.warn('[Connection] Lost');
-    }
-  },
-  
-  // Debug message (only appears in console, not as toast)
-  debug: (message: string, data?: any) => {
-    if (data) {
-      console.debug('[Debug]', message, data);
-    } else {
-      console.debug('[Debug]', message);
+  /**
+   * Log a debug message (only in development)
+   */
+  debug: (message: string, ...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEBUG] ${message}`, ...args);
     }
   }
-};
-
-// Function to log Firebase database paths to help with debugging
-export const logDatabasePath = (path: string, description: string = '') => {
-  console.group(`Database Path ${description ? '- ' + description : ''}`);
-  console.log(`Path: ${path}`);
-  console.log(`Full URL: https://chatwiilovable-7ae1d-default-rtdb.europe-west1.firebasedatabase.app/${path}`);
-  console.groupEnd();
 };
