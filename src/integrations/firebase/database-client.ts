@@ -1,278 +1,209 @@
 
-import { 
-  collection, getDocs, query, WhereFilterOp
-} from 'firebase/firestore';
-import { db } from './client';
-import { uploadFile, getFileDownloadURL } from './storage';
-import { auth } from './client';
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import {
+  getDatabase,
+  connectDatabaseEmulator,
+  ref,
+  onValue,
+  goOffline,
+  goOnline,
+  off
+} from "firebase/database";
+import { firebaseConfig } from "./config";
 
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Services
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+export const realtimeDb = getDatabase(app);
+export { app };
+
+// Export a single instance of the Firebase client (renamed to avoid conflicts)
 export const firebaseClient = {
-  auth: {
-    async signInWithPassword({ email, password }: { email: string, password: string }) {
-      try {
-        const { signInWithEmail } = await import('./auth');
-        const user = await signInWithEmail(email, password);
-        return { data: { user }, error: null };
-      } catch (error) {
-        return { data: {}, error };
-      }
-    },
-    async signUp({ email, password }: { email: string, password: string }) {
-      try {
-        const { signUpWithEmail } = await import('./auth');
-        const user = await signUpWithEmail(email, password);
-        return { data: { user }, error: null };
-      } catch (error) {
-        return { data: {}, error };
-      }
-    },
-    async signOut() {
-      try {
-        const { signOutUser } = await import('./auth');
-        await signOutUser();
-        return { error: null };
-      } catch (error) {
-        return { error };
-      }
-    },
-    async getSession() {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return { data: { session: null } };
-      return { data: { session: { user: currentUser } } };
-    },
-    async getUser() {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return { data: { user: null } };
-      return { data: { user: currentUser } };
-    },
-    onAuthStateChange(callback: (event: string, session: any) => void) {
-      const unsubscribe = auth.onAuthStateChanged((user) => {
-        callback('SIGNED_IN', { user });
-      });
-      return { data: { subscription: { unsubscribe } } };
-    },
-    async updateUser(data: any) {
-      // Placeholder for updating user in Firebase Auth
-      return { data: {}, error: null };
-    }
-  },
-  from(table: string) {
-    // Firestore query helpers
-    const runQuery = async (filters: any[] = [], sort?: string, order: 'asc' | 'desc' = 'asc', limitCount?: number) => {
-      const { queryDocuments } = await import('./firestore');
-      return queryDocuments(table, filters, sort, order, limitCount);
-    };
+  auth,
+  db,
+  realtimeDb,
+  storage,
+  app
+};
 
-    return {
-      select(columns?: string) {
-        return {
-          eq(field: string, value: any) {
-            return {
-              async single() {
-                const documents = await runQuery([{ field, operator: "==" as WhereFilterOp, value }]);
-                return { data: documents[0] || null, error: null };
-              },
-              async maybeSingle() {
-                const documents = await runQuery([{ field, operator: "==" as WhereFilterOp, value }]);
-                return { data: documents[0] || null, error: null };
-              },
-              async range(from: number, to: number) {
-                const documents = await runQuery([{ field, operator: "==" as WhereFilterOp, value }]);
-                return { data: documents.slice(from, to + 1), error: null };
-              },
-              order(column: string, options?: { ascending?: boolean }) {
-                return {
-                  limit(count: number) {
-                    return {
-                      async range(from: number, to: number) {
-                        const orderVal = options?.ascending ? "asc" : "desc";
-                        const documents = await runQuery([{ field, operator: "==" as WhereFilterOp, value }], column, orderVal, count);
-                        return { data: documents.slice(from, to + 1), error: null };
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          order(column: string, options?: { ascending?: boolean }) {
-            return {
-              async range(from: number, to: number) {
-                const orderVal = options?.ascending ? "asc" : "desc";
-                const documents = await runQuery([], column, orderVal);
-                return { data: documents.slice(from, to + 1), error: null };
-              },
-              limit(count: number) {
-                return {
-                  async range(from: number, to: number) {
-                    const orderVal = options?.ascending ? "asc" : "desc";
-                    const documents = await runQuery([], column, orderVal, count);
-                    return { data: documents.slice(from, to + 1), error: null };
-                  }
-                }
-              }
-            }
-          },
-          in(field: string, values: any[]) {
-            return {
-              async range(from: number, to: number) {
-                const documents = await runQuery([{ field, operator: "in" as WhereFilterOp, value: values }]);
-                return { data: documents.slice(from, to + 1), error: null };
-              }
-            }
-          },
-          async range(from: number, to: number) {
-            const collectionRef = collection(db, table);
-            const q = query(collectionRef);
-            const snapshot = await getDocs(q);
-            const documents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return { data: documents.slice(from, to + 1), error: null };
-          }
-        }
-      },
-      insert(values: any, options?: any) {
-        const upsertHelper = async () => {
-          const { setDocument, createDocument, getDocument } = await import('./firestore');
-          let insertId: string;
-          if (values.id) {
-            await setDocument(table, values.id, values);
-            insertId = values.id;
-          } else {
-            insertId = await createDocument(table, values);
-          }
-          const document = await getDocument(table, insertId);
-          return { data: document, error: null };
-        };
-        return {
-          select(columns: string) {
-            return { single: upsertHelper };
-          },
-          single: upsertHelper
-        }
-      },
-      update(values: any) {
-        return {
-          eq(field: string, value: any) {
-            return {
-              async single() {
-                const { queryDocuments, updateDocument, getDocument } = await import('./firestore');
-                const documents = await queryDocuments(table, [{ field, operator: "==" as WhereFilterOp, value }]);
-                if (documents && documents[0]) {
-                  const docId = documents[0].id;
-                  await updateDocument(table, docId, values);
-                  const updated = await getDocument(table, docId);
-                  return { data: updated, error: null };
-                }
-                return { data: null, error: new Error("Document not found") };
-              }
-            }
-          },
-          async match(criteria: any) {
-            const { queryDocuments, updateDocument, getDocument } = await import('./firestore');
-            const conditions = Object.entries(criteria).map(([field, value]) => ({
-              field, operator: "==" as WhereFilterOp, value
-            }));
-            const documents = await queryDocuments(table, conditions as any[]);
-            if (documents && documents[0]) {
-              const docId = documents[0].id;
-              await updateDocument(table, docId, values);
-              const updated = await getDocument(table, docId);
-              return { data: updated, error: null };
-            }
-            return { data: null, error: new Error("Document not found") };
-          },
-          async single() {
-            const { updateDocument, getDocument } = await import('./firestore');
-            if (!values.id) {
-              return { data: null, error: new Error("ID is required for single update") };
-            }
-            await updateDocument(table, values.id, values);
-            const updated = await getDocument(table, values.id);
-            return { data: updated, error: null };
-          }
-        }
-      },
-      delete() {
-        return {
-          eq(field: string, value: any) {
-            return {
-              async single() {
-                const { queryDocuments, deleteDocument } = await import('./firestore');
-                const documents = await queryDocuments(table, [{ field, operator: "==" as WhereFilterOp, value }]);
-                if (documents && documents[0]) {
-                  const docId = documents[0].id;
-                  await deleteDocument(table, docId);
-                  return { data: { id: docId }, error: null };
-                }
-                return { data: null, error: new Error("Document not found") };
-              }
-            }
-          },
-          async match(criteria: any) {
-            const { queryDocuments, deleteDocument } = await import('./firestore');
-            const conditions = Object.entries(criteria).map(([field, value]) => ({
-              field, operator: "==" as WhereFilterOp, value
-            }));
-            const documents = await queryDocuments(table, conditions as any[]);
-            if (documents && documents[0]) {
-              const docId = documents[0].id;
-              await deleteDocument(table, docId);
-              return { data: { id: docId }, error: null };
-            }
-            return { data: null, error: new Error("Document not found") };
-          }
-        }
-      },
-      upsert(values: any) {
-        return {
-          async single() {
-            const { getDocument, updateDocument, setDocument, createDocument } = await import('./firestore');
-            if (values.id) {
-              const existing = await getDocument(table, values.id);
-              if (existing) {
-                await updateDocument(table, values.id, values);
-              } else {
-                await setDocument(table, values.id, values);
-              }
-              const document = await getDocument(table, values.id);
-              return { data: document, error: null };
-            } else {
-              const newId = await createDocument(table, values);
-              const document = await getDocument(table, newId);
-              return { data: document, error: null };
-            }
-          }
-        }
-      }
-    }
-  },
-  storage: {
-    from(bucket: string) {
-      return {
-        async upload(path: string, file: any) {
-          try {
-            const result = await uploadFile(bucket, path, file);
-            return { data: { path: result.path }, error: null };
-          } catch (error) {
-            return { data: { path: "" }, error };
-          }
-        },
-        async getPublicUrl(path: string) {
-          try {
-            const url = await getFileDownloadURL(path);
-            return { data: { publicUrl: url } };
-          } catch (error) {
-            return { data: { publicUrl: "" } };
-          }
-        }
-      }
-    }
-  },
-  rpc(func: string, params: any) {
-    // Placeholder for custom Firebase Cloud Functions
-    return { data: null, error: null };
+// ——— Firestore listener tracking ——————————————————————————————————
+
+let firestoreListeners: Array<() => void> = [];
+
+/** Register a Firestore onSnapshot unsubscribe for later cleanup */
+export function trackFirestoreListener(unsubscribe: () => void) {
+  firestoreListeners.push(unsubscribe);
+}
+
+/** Unsubscribe all registered Firestore listeners */
+export function clearFirestoreListeners() {
+  firestoreListeners.forEach(unsub => {
+    try { unsub(); }
+    catch (e) { console.warn("Error unsubscribing firestore listener:", e); }
+  });
+  firestoreListeners = [];
+}
+
+// ——— Realtime DB connection & listener tracking ——————————————————————
+
+let isSetup = false;
+let connectionMonitorRef: any = null;
+let activeListeners: Record<string, any> = {};
+
+export const setupConnectionMonitoring = () => {
+  if (isSetup) return;
+  try {
+    const connectedRef = ref(realtimeDb, ".info/connected");
+    connectionMonitorRef = onValue(connectedRef, (snap) => {
+      console.log(snap.val() ? "Connected to Firebase Realtime Database" : "Disconnected from Firebase Realtime Database");
+    }, (error) => {
+      console.error("Error setting up connection monitoring:", error);
+    });
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    isSetup = true;
+  } catch (error) {
+    console.error("Error setting up connection monitoring:", error);
   }
 };
 
-// Firebase-only client
-export { firebaseClient };
+setupConnectionMonitoring();
+
+function handleOnline()  { try { goOnline(realtimeDb);  } catch(e) { console.warn("Error going online:", e); } }
+function handleOffline() { /* No-op: SDK will auto-reconnect */ }
+
+export const trackListener = (path: string, listener: any) => {
+  activeListeners[path] = listener;
+  return listener;
+};
+
+export const removeListener = (path: string) => {
+  if (activeListeners[path]) {
+    try { 
+      off(ref(realtimeDb, path), activeListeners[path]); 
+    }
+    catch (error) { console.warn(`Error removing listener for ${path}:`, error); }
+    delete activeListeners[path];
+  }
+};
+
+// ——— Close everything on logout —————————————————————————————————————
+
+export const closeDbConnection = async () => {
+  // Start parallel cleanup tasks and handle each independently
+  const tasks = [
+    clearActiveListenersTask(),
+    removeEventListenersTask(),
+    removeConnectionMonitorTask(),
+    clearFirestoreListenersTask()
+  ];
+  
+  // Wait for all tasks with a timeout
+  try {
+    await Promise.race([
+      Promise.all(tasks),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 600))
+    ]);
+    
+    // Finally go offline
+    goOffline(realtimeDb);
+    isSetup = false;
+    console.log("Firebase connections closed successfully");
+    return true;
+  } 
+  catch (error) {
+    console.warn("Error or timeout during Firebase connection closure:", error);
+    
+    // Force cleanup anyway
+    forceCleanup();
+    return false;
+  }
+};
+
+// Individual cleanup tasks wrapped in promises
+function clearActiveListenersTask() {
+  return new Promise<void>((resolve) => {
+    try {
+      console.log(`Clearing ${Object.keys(activeListeners).length} active realtime DB listeners`);
+      Object.keys(activeListeners).forEach(path => {
+        try { 
+          off(ref(realtimeDb, path), activeListeners[path]); 
+        } catch (e) { 
+          console.warn(`Error removing listener for ${path}:`, e); 
+        }
+      });
+      activeListeners = {};
+      resolve();
+    } catch (e) {
+      console.warn("Error in clearActiveListeners:", e);
+      resolve(); // Always resolve to not block other tasks
+    }
+  });
+}
+
+function removeEventListenersTask() {
+  return new Promise<void>((resolve) => {
+    try {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      resolve();
+    } catch (e) {
+      console.warn("Error in removeEventListeners:", e);
+      resolve();
+    }
+  });
+}
+
+function removeConnectionMonitorTask() {
+  return new Promise<void>((resolve) => {
+    try {
+      if (connectionMonitorRef) {
+        connectionMonitorRef();
+        connectionMonitorRef = null;
+      }
+      resolve();
+    } catch (e) {
+      console.warn("Error in removeConnectionMonitor:", e);
+      resolve();
+    }
+  });
+}
+
+function clearFirestoreListenersTask() {
+  return new Promise<void>((resolve) => {
+    try {
+      console.log(`Clearing ${firestoreListeners.length} Firestore listeners`);
+      clearFirestoreListeners();
+      resolve();
+    } catch (e) {
+      console.warn("Error in clearFirestoreListeners:", e);
+      resolve();
+    }
+  });
+}
+
+// Force cleanup for emergency situations
+function forceCleanup() {
+  console.warn("Forcing Firebase connection cleanup");
+  try {
+    Object.keys(activeListeners).forEach(k => delete activeListeners[k]);
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+    if (connectionMonitorRef) {
+      try { connectionMonitorRef(); } catch {}
+      connectionMonitorRef = null;
+    }
+    clearFirestoreListeners();
+    try { goOffline(realtimeDb); } catch {}
+    isSetup = false;
+  } catch (e) {
+    console.error("Error during force cleanup:", e);
+  }
+}
