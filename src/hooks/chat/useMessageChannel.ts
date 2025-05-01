@@ -1,17 +1,14 @@
-
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useChannelManager } from './useChannelManager';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
-import { mergeMessages } from '@/utils/messageUtils';
-import { 
-  getConversationId, 
-  getMessageChannelName, 
-  getMessageChannelPath 
+import {
+  getConversationId,
+  getMessageChannelName,
+  getMessageChannelPath
 } from '@/utils/channelUtils';
 import { syncService } from '@/services/syncService';
 
-// Simplified hook focused on message channel connection
 export const useMessageChannel = (
   currentUserId: string | null,
   selectedUserId: string | null,
@@ -23,164 +20,113 @@ export const useMessageChannel = (
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const channelNameRef = useRef<string | null>(null);
   const retryCountRef = useRef(0);
-  const retryTimerRef = useRef<any>(null);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 3;
 
-  // Process raw message data
-  const processMessages = useCallback(async (messagesData: any) => {
-    if (!messagesData) return [];
-    
+  // 1) turn RTDB data → MessageWithMedia[]
+  const processMessages = useCallback(async (data: any): Promise<MessageWithMedia[]> => {
+    if (!data) return [];
     try {
-      const messages = Object.values(messagesData);
-      if (!Array.isArray(messages) || messages.length === 0) return [];
-
-      // Messages from the realtime database should already include media and reactions
-      return messages
-        .filter((msg: any) => msg && typeof msg === 'object' && msg.id)
+      const arr = Object.values(data);
+      return arr
+        .filter((m: any) => m && typeof m === 'object' && m.id)
         .map((msg: any) => ({
-          ...msg,
+          id: msg.id,
+          content: msg.content,
+          sender_id: msg.sender_id,
+          receiver_id: msg.receiver_id,
+          is_read: msg.is_read,
+          created_at: msg.created_at,
           media: msg.media || null,
           reactions: msg.reactions || []
         }));
-    } catch (err) {
-      console.error('Error processing messages:', err);
+    } catch (e) {
+      console.error('Error processing messages:', e);
       return [];
     }
   }, []);
 
-  // Handle real-time updates
-  const handleRealTimeUpdate = useCallback(async (data: any) => {
-    latestDataRef.current = data;
-    
-    if (!data) {
-      console.log('No data received from Realtime DB');
-      setConnectionStatus('disconnected');
-      return;
-    }
-    
-    try {
-      // Process messages
-      const processed = await processMessages(data);
-      
-      if (processed.length > 0) {
-        console.log(`Received ${processed.length} messages from Realtime DB`);
-        // Update messages using merge utility
-        setMessages(currentMessages => mergeMessages(currentMessages, processed));
-        setConnectionStatus('connected');
-        // Reset retry count when we succeed
-        retryCountRef.current = 0;
-      } else {
-        // No messages but connected
-        console.log('Connected to Realtime DB but no messages found');
-        setConnectionStatus('connected');
+  // 2) on every RTDB update, *replace* (not merge) your React state
+  const handleRealTimeUpdate = useCallback(
+    async (data: any) => {
+      latestDataRef.current = data;
+      if (!data) {
+        setMessages([]);
+        setConnectionStatus('disconnected');
+        return;
       }
-    } catch (error) {
-      console.error('Error handling real-time update:', error);
-      setConnectionStatus('disconnected');
-    }
-  }, [processMessages, setMessages]);
+      try {
+        const processed = await processMessages(data);
+        setMessages(processed);               // ← full replacement
+        setConnectionStatus('connected');
+        retryCountRef.current = 0;
+      } catch (err) {
+        console.error('Error in RT update:', err);
+        setConnectionStatus('disconnected');
+      }
+    },
+    [processMessages, setMessages]
+  );
 
+  // 3) subscribe helper
   const setupChannel = useCallback(() => {
-    if (!currentUserId || !selectedUserId) {
-      console.log('Missing user IDs for channel setup');
-      return null;
-    }
-    
-    // Check if it's a mock user
-    if (isMockUser(selectedUserId)) {
-      console.log('Mock user selected, skipping channel setup');
-      return null;
-    }
-    
-    // Create unique channel name and path
+    if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) return;
     const convId = getConversationId(currentUserId, selectedUserId);
-    if (!convId) {
-      console.error('Could not generate conversation ID');
-      return null;
-    }
-    
+    if (!convId) return;
     const channelName = getMessageChannelName(convId);
     const path = getMessageChannelPath(convId);
-    
-    console.log(`Setting up message channel: ${channelName} at path: ${path}`);
-    setConnectionStatus('connecting');
-    
-    // Store the channel name for cleanup
+
     channelNameRef.current = channelName;
-    
-    // Ensure data is synced before subscribing
-    syncService.queueSync(currentUserId, selectedUserId)
-      .catch(err => console.error('Error queuing sync:', err));
-    
-    // Subscribe with immediate processing
+    setConnectionStatus('connecting');
+    syncService.queueSync(currentUserId, selectedUserId).catch(console.error);
     return listenToChannel(channelName, path, handleRealTimeUpdate);
   }, [currentUserId, selectedUserId, listenToChannel, handleRealTimeUpdate]);
 
-  // Main effect for setting up message channel
+  // 4) main effect: (re-)subscribe whenever users change
   useEffect(() => {
-    // Skip if we don't have both user IDs or if it's a mock user
+    // if missing IDs or demo user, clean up and bail
     if (!currentUserId || !selectedUserId || isMockUser(selectedUserId)) {
-      if (isListeningRef.current) {
-        console.log("Missing user IDs or mock user, cleaning up channel");
+      if (isListeningRef.current && channelNameRef.current) {
+        cleanupChannel(channelNameRef.current);
+        channelNameRef.current = null;
         isListeningRef.current = false;
-        if (channelNameRef.current) {
-          cleanupChannel(channelNameRef.current);
-          channelNameRef.current = null;
-        }
       }
       return;
     }
 
-    // Clear any existing retry timer
+    // clear any pending retry timer
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
 
-    // Set connection status to connecting
     setConnectionStatus('connecting');
-    
-    // Setup the channel
     const cleanup = setupChannel();
-    
-    // Mark that we're now listening
     isListeningRef.current = true;
-    
-    // Return cleanup function
-    return () => {
-      console.log(`Cleaning up message channel ${channelNameRef.current}`);
-      isListeningRef.current = false;
-      if (cleanup) cleanup();
-    };
-  }, [
-    currentUserId,
-    selectedUserId,
-    cleanupChannel,
-    setupChannel
-  ]);
 
-  // Effect to handle automatic retries
+    return () => {
+      if (cleanup) cleanup();
+      isListeningRef.current = false;
+    };
+  }, [currentUserId, selectedUserId, cleanupChannel, setupChannel]);
+
+  // 5) automatic retry on ‘disconnected’
   useEffect(() => {
-    if (connectionStatus === 'disconnected' && retryCountRef.current < maxRetries && isListeningRef.current) {
-      console.log(`Message channel disconnected, retrying (${retryCountRef.current + 1}/${maxRetries})`);
-      
-      // Increment retry count
+    if (
+      connectionStatus === 'disconnected' &&
+      isListeningRef.current &&
+      retryCountRef.current < maxRetries
+    ) {
       retryCountRef.current += 1;
-      
-      // Set up retry with exponential backoff
+      const backoff = 1000 * 2 ** (retryCountRef.current - 1);
       retryTimerRef.current = setTimeout(() => {
-        console.log(`Attempting to reconnect message channel...`);
-        
-        // Clean up existing channel
         if (channelNameRef.current) {
           cleanupChannel(channelNameRef.current);
+          channelNameRef.current = null;
         }
-        
-        // Create new channel
         setupChannel();
-      }, 1000 * Math.pow(2, retryCountRef.current - 1)); // 1s, 2s, 4s, 8s
+      }, backoff);
     }
-    
     return () => {
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
@@ -188,30 +134,19 @@ export const useMessageChannel = (
     };
   }, [connectionStatus, cleanupChannel, setupChannel]);
 
-  // Manual reconnect function
   const reconnect = useCallback(() => {
-    console.log('Manual reconnect requested');
-    
-    // Reset retry count for manual reconnect
     retryCountRef.current = 0;
-    
-    // Clean up existing channel
     if (channelNameRef.current) {
       cleanupChannel(channelNameRef.current);
       channelNameRef.current = null;
     }
-    
-    // Set status to connecting
     setConnectionStatus('connecting');
-    
-    // Setup new channel
     setupChannel();
   }, [cleanupChannel, setupChannel]);
 
   return {
     latestData: latestDataRef.current,
     connectionStatus,
-    processMessages,
     reconnect
   };
 };
