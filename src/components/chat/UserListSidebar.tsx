@@ -3,7 +3,6 @@ import React from 'react';
 import { UserList } from '@/components/UserList';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useChannelSetup } from '@/hooks/useChannelSetup';
-import { useMessages } from '@/hooks/useMessages';
 
 interface UserListSidebarProps {
   onUserSelect: (userId: string) => void;
@@ -21,14 +20,12 @@ export const UserListSidebar: React.FC<UserListSidebarProps> = ({
   
   // For passing to useChannelSetup as a placeholder - we don't need these values here
   const setDummyMessages = React.useCallback(() => {}, []);
-  const dummyFetchMessages = React.useCallback(() => {}, []);
   
   // Get connection status and retry function
   const { isConnected, onRetryConnection } = useChannelSetup(
     currentUserId,
     selectedUserId,
-    setDummyMessages,
-    dummyFetchMessages
+    setDummyMessages
   );
   
   // Map connection status to string
