@@ -15,7 +15,7 @@ export function useChatConnection(active: boolean = true) {
 
     try {
       // Always use the absolute path for the special info node
-      const testRef = ref(realtimeDb, '/.info/connected');
+      const testRef = ref(realtimeDb, '.info/connected');
       const snapshot = await get(testRef);
       const online = snapshot.val() === true;
 
