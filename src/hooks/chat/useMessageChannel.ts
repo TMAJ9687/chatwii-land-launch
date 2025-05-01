@@ -1,5 +1,5 @@
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useChannel } from './useChannel';
 import { getMessagesPath } from '@/utils/channelPath';
 import { MessageWithMedia } from '@/types/message';
@@ -33,7 +33,12 @@ export const useMessageChannel = (
           is_read: msg.is_read,
           created_at: msg.created_at,
           media: msg.media || null,
-          reactions: msg.reactions || []
+          reactions: msg.reactions || [],
+          updated_at: msg.updated_at || null,
+          deleted_at: msg.deleted_at || null,
+          translated_content: msg.translated_content || null,
+          language_code: msg.language_code || null,
+          reply_to: msg.reply_to || null
         }));
     } catch (e) {
       console.error('Error processing messages:', e);

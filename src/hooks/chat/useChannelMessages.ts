@@ -43,7 +43,13 @@ export const useChannelMessages = (
           is_read: msg.is_read || false,
           created_at: msg.created_at || new Date().toISOString(),
           media: msg.media || null,
-          reactions: msg.reactions || []
+          reactions: msg.reactions || [],
+          // Add other required properties with defaults
+          updated_at: msg.updated_at || null,
+          deleted_at: msg.deleted_at || null,
+          translated_content: msg.translated_content || null,
+          language_code: msg.language_code || null,
+          reply_to: msg.reply_to || null
         }))
         .sort((a: any, b: any) => {
           const dateA = new Date(a.created_at).getTime();

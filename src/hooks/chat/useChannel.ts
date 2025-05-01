@@ -67,7 +67,11 @@ export function useChannel<T = any>(
           setStatus('error');
           setError(err);
           
-          if (err.code === 'PERMISSION_DENIED') {
+          // Check if error has a code property before accessing it
+          // Firebase error objects typically have a code property
+          const errorCode = err && typeof err === 'object' && 'code' in err ? err.code : '';
+          
+          if (errorCode === 'PERMISSION_DENIED') {
             toast.error("Permission denied for chat database path");
           }
           

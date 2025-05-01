@@ -4,7 +4,7 @@ import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
 import { useChannelManagement } from './useChannelManagement';
-import { getTypingStatusPath, getConversationId, getSortedUserIds } from '@/utils/channelUtils';
+import { getTypingStatusPath, getConversationId } from '@/utils/channelUtils';
 
 export const useTypingIndicator = (
   currentUserId: string | null,

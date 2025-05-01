@@ -8,14 +8,19 @@ interface ConnectionStatusIndicatorProps {
   onReconnect?: () => void;
   error: string | null;
   isLoading: boolean;
+  isConnected?: boolean; // Added isConnected prop
 }
 
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
   onReconnect,
   error,
-  isLoading
+  isLoading,
+  isConnected: propIsConnected // Renamed to avoid conflict
 }) => {
-  const { isConnected } = useConnection();
+  const { isConnected: contextIsConnected } = useConnection();
+  
+  // Use prop if provided, otherwise fallback to context
+  const isConnected = propIsConnected !== undefined ? propIsConnected : contextIsConnected;
 
   // Don't show anything if everything is working properly
   if (isConnected && !error && !isLoading) {
