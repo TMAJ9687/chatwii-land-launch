@@ -1,18 +1,21 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { realtimeDb } from '@/integrations/firebase/firebase-core';
-import { firebaseListeners } from '@/services/FirebaseListenerService';
-import { toast } from 'sonner';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { ref, onValue } from 'firebase/database';
+import { realtimeDb } from '@/integrations/firebase/client';
+import { FirebaseListenerService } from '@/services/FirebaseListenerService';
+
+// Get the singleton instance
+const firebaseListeners = FirebaseListenerService.getInstance();
 
 interface ConnectionContextType {
   isConnected: boolean;
-  lastConnectionEvent: Date | null;
+  lastConnectionUpdate: Date | null;
   reconnect: () => void;
 }
 
 const ConnectionContext = createContext<ConnectionContextType>({
   isConnected: false,
-  lastConnectionEvent: null,
+  lastConnectionUpdate: null,
   reconnect: () => {},
 });
 
@@ -20,89 +23,73 @@ export const useConnection = () => useContext(ConnectionContext);
 
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [lastConnectionEvent, setLastConnectionEvent] = useState<Date | null>(null);
+  const [lastConnectionUpdate, setLastConnectionUpdate] = useState<Date | null>(null);
 
-  // Setup connection monitoring
+  // Setup the connection monitoring
   useEffect(() => {
-    console.log('Setting up Firebase connection monitor');
-    
-    // Use Firebase's special .info/connected path to monitor connection state
-    const cleanupFunction = firebaseListeners.subscribe(
+    // Monitor .info/connected to detect connection status
+    const unsubscribe = firebaseListeners.subscribe(
       'connection-status',
       '.info/connected',
       (connected: boolean | null) => {
-        const isNowConnected = Boolean(connected);
-        const now = new Date();
+        setIsConnected(!!connected);
+        setLastConnectionUpdate(new Date());
         
-        setIsConnected(isNowConnected);
-        setLastConnectionEvent(now);
-        
-        console.log(`Firebase connection status changed to ${isNowConnected ? 'connected' : 'disconnected'}`);
-        
-        if (!isNowConnected) {
-          toast.error("Lost connection to chat server", {
-            id: "connection-lost",
-            duration: 3000
-          });
-        } else if (lastConnectionEvent) {
-          // Only show reconnection toast if this isn't the first connection
-          toast.success("Reconnected to chat server", {
-            id: "connection-restored",
-            duration: 2000
-          });
+        if (connected) {
+          console.log('Connected to Firebase Realtime Database');
+        } else {
+          console.log('Disconnected from Firebase Realtime Database');
         }
-      },
-      (error) => {
-        console.error("Connection monitor error:", error);
-        setIsConnected(false);
       }
     );
+    
+    // Add online/offline event listeners for browser connectivity
+    const handleOnline = () => {
+      console.log('Browser online');
+    };
+    
+    const handleOffline = () => {
+      console.log('Browser offline');
+      setIsConnected(false);
+      setLastConnectionUpdate(new Date());
+    };
     
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
     return () => {
-      cleanupFunction();
+      firebaseListeners.unsubscribe('connection-status');
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [lastConnectionEvent]);
-  
-  const handleOnline = () => {
-    console.log('Browser reports online status');
-  };
-  
-  const handleOffline = () => {
-    console.log('Browser reports offline status');
-    setIsConnected(false);
-  };
-
-  // Force a reconnection attempt
-  const reconnect = useCallback(() => {
-    console.log('Attempting to reconnect to Firebase');
-    
-    try {
-      // Trigger a dummy read to force reconnection attempt
-      firebaseListeners.subscribe(
-        'reconnect-ping',
-        '.info/serverTimeOffset',
-        () => {
-          console.log('Reconnection ping completed');
-          // Automatically unsubscribe after getting the response
-          firebaseListeners.unsubscribe('reconnect-ping');
-        }
-      );
-      
-      toast.info("Attempting to reconnect...", {
-        id: "reconnect-attempt",
-      });
-    } catch (error) {
-      console.error("Failed to trigger reconnection:", error);
-    }
   }, []);
-
+  
+  // Function to force a reconnection attempt
+  const reconnect = () => {
+    // Read from .info/connected to trigger a reconnection attempt
+    const connectedRef = ref(realtimeDb, '.info/connected');
+    onValue(
+      connectedRef, 
+      (snap) => {
+        setIsConnected(!!snap.val());
+        setLastConnectionUpdate(new Date());
+      }, 
+      (error) => {
+        console.error('Error reconnecting:', error);
+        setIsConnected(false);
+        setLastConnectionUpdate(new Date());
+      }
+    );
+  };
+  
+  const value = {
+    isConnected,
+    lastConnectionUpdate,
+    reconnect,
+  };
+  
   return (
-    <ConnectionContext.Provider value={{ isConnected, lastConnectionEvent, reconnect }}>
+    <ConnectionContext.Provider value={value}>
       {children}
     </ConnectionContext.Provider>
   );

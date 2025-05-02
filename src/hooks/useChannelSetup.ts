@@ -1,9 +1,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useChatConnection } from '@/hooks/chat/useChatConnection';
-import { useChannel } from '@/hooks/chat/useChannel';
-import { getMessagesPath, getReactionsPath } from '@/utils/channelPath';
-import { toast } from 'sonner';
+import { useConnection } from '@/contexts/ConnectionContext';
+import { FirebaseListenerService } from '@/services/FirebaseListenerService';
+import { getMessagesPath, getReactionsPath, getConversationId } from '@/utils/channelUtils';
+
+// Get the singleton instance
+const firebaseListeners = FirebaseListenerService.getInstance();
 
 export const useChannelSetup = (
   currentUserId: string | null,
@@ -14,68 +16,13 @@ export const useChannelSetup = (
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [channelStatus, setChannelStatus] = useState({ messages: false, reactions: false });
   const setupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { isConnected, reconnect } = useChatConnection(true);
+  const { isConnected, reconnect } = useConnection();
   
-  // Get message channel path
-  const messagesPath = currentUserId && selectedUserId ? 
-    getMessagesPath(currentUserId, selectedUserId) : null;
-  
-  // Get reactions channel path
-  const reactionsPath = currentUserId && selectedUserId ? 
-    getReactionsPath(currentUserId, selectedUserId) : null;
-  
-  // Use our hook to subscribe to messages
-  const {
-    status: messagesStatus,
-    data: messagesData,
-    reconnect: reconnectMessages
-  } = useChannel('messages', messagesPath, !!currentUserId && !!selectedUserId);
-  
-  // Use our hook to subscribe to reactions
-  const {
-    status: reactionsStatus
-  } = useChannel('reactions', reactionsPath, !!currentUserId && !!selectedUserId);
-  
-  // Update messages when data changes
-  useEffect(() => {
-    if (messagesData) {
-      try {
-        const processedMessages = Array.isArray(messagesData) 
-          ? messagesData 
-          : Object.values(messagesData || {}).filter(Boolean);
-        
-        setMessages(processedMessages);
-      } catch (err) {
-        console.error('Error processing messages:', err);
-      }
-    }
-  }, [messagesData, setMessages]);
-  
-  // Mirror connection status
-  useEffect(() => {
-    setChannelStatus({
-      messages: messagesStatus === 'connected',
-      reactions: reactionsStatus === 'connected'
-    });
-    
-    if (
-      messagesStatus === 'connected' && 
-      reactionsStatus === 'connected' && 
-      setupTimeoutRef.current
-    ) {
-      clearTimeout(setupTimeoutRef.current);
-      setupTimeoutRef.current = null;
-      setIsSettingUp(false);
-    }
-  }, [messagesStatus, reactionsStatus]);
-  
-  // Retry connection handler
+  // Handle reconnection
   const handleRetryConnection = useCallback(() => {
     reconnect();
-    reconnectMessages();
     fetchMessages();
-    toast.info('Attempting to reconnect...');
-  }, [reconnect, reconnectMessages, fetchMessages]);
+  }, [reconnect, fetchMessages]);
   
   // Setup channels when users change
   useEffect(() => {
@@ -83,6 +30,13 @@ export const useChannelSetup = (
     if (!currentUserId || !selectedUserId) {
       return;
     }
+    
+    // Generate conversation ID and paths
+    const conversationId = getConversationId(currentUserId, selectedUserId);
+    const messagesPath = getMessagesPath(currentUserId, selectedUserId);
+    const reactionsPath = getReactionsPath(currentUserId, selectedUserId);
+    
+    if (!messagesPath || !reactionsPath || !conversationId) return;
     
     // Start fresh setup
     setIsSettingUp(true);
@@ -101,6 +55,10 @@ export const useChannelSetup = (
         clearTimeout(setupTimeoutRef.current);
         setupTimeoutRef.current = null;
       }
+      
+      // Clean up any listeners
+      firebaseListeners.unsubscribe(`messages-${conversationId}`);
+      firebaseListeners.unsubscribe(`reactions-${conversationId}`);
     };
   }, [currentUserId, selectedUserId, fetchMessages, channelStatus.messages]);
   

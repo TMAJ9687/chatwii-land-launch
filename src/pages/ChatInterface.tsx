@@ -19,6 +19,7 @@ import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { UserListSidebar } from '@/components/chat/UserListSidebar';
+import { ConnectionProvider } from '@/contexts/ConnectionContext';
 
 const ChatInterfaceContent = () => {
   const { 
@@ -208,9 +209,11 @@ const ChatInterfaceContent = () => {
 
 const ChatInterface = () => {
   return (
-    <ChatProvider>
-      <ChatInterfaceContent />
-    </ChatProvider>
+    <ConnectionProvider>
+      <ChatProvider>
+        <ChatInterfaceContent />
+      </ChatProvider>
+    </ConnectionProvider>
   );
 };
 

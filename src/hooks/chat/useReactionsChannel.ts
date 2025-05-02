@@ -48,6 +48,7 @@ export const useReactionsChannel = (
     const convId = getConversationId(currentUserId, selectedUserId);
     const channelName = getReactionsChannelName(convId);
     const path = getReactionsPath(currentUserId, selectedUserId);
+    if (!path) return;
     
     // Store the channel name for cleanup
     channelNameRef.current = channelName;
@@ -57,7 +58,7 @@ export const useReactionsChannel = (
     console.log(`Setting up reactions channel: ${channelName}`);
     
     // Subscribe
-    const cleanup = listenToChannel(channelName, path || '', handleRealTimeUpdate);
+    const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
     
     // Return cleanup function
     return () => {

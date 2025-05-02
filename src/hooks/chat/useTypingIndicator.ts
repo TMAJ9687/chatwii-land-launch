@@ -1,10 +1,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { ref, set, onValue, off, serverTimestamp } from 'firebase/database';
+import { ref, set, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
-import { useChannelManagement } from './useChannelManagement';
 import { getTypingStatusPath, getConversationId } from '@/utils/channelUtils';
+import { FirebaseListenerService } from '@/services/FirebaseListenerService';
+
+// Get the singleton instance
+const firebaseListeners = FirebaseListenerService.getInstance();
 
 export const useTypingIndicator = (
   currentUserId: string | null,
@@ -12,38 +15,33 @@ export const useTypingIndicator = (
   isVipUser: boolean
 ) => {
   const [isTyping, setIsTyping] = useState(false);
-  const { registerChannel } = useChannelManagement();
-  
-  // Generate a stable channel name
-  const getTypingChannelName = useCallback(() => {
-    if (!currentUserId || !selectedUserId) return '';
-    return `typing:${currentUserId}-${selectedUserId}`;
-  }, [currentUserId, selectedUserId]);
   
   // Set up Firebase listener for typing events
   useEffect(() => {
     if (!isVipUser || !selectedUserId || !currentUserId) return;
     
-    // Use new path structure
-    const conversationId = getConversationId(currentUserId, selectedUserId);
+    // Generate a stable listener key
+    const listenerKey = `typing-${currentUserId}-${selectedUserId}`;
+    
+    // Get path for typing status
     const typingPath = getTypingStatusPath(currentUserId, selectedUserId);
+    if (!typingPath) return;
     
-    const channelName = getTypingChannelName();
-    const typingRef = ref(realtimeDb, typingPath || '');
-    
-    const unsubscribe = onValue(typingRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.userId === selectedUserId) {
-        setIsTyping(data.isTyping);
+    // Use the FirebaseListenerService to handle subscription
+    const unsubscribe = firebaseListeners.subscribe(
+      listenerKey,
+      typingPath,
+      (data: { userId: string; isTyping: boolean; timestamp: any } | null) => {
+        if (data && data.userId === selectedUserId) {
+          setIsTyping(data.isTyping);
+        }
       }
-    });
-    
-    registerChannel(channelName, typingRef);
+    );
     
     return () => {
-      off(typingRef);
+      firebaseListeners.unsubscribe(listenerKey);
     };
-  }, [selectedUserId, currentUserId, isVipUser, getTypingChannelName, registerChannel]);
+  }, [selectedUserId, currentUserId, isVipUser]);
 
   // Auto-reset typing indicator after inactivity
   useEffect(() => {
@@ -61,11 +59,11 @@ export const useTypingIndicator = (
     debounce((isTyping: boolean) => {
       if (!isVipUser || !selectedUserId || !currentUserId) return;
       
-      // Use new path structure
-      const conversationId = getConversationId(currentUserId, selectedUserId);
+      // Get path for typing status
       const typingPath = getTypingStatusPath(currentUserId, selectedUserId);
+      if (!typingPath) return;
       
-      const typingRef = ref(realtimeDb, typingPath || '');
+      const typingRef = ref(realtimeDb, typingPath);
       
       set(typingRef, {
         userId: currentUserId,
