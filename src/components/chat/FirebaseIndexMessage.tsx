@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 
 interface FirebaseIndexMessageProps {
   error: string | null;
-  indexUrl: string;
+  indexUrl?: string; // Make indexUrl optional with a default
 }
 
-export const FirebaseIndexMessage = ({ error, indexUrl }: FirebaseIndexMessageProps) => {
+export const FirebaseIndexMessage = ({ error, indexUrl = "https://console.firebase.google.com" }: FirebaseIndexMessageProps) => {
   if (!error) return null;
 
   return (

@@ -56,7 +56,7 @@ export const ChatArea = ({
     }
   }, []);
 
-  // Mark messages as read (with retry and error index handling)
+  // Mark messages as read (with retry and error handling)
   useEffect(() => {
     let retryCount = 0;
     const maxRetries = 3;
@@ -116,7 +116,7 @@ export const ChatArea = ({
       {isMockVipUser && (
         <WarningBanner message="This is a demo VIP user. You can see messages but cannot interact with this account." />
       )}
-      {indexError && <FirebaseIndexMessage />}
+      {indexError && <FirebaseIndexMessage error={indexError} />}
       {isLoading ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
