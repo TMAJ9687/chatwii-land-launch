@@ -22,20 +22,26 @@ export const ConnectionStatus = () => {
     const checkFirebaseConnection = async () => {
       const connectedRef = ref(realtimeDb, '.info/connected');
       
+      // Wrap the onValue call in an async function to make it return a Promise
       return safeFirebaseOperation(
-        () => {
-          return onValue(connectedRef, (snapshot) => {
-            const connected = snapshot.val() === true;
-            setIsOnline(connected);
-            setPermissionError(false);
+        async () => {
+          return new Promise((resolve) => {
+            const unsubscribe = onValue(connectedRef, (snapshot) => {
+              const connected = snapshot.val() === true;
+              setIsOnline(connected);
+              setPermissionError(false);
+              
+              // Only show status indicator when offline
+              setShowStatus(!connected);
+              
+              // If we reconnect, hide the indicator after a delay
+              if (connected) {
+                setTimeout(() => setShowStatus(false), 3000);
+              }
+            });
             
-            // Only show status indicator when offline
-            setShowStatus(!connected);
-            
-            // If we reconnect, hide the indicator after a delay
-            if (connected) {
-              setTimeout(() => setShowStatus(false), 3000);
-            }
+            // Return the unsubscribe function through the Promise's resolve
+            resolve(unsubscribe);
           });
         }, 
         "Could not check connection status", 
@@ -88,3 +94,4 @@ export const ConnectionStatus = () => {
     </div>
   );
 };
+
