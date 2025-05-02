@@ -34,8 +34,10 @@ export const getMockVipMessages = (currentUserId: string) => {
       sender_id: MOCK_VIP_USER_ID,
       receiver_id: currentUserId,
       created_at: new Date(now.getTime() - 600000).toISOString(), // 10 minutes ago
+      updated_at: new Date(now.getTime() - 600000).toISOString(), // same as created_at
       is_read: true,
       media: null,
+      reactions: [], // Add empty reactions array
     },
     {
       id: 1002,
@@ -43,8 +45,10 @@ export const getMockVipMessages = (currentUserId: string) => {
       sender_id: MOCK_VIP_USER_ID,
       receiver_id: currentUserId,
       created_at: new Date(now.getTime() - 300000).toISOString(), // 5 minutes ago
+      updated_at: new Date(now.getTime() - 300000).toISOString(), // same as created_at
       is_read: true,
       media: null,
+      reactions: [], // Add empty reactions array
     }
   ];
 };
