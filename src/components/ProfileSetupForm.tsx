@@ -29,6 +29,11 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const { submitProfile, isLoading } = useProfileSubmission();
 
   const nickname = initialNickname;
+  
+  // Debug log to check if component is receiving the correct nickname
+  useEffect(() => {
+    console.log("ProfileSetupForm initialized with nickname:", nickname);
+  }, [nickname]);
 
   // Form validation - ONLY gender and age are required, interests are optional
   const isValid = !!gender && !!age;
@@ -49,7 +54,12 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     navigate("/");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!nickname) {
+      toast.error("Nickname is missing. Please go back and enter a nickname.");
+      return;
+    }
+    
     if (!gender) {
       toast.error("Please select your gender.");
       return;
@@ -60,13 +70,33 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       return;
     }
     
-    submitProfile({
+    console.log("Submitting profile with data:", {
       nickname,
       gender,
       age,
       country,
       interests: selectedInterests,
     });
+    
+    try {
+      const success = await submitProfile({
+        nickname,
+        gender,
+        age,
+        country,
+        interests: selectedInterests,
+      });
+      
+      console.log("Profile submission result:", success);
+      
+      if (success) {
+        toast.success("Profile created successfully!");
+        navigate("/chat");
+      }
+    } catch (error) {
+      console.error("Error during profile submission:", error);
+      toast.error("Failed to create profile. Please try again.");
+    }
   };
 
   // Helper function to provide better field-specific guidance

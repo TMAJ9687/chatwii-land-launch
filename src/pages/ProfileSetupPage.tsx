@@ -1,22 +1,51 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VipButton } from "@/components/VipButton";
 import { AdPlaceholder } from "@/components/AdPlaceholder";
 import { VerticalAdLabel } from "@/components/VerticalAdLabel";
 import { ProfileSetupForm } from "@/components/ProfileSetupForm";
+import { toast } from "sonner";
 
 const ProfileSetupPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const nickname = location.state?.nickname;
+  const [nickname, setNickname] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!nickname) {
-      navigate("/");
+    const locationState = location.state as { nickname?: string } | null;
+    const nicknameFromState = locationState?.nickname;
+    
+    console.log("ProfileSetupPage - Nickname from location state:", nicknameFromState);
+    
+    if (nicknameFromState) {
+      setNickname(nicknameFromState);
+      setIsLoading(false);
+    } else {
+      // Check if we have user ID but not nickname
+      const userId = localStorage.getItem('firebase_user_id');
+      if (userId) {
+        console.log("User ID found, but no nickname in state. Proceeding anyway.");
+        setNickname("Guest" + Math.floor(Math.random() * 1000));
+        toast.info("Creating a temporary nickname. You can change it later.");
+        setIsLoading(false);
+      } else {
+        console.log("No user ID or nickname found. Redirecting to landing page.");
+        toast.error("Please enter a nickname first");
+        navigate("/");
+      }
     }
-  }, [nickname, navigate]);
+  }, [location, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+        <div className="animate-pulse text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 relative">

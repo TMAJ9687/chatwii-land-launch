@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface ChatButtonProps {
   nickname: string;
@@ -8,15 +9,31 @@ interface ChatButtonProps {
 }
 
 export const ChatButton = ({ nickname, onCaptchaClick, disabled }: ChatButtonProps) => {
-  // Dark Orange: #F97316 (Tailwind: bg-orange-500)
+  const [isPressed, setIsPressed] = useState(false);
+  
+  const handleClick = () => {
+    setIsPressed(true);
+    onCaptchaClick();
+    
+    // Reset the pressed state after a delay
+    setTimeout(() => setIsPressed(false), 300);
+  };
+  
   return (
     <button
-      onClick={onCaptchaClick}
-      disabled={disabled}
-      className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-md font-medium transition-colors text-base shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+      onClick={handleClick}
+      disabled={disabled || isPressed}
+      className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-md font-medium transition-colors text-base shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+      aria-label="Start Chat"
     >
-      Start Chat
+      {disabled ? (
+        <>
+          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+          <span>Processing...</span>
+        </>
+      ) : (
+        <span>Start Chat</span>
+      )}
     </button>
   );
 };
-

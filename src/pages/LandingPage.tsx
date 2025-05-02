@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VipButton } from "@/components/VipButton";
 import { ChatButton } from "@/components/ChatButton";
@@ -10,6 +10,7 @@ import { ValidatedUsernameInput } from "@/components/ValidatedUsernameInput";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { signInAnonymousUser } from "@/lib/firebase";
+import { handleFirebaseError } from "@/utils/firebaseErrorHandling";
 
 const LandingPage = () => {
   const [nickname, setNickname] = useState("");
@@ -19,12 +20,24 @@ const LandingPage = () => {
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Check for existing session
+  useEffect(() => {
+    const userId = localStorage.getItem('firebase_user_id');
+    const userRole = localStorage.getItem('firebase_user_role');
+    
+    if (userId && userRole) {
+      console.log("Found existing user session:", { userId, userRole });
+    }
+  }, []);
+
   // Handler for "Start Chat" click
   const handleStartChatClick = () => {
     if (!isNicknameValid) {
       toast.error("Please enter a valid nickname");
       return;
     }
+    
+    console.log("Starting chat process with nickname:", nickname);
     setCaptchaOpen(true);
     setCaptchaError(null);
   };
@@ -34,28 +47,37 @@ const LandingPage = () => {
     setIsSigningIn(true);
     setCaptchaError(null);
     setCaptchaOpen(false);
+    
+    console.log("CAPTCHA verified, attempting anonymous sign-in");
+    
     try {
       const user = await signInAnonymousUser();
+      console.log("Anonymous sign-in successful:", user.uid);
       
       // Store user ID and provider for later use
       localStorage.setItem('firebase_user_id', user.uid);
       localStorage.setItem('firebase_user_provider', 'anonymous');
       
+      // Navigate to profile setup with the nickname
+      console.log("Navigating to profile setup with nickname:", nickname);
       navigate("/profile-setup", { state: { nickname } });
     } catch (error) {
+      console.error("Sign-in failed:", error);
+      handleFirebaseError(error, "Failed to sign in. Please try again.");
       setCaptchaError("Failed to sign in. Please try again.");
-      toast.error("Failed to start chat. Please try again.");
-    } finally {
       setIsSigningIn(false);
     }
   };
 
   // CAPTCHA error/expired handlers
   const handleCaptchaError = () => {
+    console.log("CAPTCHA validation failed");
     setCaptchaError("CAPTCHA failed, please try again.");
     setCaptchaOpen(false);
   };
+  
   const handleCaptchaExpire = () => {
+    console.log("CAPTCHA expired");
     setCaptchaError("CAPTCHA expired, please try again.");
     setCaptchaOpen(false);
   };
@@ -110,8 +132,8 @@ const LandingPage = () => {
         open={captchaOpen}
         onClose={() => setCaptchaOpen(false)}
         onSuccess={handleCaptchaSuccess}
-        onError={() => setCaptchaError("CAPTCHA failed, please try again.")}
-        onExpire={() => setCaptchaError("CAPTCHA expired, please try again.")}
+        onError={handleCaptchaError}
+        onExpire={handleCaptchaExpire}
       />
     </div>
   );
