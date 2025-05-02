@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { isMockUser } from '@/utils/mockUsers';
 import { insertTemporaryMessage } from '@/utils/messageUtils';
-import { getConversationId, getMessageChannelPath } from '@/utils/channelUtils';
+import { getConversationId, getMessagesPath } from '@/utils/channelUtils';
 import type { MessageWithMedia } from '@/types/message';
 
 export const useConversation = (
@@ -160,8 +160,8 @@ export const useConversation = (
 
         // 3) write into RTDB so your listeners pick it up immediately
         const convId = getConversationId(currentUserId, selectedUserId)!;
-        const rtdbPath = `${getMessageChannelPath(convId)}/${messageId}`;
-        await set(ref(realtimeDb, rtdbPath), {
+        const rtdbPath = `${getMessagesPath(currentUserId, selectedUserId)}/${messageId}`;
+        await set(ref(realtimeDb, rtdbPath || ''), {
           id: messageId,
           content: optimistic.content,
           sender_id: currentUserId,

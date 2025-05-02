@@ -96,6 +96,19 @@ export const getReactionsChannelName = (conversationId: string | null): string =
 };
 
 /**
+ * Generate channel paths from conversation ID for Firebase Realtime Database
+ */
+export const getMessageChannelPath = (conversationId: string | null): string | null => {
+  if (!conversationId) return null;
+  return `messages/${conversationId}`;
+};
+
+export const getReactionsChannelPath = (conversationId: string | null): string | null => {
+  if (!conversationId) return null;
+  return `reactions/${conversationId}`;
+};
+
+/**
  * Check if path is valid for access control
  */
 export const isValidPath = (path: string | null): boolean => {

@@ -26,10 +26,10 @@ export const useTypingIndicator = (
     
     // Use new path structure
     const conversationId = getConversationId(currentUserId, selectedUserId);
-    const typingPath = getTypingStatusPath(conversationId);
+    const typingPath = getTypingStatusPath(currentUserId, selectedUserId);
     
     const channelName = getTypingChannelName();
-    const typingRef = ref(realtimeDb, typingPath);
+    const typingRef = ref(realtimeDb, typingPath || '');
     
     const unsubscribe = onValue(typingRef, (snapshot) => {
       const data = snapshot.val();
@@ -63,8 +63,9 @@ export const useTypingIndicator = (
       
       // Use new path structure
       const conversationId = getConversationId(currentUserId, selectedUserId);
-      const typingPath = getTypingStatusPath(conversationId);
-      const typingRef = ref(realtimeDb, typingPath);
+      const typingPath = getTypingStatusPath(currentUserId, selectedUserId);
+      
+      const typingRef = ref(realtimeDb, typingPath || '');
       
       set(typingRef, {
         userId: currentUserId,

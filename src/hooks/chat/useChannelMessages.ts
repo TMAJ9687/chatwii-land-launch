@@ -60,10 +60,8 @@ export const useChannelMessages = (
           } as MessageWithMedia;
         })
         .sort((a: MessageWithMedia, b: MessageWithMedia) => {
-          // Since we've already converted to ISO strings, we can safely create Date objects
-          const dateA = new Date(String(a.created_at)).getTime();
-          const dateB = new Date(String(b.created_at)).getTime();
-          return dateA - dateB;
+          // Since we've already converted to ISO strings, we can safely compare
+          return new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime();
         });
     } catch (err) {
       console.error("Error processing messages:", err);

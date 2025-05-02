@@ -5,7 +5,7 @@ import { isMockUser } from '@/utils/mockUsers';
 import { 
   getConversationId, 
   getReactionsChannelName, 
-  getReactionsChannelPath 
+  getReactionsPath 
 } from '@/utils/channelUtils';
 
 export const useReactionsChannel = (
@@ -47,7 +47,7 @@ export const useReactionsChannel = (
     // Create unique channel name and path
     const convId = getConversationId(currentUserId, selectedUserId);
     const channelName = getReactionsChannelName(convId);
-    const path = getReactionsChannelPath(convId);
+    const path = getReactionsPath(currentUserId, selectedUserId);
     
     // Store the channel name for cleanup
     channelNameRef.current = channelName;
@@ -57,7 +57,7 @@ export const useReactionsChannel = (
     console.log(`Setting up reactions channel: ${channelName}`);
     
     // Subscribe
-    const cleanup = listenToChannel(channelName, path, handleRealTimeUpdate);
+    const cleanup = listenToChannel(channelName, path || '', handleRealTimeUpdate);
     
     // Return cleanup function
     return () => {
