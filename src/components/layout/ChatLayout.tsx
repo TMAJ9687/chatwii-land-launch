@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { InboxIcon, HistoryIcon, ShieldIcon } from '@/components/icons';
+import { Inbox, History, Shield } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useChatContext } from '@/contexts/ChatContext';
@@ -59,7 +59,7 @@ export const ChatLayout = ({ children, unreadCount, isVipUser }: ChatLayoutProps
                   className={`rounded-full relative ${getActiveClass('inbox')}`}
                   onClick={() => handleSidebarToggle('inbox')}
                 >
-                  <InboxIcon />
+                  <Inbox className="h-5 w-5" />
                   {unreadCount > 0 && (
                     <Badge 
                       variant="destructive" 
@@ -85,7 +85,7 @@ export const ChatLayout = ({ children, unreadCount, isVipUser }: ChatLayoutProps
                   className={`rounded-full ${getActiveClass('history')}`}
                   onClick={() => handleSidebarToggle('history')}
                 >
-                  <HistoryIcon />
+                  <History className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -103,7 +103,7 @@ export const ChatLayout = ({ children, unreadCount, isVipUser }: ChatLayoutProps
                   className={`rounded-full ${getActiveClass('blocked')}`}
                   onClick={() => handleSidebarToggle('blocked')}
                 >
-                  <ShieldIcon />
+                  <Shield className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>

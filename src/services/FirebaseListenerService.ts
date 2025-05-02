@@ -1,110 +1,65 @@
 
-import { ref, onValue, off } from 'firebase/database';
-import { realtimeDb } from '@/integrations/firebase/firebase-core';
-import { CleanupFunction } from '@/integrations/firebase/firebase-core';
+import { Query, DocumentData, onSnapshot } from 'firebase/firestore';
 
-/**
- * Service for managing Firebase Realtime Database listeners
- * Ensures proper cleanup and prevents memory leaks
- */
+type ListenerCallback = (snapshot: any) => void;
+type ErrorCallback = (error: Error) => void;
+
 export class FirebaseListenerService {
   private static instance: FirebaseListenerService;
-  private listeners: Map<string, { ref: any, unsubscribe: CleanupFunction }> = new Map();
-  
-  private constructor() {}
-  
-  /**
-   * Get the singleton instance
-   */
+  private listeners: Map<string, () => void>;
+
+  private constructor() {
+    this.listeners = new Map();
+  }
+
   public static getInstance(): FirebaseListenerService {
     if (!FirebaseListenerService.instance) {
       FirebaseListenerService.instance = new FirebaseListenerService();
     }
     return FirebaseListenerService.instance;
   }
-  
-  /**
-   * Subscribe to a database path
-   */
-  public subscribe<T = any>(
+
+  public subscribe(
     key: string,
-    path: string,
-    callback: (data: T | null) => void,
-    errorCallback?: (error: Error) => void
-  ): CleanupFunction {
-    // Clean up existing subscription with the same key
-    this.unsubscribe(key);
-    
-    // Create a new reference and listener
-    const dbRef = ref(realtimeDb, path);
-    
-    const unsubscribe = onValue(
-      dbRef,
+    query: Query<DocumentData, DocumentData>,
+    callback: ListenerCallback,
+    onError?: ErrorCallback
+  ): () => void {
+    // Unsubscribe from existing listener if exists
+    if (this.listeners.has(key)) {
+      this.unsubscribe(key);
+    }
+
+    // Create new listener
+    const unsubscribe = onSnapshot(
+      query,
       (snapshot) => {
-        const data = snapshot.val();
-        callback(data as T);
+        callback(snapshot);
       },
       (error) => {
-        console.error(`Firebase listener error for ${key} at ${path}:`, error);
-        if (errorCallback) {
-          errorCallback(error);
+        console.error(`Error in listener ${key}:`, error);
+        if (onError) {
+          onError(error);
         }
       }
     );
-    
-    // Store the listener for later cleanup
-    this.listeners.set(key, {
-      ref: dbRef,
-      unsubscribe: () => {
-        try {
-          off(dbRef);
-        } catch (e) {
-          console.warn(`Error unsubscribing from ${key}:`, e);
-        }
-      }
-    });
-    
-    // Return cleanup function
-    return () => this.unsubscribe(key);
+
+    // Store unsubscribe function
+    this.listeners.set(key, unsubscribe);
+
+    return unsubscribe;
   }
-  
-  /**
-   * Unsubscribe from a specific path
-   */
-  public unsubscribe(key: string): boolean {
-    const listener = this.listeners.get(key);
-    if (listener) {
-      listener.unsubscribe();
+
+  public unsubscribe(key: string): void {
+    const unsubscribe = this.listeners.get(key);
+    if (unsubscribe) {
+      unsubscribe();
       this.listeners.delete(key);
-      return true;
     }
-    return false;
   }
-  
-  /**
-   * Get count of active listeners
-   */
-  public getActiveListenersCount(): number {
-    return this.listeners.size;
-  }
-  
-  /**
-   * Get list of active listener keys
-   */
-  public getActiveListenerKeys(): string[] {
-    return Array.from(this.listeners.keys());
-  }
-  
-  /**
-   * Clean up all listeners
-   */
+
   public unsubscribeAll(): void {
-    this.listeners.forEach((listener) => {
-      listener.unsubscribe();
-    });
+    this.listeners.forEach((unsubscribe) => unsubscribe());
     this.listeners.clear();
   }
 }
-
-// Export a singleton instance
-export const firebaseListeners = FirebaseListenerService.getInstance();
