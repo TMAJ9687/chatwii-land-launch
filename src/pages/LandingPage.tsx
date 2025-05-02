@@ -9,8 +9,9 @@ import { VerticalAdLabel } from "@/components/VerticalAdLabel";
 import { ValidatedUsernameInput } from "@/components/ValidatedUsernameInput";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { signInAnonymousUser } from "@/lib/firebase";
+import { signInAnonymousUser, getUserProfile } from "@/lib/firebase";
 import { handleFirebaseError } from "@/utils/firebaseErrorHandling";
+import { Button } from "@/components/ui/button";
 
 const LandingPage = () => {
   const [nickname, setNickname] = useState("");
@@ -18,6 +19,7 @@ const LandingPage = () => {
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const [existingSession, setExistingSession] = useState<{userId: string, role: string} | null>(null);
   const navigate = useNavigate();
 
   // Check for existing session
@@ -27,6 +29,26 @@ const LandingPage = () => {
     
     if (userId && userRole) {
       console.log("Found existing user session:", { userId, userRole });
+      setExistingSession({ userId, role: userRole });
+      
+      // Check if user has a profile
+      const checkProfile = async () => {
+        try {
+          const profile = await getUserProfile(userId);
+          if (profile) {
+            // User has a profile, they can continue to chat
+            console.log("Found existing profile:", profile);
+          }
+        } catch (error) {
+          console.error("Error checking profile:", error);
+          // Clear session data if there's an error
+          localStorage.removeItem('firebase_user_id');
+          localStorage.removeItem('firebase_user_role');
+          setExistingSession(null);
+        }
+      };
+      
+      checkProfile();
     }
   }, []);
 
@@ -81,6 +103,11 @@ const LandingPage = () => {
     setCaptchaError("CAPTCHA expired, please try again.");
     setCaptchaOpen(false);
   };
+  
+  // Handler for continuing with existing session
+  const handleContinueSession = () => {
+    navigate("/chat");
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 relative">
@@ -104,23 +131,57 @@ const LandingPage = () => {
             </p>
           </div>
 
-          <div className="space-y-4">
-            <ValidatedUsernameInput 
-              value={nickname} 
-              onChange={setNickname}
-              onValidityChange={setIsNicknameValid}
-            />
-            <ChatButton 
-              nickname={nickname} 
-              onCaptchaClick={handleStartChatClick}
-              disabled={isSigningIn || !nickname || !isNicknameValid}
-            />
-            {captchaError && (
-              <div className="text-red-500 pt-2 text-center text-sm">
-                {captchaError}
+          {existingSession ? (
+            <div className="space-y-4">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-md p-4">
+                <h4 className="font-medium text-green-800 dark:text-green-300">
+                  Welcome back!
+                </h4>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-2">
+                  You're already signed in. Would you like to continue your previous session?
+                </p>
               </div>
-            )}
-          </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    // Clear session and start fresh
+                    localStorage.removeItem('firebase_user_id');
+                    localStorage.removeItem('firebase_user_role');
+                    setExistingSession(null);
+                  }}
+                >
+                  New Session
+                </Button>
+                
+                <ChatButton 
+                  nickname="Continue" 
+                  onCaptchaClick={handleContinueSession}
+                  variant="secondary"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <ValidatedUsernameInput 
+                value={nickname} 
+                onChange={setNickname}
+                onValidityChange={setIsNicknameValid}
+              />
+              <ChatButton 
+                nickname={nickname} 
+                onCaptchaClick={handleStartChatClick}
+                disabled={isSigningIn || !nickname || !isNicknameValid}
+              />
+              {captchaError && (
+                <div className="text-red-500 pt-2 text-center text-sm">
+                  {captchaError}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="w-full max-w-xl mt-4">

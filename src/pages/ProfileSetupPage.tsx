@@ -8,7 +8,8 @@ import { VerticalAdLabel } from "@/components/VerticalAdLabel";
 import { ProfileSetupForm } from "@/components/ProfileSetupForm";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useAuthVerification } from "@/hooks/useAuthVerification";
 
 const ProfileSetupPage = () => {
   const navigate = useNavigate();
@@ -16,21 +17,25 @@ const ProfileSetupPage = () => {
   const [nickname, setNickname] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { authStatus, isAuthenticated } = useAuthVerification();
 
   useEffect(() => {
-    const locationState = location.state as { nickname?: string } | null;
-    const nicknameFromState = locationState?.nickname;
-    
-    console.log("ProfileSetupPage - Nickname from location state:", nicknameFromState);
-    
-    if (nicknameFromState) {
-      setNickname(nicknameFromState);
-      setIsLoading(false);
-      setError(null);
-    } else {
-      // Check if we have user ID but not nickname
-      const userId = localStorage.getItem('firebase_user_id');
-      if (userId) {
+    const loadProfileData = async () => {
+      // First check if we have a nickname in the location state
+      const locationState = location.state as { nickname?: string } | null;
+      const nicknameFromState = locationState?.nickname;
+      
+      console.log("ProfileSetupPage - Nickname from location state:", nicknameFromState);
+      
+      if (nicknameFromState) {
+        setNickname(nicknameFromState);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
+      // If no nickname in state but user is authenticated, generate a temporary one
+      if (isAuthenticated) {
         console.log("User ID found, but no nickname in state. Proceeding anyway.");
         // Generate a more user-friendly temporary nickname
         const tempNickname = "Guest" + Math.floor(Math.random() * 1000);
@@ -38,22 +43,33 @@ const ProfileSetupPage = () => {
         toast.info("Creating a temporary nickname. You can change it later.");
         setIsLoading(false);
         setError(null);
-      } else {
+        return;
+      }
+      
+      // If not authenticated and no nickname, show error
+      if (authStatus !== 'loading') {
         console.log("No user ID or nickname found. Redirecting to landing page.");
         setError("Authentication required. Please enter a nickname first.");
         setIsLoading(false);
+        
         // Don't redirect immediately to show the error first
         setTimeout(() => {
           navigate("/");
         }, 2000);
       }
-    }
-  }, [location, navigate]);
+    };
 
-  if (isLoading) {
+    loadProfileData();
+  }, [location, navigate, isAuthenticated, authStatus]);
+
+  // Show loading state while checking auth
+  if (authStatus === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
-        <div className="animate-pulse text-xl">Loading...</div>
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          <div className="text-xl">Setting up your profile...</div>
+        </div>
       </div>
     );
   }
