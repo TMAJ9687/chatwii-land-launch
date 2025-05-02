@@ -6,7 +6,6 @@ import { EmptyStateView } from './EmptyStateView';
 import { MessageWithMedia } from '@/types/message';
 import { FirebaseIndexMessage } from './FirebaseIndexMessage';
 import { Loader2 } from 'lucide-react';
-import { useChatConnection } from '@/hooks/chat/useChatConnection';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { toast } from 'sonner';
 

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { ref, set } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { createDocument, queryDocuments } from '@/lib/firebase';
-import { useMessages } from '@/hooks/useMessages';
+import { useConversationMessages } from '@/hooks/chat/useConversationMessages';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { useBot } from '@/hooks/useBot';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { isMockUser } from '@/utils/mockUsers';
 import { insertTemporaryMessage } from '@/utils/messageUtils';
-import { getConversationId, getMessagesPath } from '@/utils/channelUtils';
+import { getConversationId } from '@/utils/channelUtils';
 import type { MessageWithMedia } from '@/types/message';
 
 export const useConversation = (
@@ -26,38 +26,43 @@ export const useConversation = (
   const { fetchUnreadCount, markMessagesAsRead, updateSelectedUserId } =
     useGlobalMessages(currentUserId);
 
+  // Use the new useConversationMessages hook
   const {
     messages,
-    setMessages,
-    fetchMessages,
     isLoading,
     error: messagesError,
-    resetState
-  } = useMessages(
-    currentUserId,
-    selectedUserId,
-    currentUserRole,
-    markMessagesAsRead
-  );
+  } = useConversationMessages(currentUserId, selectedUserId);
+
+  const [localMessages, setLocalMessages] = useState<MessageWithMedia[]>([]);
+
+  // Sync messages from the hook to local state
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      setLocalMessages(messages);
+      
+      // Mark messages as read when we receive them
+      if (selectedUserId) {
+        markMessagesAsRead(selectedUserId);
+      }
+    }
+  }, [messages, selectedUserId, markMessagesAsRead]);
 
   const { deleteConversation, isDeletingConversation } = useMessageActions(
     currentUserId || '',
     isVipUser
   );
 
-  // keep global selected‐user in sync
+  // keep global selected-user in sync
   useEffect(() => {
     updateSelectedUserId(selectedUserId);
   }, [selectedUserId, updateSelectedUserId]);
 
-  // reset & fetch messages on change
+  // reset & update selected user state
   useEffect(() => {
     if (selectedUserId && currentUserId) {
       setHasSelectedNewUser(true);
-      resetState();
-      fetchMessages();
     }
-  }, [selectedUserId, currentUserId, fetchMessages, resetState]);
+  }, [selectedUserId, currentUserId]);
 
   useEffect(() => {
     if (!hasSelectedNewUser) return;
@@ -76,8 +81,7 @@ export const useConversation = (
     if (!selectedUserId || !currentUserId || isDeletingConversation) return;
     try {
       await deleteConversation(selectedUserId);
-      resetState();
-      await fetchMessages();
+      setLocalMessages([]);
       toast.success('Conversation deleted');
     } catch (err) {
       console.error('Error deleting conversation:', err);
@@ -87,9 +91,7 @@ export const useConversation = (
     selectedUserId,
     currentUserId,
     isDeletingConversation,
-    deleteConversation,
-    fetchMessages,
-    resetState
+    deleteConversation
   ]);
 
   const handleSendMessage = useCallback(
@@ -103,8 +105,16 @@ export const useConversation = (
         return false;
       }
 
-      const now = new Date().toISOString();
+      const now = new Date();
+      const nowISO = now.toISOString();
       const tempId = `temp-${uuidv4()}`;
+      
+      // Calculate expiration time based on VIP status
+      const expireHours = isVipUser ? 8 : 1;
+      const expireAt = new Date(now.getTime() + expireHours * 60 * 60 * 1000);
+
+      // Create conversation ID
+      const conversationId = getConversationId(currentUserId, selectedUserId);
 
       // 1) optimistic UI
       const optimistic: MessageWithMedia = {
@@ -112,7 +122,7 @@ export const useConversation = (
         content: content || (imageUrl ? '[Image]' : ''),
         sender_id: currentUserId,
         receiver_id: selectedUserId,
-        created_at: now,
+        created_at: nowISO,
         is_read: false,
         media: imageUrl
           ? {
@@ -121,12 +131,12 @@ export const useConversation = (
               user_id: currentUserId,
               file_url: imageUrl,
               media_type: imageUrl.includes('voice') ? 'voice' : 'image',
-              created_at: now
+              created_at: nowISO
             }
           : null,
         reactions: []
       };
-      setMessages(cur => insertTemporaryMessage(cur, optimistic));
+      setLocalMessages(cur => insertTemporaryMessage(cur, optimistic));
 
       try {
         // 2) write to Firestore
@@ -139,8 +149,10 @@ export const useConversation = (
           content: optimistic.content,
           sender_id: currentUserId,
           receiver_id: selectedUserId,
+          conversation_id: conversationId, // Add conversation_id
           is_read: false,
-          created_at: now,
+          created_at: nowISO,
+          expire_at: expireAt, // Add expiration time
           participants: [currentUserId, selectedUserId]
         });
 
@@ -154,31 +166,16 @@ export const useConversation = (
             user_id: currentUserId,
             file_url: imageUrl,
             media_type: optimistic.media!.media_type,
-            created_at: now
+            created_at: nowISO
           });
         }
 
-        // 3) write into RTDB so your listeners pick it up immediately
-        const convId = getConversationId(currentUserId, selectedUserId)!;
-        const rtdbPath = `${getMessagesPath(currentUserId, selectedUserId)}/${messageId}`;
-        await set(ref(realtimeDb, rtdbPath || ''), {
-          id: messageId,
-          content: optimistic.content,
-          sender_id: currentUserId,
-          receiver_id: selectedUserId,
-          is_read: false,
-          created_at: now,
-          media: optimistic.media,
-          reactions: []
-        });
-
         fetchUnreadCount();
-        setTimeout(fetchMessages, 400);
         return true;
       } catch (err: any) {
         console.error('Error in handleSendMessage:', err);
         // rollback optimistic
-        setMessages(cur => cur.filter(m => m.id !== tempId));
+        setLocalMessages(cur => cur.filter(m => m.id !== tempId));
         toast.error(
           err.message?.includes('storage')
             ? 'Media upload failed – check Storage rules.'
@@ -190,15 +187,16 @@ export const useConversation = (
     [
       currentUserId,
       selectedUserId,
-      setMessages,
+      setLocalMessages,
       handleBotResponse,
       fetchUnreadCount,
-      fetchMessages
+      isVipUser
     ]
   );
 
   return {
-    messages,
+    messages: localMessages,
+    setMessages: setLocalMessages,
     isLoading,
     messagesError,
     handleSendMessage,

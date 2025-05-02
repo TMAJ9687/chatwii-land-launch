@@ -1,3 +1,4 @@
+
 import { useEffect } from 'react';
 import { SidebarContainer } from '@/components/sidebar/SidebarContainer';
 import { InboxSidebar } from '@/components/sidebar/InboxSidebar';
@@ -11,9 +12,7 @@ import { usePresenceState } from '@/hooks/usePresenceState';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useConversation } from '@/hooks/useConversation';
-import { useMessages } from '@/hooks/useMessages';
 import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
-import { useChannelSetup } from '@/hooks/useChannelSetup';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
@@ -54,23 +53,11 @@ const ChatInterfaceContent = () => {
   // Get unread message counts
   const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
 
-  // Create an async wrapper function for messages hook
-  const markMessagesAsReadAsync = async () => {
-    fetchUnreadCount();
-    return Promise.resolve();
-  };
-
   // Get messages for the selected conversation
   const { 
-    messages, 
-    setMessages,
-    fetchMessages,
+    messages,
     isLoading: messagesLoading,
-    error: messagesError
-  } = useMessages(currentUserId, selectedUserId, currentUserRole, markMessagesAsReadAsync);
-
-  // Setup conversation functionality
-  const {
+    error: messagesError,
     handleSendMessage,
     handleDeleteConversation,
   } = useConversation(currentUserId, selectedUserId, currentUserRole, isVipUser);
@@ -80,14 +67,6 @@ const ChatInterfaceContent = () => {
     currentUserId,
     selectedUserId,
     isVipUser
-  );
-
-  // Setup channel listeners
-  const { isConnected, onRetryConnection } = useChannelSetup(
-    currentUserId, 
-    selectedUserId, 
-    setMessages, 
-    fetchMessages
   );
 
   // Check if rules are accepted
@@ -100,6 +79,7 @@ const ChatInterfaceContent = () => {
   // Handle typing status change
   const handleTypingStatusChange = (isTyping: boolean) => {
     setIsTyping(isTyping);
+    broadcastTypingStatus(isTyping);
   };
 
   // Update handleUserSelect to match the expected signature
@@ -118,6 +98,10 @@ const ChatInterfaceContent = () => {
   const sidebarUserSelect = (userId: string) => {
     contextHandleUserSelect(userId, '');
     setActiveSidebar('none');
+  };
+
+  const handleRetryConnection = () => {
+    window.location.reload();
   };
 
   return (
@@ -155,8 +139,8 @@ const ChatInterfaceContent = () => {
             onTypingStatusChange={handleTypingStatusChange}
             isLoading={messagesLoading}
             error={messagesError}
-            isConnected={isConnected}
-            onRetryConnection={onRetryConnection}
+            isConnected={true}
+            onRetryConnection={handleRetryConnection}
           />
         </main>
       </div>

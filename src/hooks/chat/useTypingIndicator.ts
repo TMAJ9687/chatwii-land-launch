@@ -28,7 +28,7 @@ export const useTypingIndicator = (
     if (!typingPath) return;
     
     // Use the FirebaseListenerService to handle subscription
-    const unsubscribe = firebaseListeners.subscribe(
+    firebaseListeners.subscribe(
       listenerKey,
       typingPath,
       (data: { userId: string; isTyping: boolean; timestamp: any } | null) => {
@@ -60,7 +60,7 @@ export const useTypingIndicator = (
       if (!isVipUser || !selectedUserId || !currentUserId) return;
       
       // Get path for typing status
-      const typingPath = getTypingStatusPath(currentUserId, selectedUserId);
+      const typingPath = getTypingStatusPath(selectedUserId, currentUserId);
       if (!typingPath) return;
       
       const typingRef = ref(realtimeDb, typingPath);
