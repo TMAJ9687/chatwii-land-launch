@@ -1,12 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ref, onValue, set, serverTimestamp } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
-import { FirebaseListenerService } from '@/services/FirebaseListenerService';
+import { firebaseListeners } from '@/services/FirebaseListenerService';
 import { toast } from 'sonner';
-
-// Get the singleton instance
-const firebaseListeners = FirebaseListenerService.getInstance();
 
 // Connection status check interval in ms (1 minute)
 const CONNECTION_CHECK_INTERVAL = 60000;
@@ -51,6 +47,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const clientId = Math.random().toString(36).substring(2, 15);
       const heartbeatRef = ref(realtimeDb, `heartbeats/${clientId}`);
       
+      // Using the string path for Realtime DB
       const unsubscribe = firebaseListeners.subscribe(
         'connection-status',
         '.info/connected',

@@ -1,13 +1,9 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { ref, set, serverTimestamp } from 'firebase/database';
 import { debounce } from 'lodash';
 import { getTypingStatusPath, getConversationId } from '@/utils/channelUtils';
-import { FirebaseListenerService } from '@/services/FirebaseListenerService';
-
-// Get the singleton instance
-const firebaseListeners = FirebaseListenerService.getInstance();
+import { firebaseListeners } from '@/services/FirebaseListenerService';
 
 export const useTypingIndicator = (
   currentUserId: string | null,
