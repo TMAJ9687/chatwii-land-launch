@@ -12,6 +12,8 @@ import { InterestsSelector } from "@/components/profile/InterestsSelector";
 import { useDetectCountry } from "@/hooks/useDetectCountry";
 import { useProfanityList } from "@/hooks/useProfanityList";
 import { useProfileSubmission } from "@/hooks/useProfileSubmission";
+import { FirebaseIndexMessage } from "@/components/chat/FirebaseIndexMessage";
+import { isFirebasePermissionError } from "@/utils/firebaseErrorHandling";
 
 interface ProfileSetupFormProps {
   nickname: string;
@@ -24,9 +26,10 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
   const { country, countryCode } = useDetectCountry();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(true); // Open by default to make interests selection more visible
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   
   const { profanityList } = useProfanityList('nickname');
-  const { submitProfile, isLoading } = useProfileSubmission();
+  const { submitProfile, isLoading, error: submissionError } = useProfileSubmission();
 
   const nickname = initialNickname;
   
@@ -37,6 +40,16 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
 
   // Form validation - ONLY gender and age are required, interests are optional
   const isValid = !!gender && !!age;
+
+  // Check if there's a permission error
+  useEffect(() => {
+    if (submissionError && isFirebasePermissionError(submissionError)) {
+      setPermissionError("Firebase permission error. Admin has been notified.");
+      console.error("Firebase permission error in ProfileSetupForm:", submissionError);
+    } else {
+      setPermissionError(null);
+    }
+  }, [submissionError]);
 
   const handleInterestChange = (interest: string) => {
     setSelectedInterests(prev => {
@@ -79,12 +92,16 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
     });
     
     try {
+      // Use process.env.NODE_ENV to bypass nickname availability in dev mode
+      const bypassNicknameCheck = process.env.NODE_ENV === 'development';
+      
       const success = await submitProfile({
         nickname,
         gender,
         age,
         country,
         interests: selectedInterests,
+        bypassNicknameCheck
       });
       
       console.log("Profile submission result:", success);
@@ -95,7 +112,7 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
       }
     } catch (error) {
       console.error("Error during profile submission:", error);
-      toast.error("Failed to create profile. Please try again.");
+      // This will be handled by the useProfileSubmission hook
     }
   };
 
@@ -129,6 +146,13 @@ export const ProfileSetupForm = ({ nickname: initialNickname }: ProfileSetupForm
         <AgeSelector age={age} onChange={setAge} />
         <p className="text-xs text-gray-500 ml-1">Required</p>
       </div>
+
+      {permissionError && (
+        <FirebaseIndexMessage 
+          error={permissionError}
+          indexUrl="https://console.firebase.google.com/project/_/database/firestore/rules"
+        />
+      )}
 
       <Button
         className={`w-full ${

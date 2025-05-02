@@ -44,11 +44,27 @@ export const handleFirebaseError = (error: unknown, fallbackMessage = "An unknow
       case 'auth/operation-not-allowed':
         toast.error("Operation not allowed. Please contact support.");
         break;
+      // Firebase Firestore/RTDB error codes
       case 'permission-denied':
-        toast.error("Permission denied. You may not have access to this resource.");
+        toast.error("Permission denied. We're working on fixing this issue.");
+        console.warn("Firebase permission denied. Please check security rules.");
         break;
       case 'unavailable':
         toast.error("Service temporarily unavailable. Please try again later.");
+        break;
+      // Handle more specific error codes
+      case 'resource-exhausted':
+        toast.error("Resource limits exceeded. Please try again later.");
+        break;
+      case 'unauthenticated':
+        toast.error("Authentication required. Please sign in again.");
+        // Could trigger a sign-out and redirect to login here
+        break;
+      case 'failed-precondition':
+        toast.error("Operation cannot be executed in the current system state.");
+        break;
+      case 'aborted':
+        toast.error("Operation was aborted. Please try again.");
         break;
       default:
         // Show the Firebase error message or fallback to generic message
@@ -66,12 +82,33 @@ export const handleFirebaseError = (error: unknown, fallbackMessage = "An unknow
  */
 export async function safeFirebaseOperation<T>(
   operation: () => Promise<T>, 
-  errorMessage = "Operation failed"
+  errorMessage = "Operation failed",
+  options?: {
+    silent?: boolean; // If true, don't show toast messages
+    throwError?: boolean; // If true, rethrow the error after handling
+  }
 ): Promise<T | null> {
   try {
     return await operation();
   } catch (error) {
-    handleFirebaseError(error, errorMessage);
+    if (!options?.silent) {
+      handleFirebaseError(error, errorMessage);
+    } else {
+      console.error("Silent firebase operation error:", error);
+    }
+    
+    if (options?.throwError) {
+      throw error;
+    }
+    
     return null;
   }
+}
+
+/**
+ * Check if an error is a specific Firebase error type
+ */
+export function isFirebasePermissionError(error: unknown): boolean {
+  const err = error as ErrorWithCode;
+  return err?.code === 'permission-denied';
 }
