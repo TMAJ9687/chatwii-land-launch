@@ -1,31 +1,11 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useChannel } from './useChannel';
-import { getMessagesPath } from '@/utils/channelPath';
+import { getMessagesPath } from '@/utils/channelUtils';
 import { MessageWithMedia } from '@/types/message';
 import { isMockUser } from '@/utils/mockUsers';
 import { getMockVipMessages } from '@/utils/mockUsers';
-import { Timestamp } from 'firebase/firestore';
-
-/**
- * Helper function to handle Firebase Timestamp conversion
- */
-const formatTimestamp = (timestamp: string | Date | Timestamp | null | undefined): string => {
-  if (!timestamp) return new Date().toISOString();
-  
-  // Handle Firebase Timestamp objects
-  if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
-    return timestamp.toDate().toISOString();
-  }
-  
-  // Handle Date objects
-  if (timestamp instanceof Date) {
-    return timestamp.toISOString();
-  }
-  
-  // Handle string timestamps
-  return String(timestamp);
-};
+import { formatTimestamp } from '@/utils/timeUtils';
 
 /**
  * Hook for fetching and subscribing to messages between two users

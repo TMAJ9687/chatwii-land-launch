@@ -1,6 +1,6 @@
 
 // Re-export from the correct location
-export { db, auth, storage } from '@/integrations/firebase/client';
+export { db, auth, storage, realtimeDb } from '@/integrations/firebase/firebase-core';
 export { 
   signInAnonymousUser, 
   signUpWithEmail, 
@@ -27,3 +27,6 @@ export {
   getFileDownloadURL,
   deleteFile
 } from '@/integrations/firebase/storage';
+
+// Export firebase cleanup utilities
+export { cleanupFirebaseConnections } from '@/utils/firebaseCleanup';

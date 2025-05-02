@@ -1,22 +1,19 @@
 
 /**
- * Utilities for chat channel management
+ * Comprehensive utilities for chat channel management
  */
 
 // Store or fetch the current user ID from localStorage
 export const storeCurrentUserId = (userId: string | null) => {
   if (userId) {
-    console.log('Storing current user ID in localStorage:', userId);
     localStorage.setItem('currentUserId', userId);
   } else {
-    console.log('Removing current user ID from localStorage');
     localStorage.removeItem('currentUserId');
   }
 };
 
 export const getCurrentUserId = (): string | null => {
-  const userId = localStorage.getItem('currentUserId');
-  return userId;
+  return localStorage.getItem('currentUserId');
 };
 
 /**
@@ -30,7 +27,6 @@ export const getSortedUserIds = (
   userId2: string | null | undefined
 ): string[] | null => {
   if (!userId1 || !userId2) {
-    console.log('Missing user IDs, skipping channel setup');
     return null;
   }
   
@@ -42,7 +38,7 @@ export const getSortedUserIds = (
  * Creates a consistent conversation ID from two user IDs
  * @param userId1 First user ID
  * @param userId2 Second user ID
- * @returns Alphabetically sorted IDs joined with underscore
+ * @returns Conversation ID or null if any ID is missing
  */
 export const getConversationId = (
   userId1: string | null | undefined,
@@ -51,6 +47,41 @@ export const getConversationId = (
   const sortedIds = getSortedUserIds(userId1, userId2);
   if (!sortedIds) return null;
   return `${sortedIds[0]}_${sortedIds[1]}`;
+};
+
+/**
+ * Generate database path for messages between two users
+ */
+export const getMessagesPath = (userId1: string | null, userId2: string | null): string | null => {
+  const sortedIds = getSortedUserIds(userId1, userId2);
+  if (!sortedIds) return null;
+  return `messages/${sortedIds[0]}/${sortedIds[1]}`;
+};
+
+/**
+ * Generate database path for message reactions between two users
+ */
+export const getReactionsPath = (userId1: string | null, userId2: string | null): string | null => {
+  const sortedIds = getSortedUserIds(userId1, userId2);
+  if (!sortedIds) return null;
+  return `message_reactions/${sortedIds[0]}/${sortedIds[1]}`;
+};
+
+/**
+ * Generate database path for typing status between two users
+ */
+export const getTypingStatusPath = (userId1: string | null, userId2: string | null): string | null => {
+  const sortedIds = getSortedUserIds(userId1, userId2);
+  if (!sortedIds) return null;
+  return `typing_status/${sortedIds[0]}/${sortedIds[1]}`;
+};
+
+/**
+ * Generate database path for user presence
+ */
+export const getUserPresencePath = (userId: string | null): string | null => {
+  if (!userId) return null;
+  return `presence/${userId}`;
 };
 
 /**
@@ -65,27 +96,11 @@ export const getReactionsChannelName = (conversationId: string | null): string =
 };
 
 /**
- * Generate consistent database paths for different channels using the new nested structure
+ * Check if path is valid for access control
  */
-export const getMessageChannelPath = (conversationId: string | null): string => {
-  if (!conversationId) return 'messages/unknown';
-  const parts = conversationId.split('_');
-  if (parts.length !== 2) return 'messages/unknown';
-  return `messages/${parts[0]}/${parts[1]}`;
-};
-
-export const getReactionsChannelPath = (conversationId: string | null): string => {
-  if (!conversationId) return 'message_reactions/unknown';
-  const parts = conversationId.split('_');
-  if (parts.length !== 2) return 'message_reactions/unknown';
-  return `message_reactions/${parts[0]}/${parts[1]}`;
-};
-
-export const getTypingStatusPath = (conversationId: string | null): string => {
-  if (!conversationId) return 'typing_status/unknown';
-  const parts = conversationId.split('_');
-  if (parts.length !== 2) return 'typing_status/unknown';
-  return `typing_status/${parts[0]}/${parts[1]}`;
+export const isValidPath = (path: string | null): boolean => {
+  if (!path) return false;
+  return !path.includes('undefined') && !path.includes('null') && path.split('/').length >= 2;
 };
 
 /**
@@ -108,7 +123,7 @@ export const debugConversationAccess = (path: string, userId: string | null): bo
     return true;
   }
   
-  // For the new nested structure, check if userId matches either uid1 or uid2
+  // For the nested structure, check if userId matches either uid1 or uid2
   const pathParts = path.split('/');
   if (pathParts.length >= 3) {
     const uid1 = pathParts[1];

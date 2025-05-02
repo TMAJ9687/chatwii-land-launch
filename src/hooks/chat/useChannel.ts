@@ -1,11 +1,25 @@
 
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { ref, onValue, off } from 'firebase/database';
-import { realtimeDb } from '@/integrations/firebase/client';
+import { firebaseListeners } from '@/services/FirebaseListenerService';
 import { toast } from 'sonner';
 import { useConnection } from '@/contexts/ConnectionContext';
 
 type ChannelStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+
+interface UseChannelOptions {
+  /** Whether to show toast notifications for errors */
+  showToasts?: boolean;
+  /** Maximum number of retry attempts */
+  maxRetries?: number;
+  /** Base delay for retry (will be multiplied by 2^retry) */
+  baseRetryDelay?: number;
+}
+
+const DEFAULT_OPTIONS: UseChannelOptions = {
+  showToasts: true,
+  maxRetries: 3,
+  baseRetryDelay: 1000
+};
 
 /**
  * Hook for subscribing to a Firebase Realtime Database path
@@ -15,18 +29,23 @@ export function useChannel<T = any>(
   channelName: string, 
   path: string | null, 
   enabled: boolean = true,
-  processData?: (data: any) => T
+  processData?: (data: any) => T,
+  options?: UseChannelOptions
 ) {
   const [data, setData] = useState<T | null>(null);
   const [status, setStatus] = useState<ChannelStatus>('connecting');
   const [error, setError] = useState<Error | null>(null);
   const { isConnected } = useConnection();
   
-  const channelRef = useRef<any>(null);
+  // Merge provided options with defaults
+  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+  
+  const lastPathRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const maxRetries = 3;
+  
+  const channelKey = `${channelName}-${path || 'none'}`;
   
   const setupChannel = useCallback(() => {
     if (!path || !enabled) {
@@ -34,21 +53,24 @@ export function useChannel<T = any>(
       return () => {};
     }
     
+    // Don't resubscribe to the same path needlessly
+    if (path === lastPathRef.current && status !== 'error') {
+      return () => {};
+    }
+    
+    lastPathRef.current = path;
+    
     try {
       setStatus('connecting');
       
-      // Create database reference
-      const dbRef = ref(realtimeDb, path);
-      
-      // Setup the listener
-      const listener = onValue(
-        dbRef,
-        (snapshot) => {
+      // Create the listener with our service
+      const unsubscribe = firebaseListeners.subscribe(
+        channelKey,
+        path,
+        (rawData) => {
           if (!isMountedRef.current) return;
           
           try {
-            const rawData = snapshot.val();
-            
             // Process data if processor function is provided
             const processedData = processData ? processData(rawData) : rawData;
             
@@ -60,6 +82,10 @@ export function useChannel<T = any>(
             console.error(`Error processing data for channel ${channelName}:`, err);
             setStatus('error');
             setError(err instanceof Error ? err : new Error('Unknown error processing data'));
+            
+            if (mergedOptions.showToasts) {
+              toast.error(`Error processing data for ${channelName}`);
+            }
           }
         },
         (err) => {
@@ -68,17 +94,19 @@ export function useChannel<T = any>(
           setError(err);
           
           // Check if error has a code property before accessing it
-          // Firebase error objects typically have a code property
           const errorCode = err && typeof err === 'object' && 'code' in err ? err.code : '';
           
-          if (errorCode === 'PERMISSION_DENIED') {
+          if (errorCode === 'PERMISSION_DENIED' && mergedOptions.showToasts) {
             toast.error("Permission denied for chat database path");
           }
           
           // Schedule retry if appropriate
-          if (retryCountRef.current < maxRetries) {
+          if (retryCountRef.current < (mergedOptions.maxRetries || 3)) {
             retryCountRef.current++;
-            const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 10000);
+            const delay = Math.min(
+              (mergedOptions.baseRetryDelay || 1000) * Math.pow(2, retryCountRef.current - 1), 
+              10000
+            );
             
             if (retryTimerRef.current) {
               clearTimeout(retryTimerRef.current);
@@ -86,7 +114,8 @@ export function useChannel<T = any>(
             
             retryTimerRef.current = setTimeout(() => {
               if (isMountedRef.current) {
-                cleanupChannel();
+                console.log(`Retrying channel ${channelName} (attempt ${retryCountRef.current})`);
+                firebaseListeners.unsubscribe(channelKey);
                 setupChannel();
               }
             }, delay);
@@ -94,16 +123,9 @@ export function useChannel<T = any>(
         }
       );
       
-      // Store the reference for cleanup
-      channelRef.current = {
-        path,
-        ref: dbRef,
-        listener
-      };
-      
       // Return cleanup function
       return () => {
-        cleanupChannel();
+        unsubscribe();
       };
     } catch (err) {
       console.error(`Error setting up channel ${channelName}:`, err);
@@ -111,23 +133,7 @@ export function useChannel<T = any>(
       setError(err instanceof Error ? err : new Error('Failed to setup channel'));
       return () => {};
     }
-  }, [channelName, path, enabled, processData]);
-  
-  const cleanupChannel = useCallback(() => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-    
-    if (channelRef.current) {
-      try {
-        off(channelRef.current.ref);
-      } catch (err) {
-        console.warn(`Error cleaning up channel ${channelName}:`, err);
-      }
-      channelRef.current = null;
-    }
-  }, [channelName]);
+  }, [channelName, path, enabled, processData, channelKey, status, mergedOptions]);
   
   // Handle connection changes
   useEffect(() => {
@@ -135,10 +141,10 @@ export function useChannel<T = any>(
       setStatus('disconnected');
     } else if (isConnected && status === 'disconnected' && enabled && path) {
       // If we were disconnected but now connected, try to reconnect
-      cleanupChannel();
+      firebaseListeners.unsubscribe(channelKey);
       setupChannel();
     }
-  }, [isConnected, status, enabled, path, cleanupChannel, setupChannel]);
+  }, [isConnected, status, enabled, path, channelKey, setupChannel]);
   
   // Setup/teardown effect
   useEffect(() => {
@@ -150,15 +156,16 @@ export function useChannel<T = any>(
         clearTimeout(retryTimerRef.current);
       }
       cleanup();
+      firebaseListeners.unsubscribe(channelKey);
     };
-  }, [setupChannel]);
+  }, [setupChannel, channelKey]);
   
   // Force reconnect function
   const reconnect = useCallback(() => {
     retryCountRef.current = 0;
-    cleanupChannel();
+    firebaseListeners.unsubscribe(channelKey);
     setupChannel();
-  }, [cleanupChannel, setupChannel]);
+  }, [channelKey, setupChannel]);
   
   return {
     data,
