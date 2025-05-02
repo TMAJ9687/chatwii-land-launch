@@ -1,85 +1,133 @@
 
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, auth } from '@/lib/firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { getAvatarInitial } from '@/utils/userUtils';
+import { Loader2, UserX } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 export const BlockedUsersSidebar = () => {
-  const queryClient = useQueryClient();
-
-  const { data: blockedUsers } = useQuery({
-    queryKey: ['blocked-users'],
-    queryFn: async () => {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Not authenticated');
-
-      const blockedUsersRef = collection(db, 'blocked_users');
-      const blockedQuery = query(
-        blockedUsersRef,
-        where('blocker_id', '==', user.uid)
-      );
+  const { 
+    blockedUsers, 
+    isLoading: fetchingUsers, 
+    unblockUser,
+    fetchBlockedUsers 
+  } = useBlockedUsers();
+  const [blockedProfiles, setBlockedProfiles] = useState<Array<{
+    id: string;
+    nickname: string;
+    avatar_url: string | null;
+    blockedDocId: string;
+  }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Load blocked user profiles when blocked users list changes
+  useEffect(() => {
+    const loadBlockedProfiles = async () => {
+      setIsLoading(true);
+      const currentUserId = auth.currentUser?.uid;
       
-      const querySnapshot = await getDocs(blockedQuery);
-      const blockedData = [];
-      
-      for (const blockedDoc of querySnapshot.docs) {
-        const data = blockedDoc.data();
-        
-        // Get profile for blocked user
-        const profilesRef = collection(db, 'profiles');
-        const profileQuery = query(
-          profilesRef,
-          where('id', '==', data.blocked_id)
-        );
-        
-        const profileSnapshot = await getDocs(profileQuery);
-        let nickname = 'Unknown';
-        
-        if (!profileSnapshot.empty) {
-          nickname = profileSnapshot.docs[0].data().nickname || 'Unknown';
-        }
-        
-        blockedData.push({
-          blockedDoc: blockedDoc.id,
-          blocked_id: data.blocked_id,
-          profiles: {
-            nickname
-          }
-        });
+      if (!currentUserId || blockedUsers.length === 0) {
+        setBlockedProfiles([]);
+        setIsLoading(false);
+        return;
       }
       
-      return blockedData;
-    }
-  });
+      try {
+        // First get the blocked_users documents to get the document IDs
+        const blockedDocs = await getDocs(
+          query(
+            collection(db, 'blocked_users'),
+            where('blocker_id', '==', currentUserId),
+            where('blocked_id', 'in', blockedUsers)
+          )
+        );
+        
+        const blockedDocMap = new Map();
+        blockedDocs.forEach(doc => {
+          const data = doc.data();
+          blockedDocMap.set(data.blocked_id, doc.id);
+        });
+        
+        // Now fetch the profiles for the blocked users
+        const profilesQuery = query(
+          collection(db, 'profiles'),
+          where('id', 'in', blockedUsers)
+        );
+        
+        const profilesSnapshot = await getDocs(profilesQuery);
+        const profiles = profilesSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.id,
+            nickname: data.nickname || 'Unknown User',
+            avatar_url: data.avatar_url || null,
+            blockedDocId: blockedDocMap.get(data.id) || ''
+          };
+        });
+        
+        setBlockedProfiles(profiles);
+      } catch (error) {
+        console.error('Error loading blocked profiles:', error);
+        toast.error('Failed to load blocked user details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadBlockedProfiles();
+  }, [blockedUsers]);
 
-  const unblockMutation = useMutation({
-    mutationFn: async (params: { docId: string, blockedId: string }) => {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Not authenticated');
-
-      // Delete the blocked_users document
-      await deleteDoc(doc(db, 'blocked_users', params.docId));
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['blocked-users'] });
+  // Handle unblocking a user
+  const handleUnblock = async (userId: string, blockedDocId: string) => {
+    const currentUserId = auth.currentUser?.uid;
+    if (!currentUserId) return;
+    
+    try {
+      await unblockUser(userId, currentUserId);
       toast.success('User unblocked successfully');
-    },
-    onError: (error) => {
+    } catch (error) {
+      console.error('Error unblocking user:', error);
       toast.error('Failed to unblock user');
-      console.error('Unblock error:', error);
     }
-  });
+  };
 
   return (
     <div className="space-y-4">
-      {blockedUsers?.map((blocked) => (
-        <div key={blocked.blocked_id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-          <span>{blocked.profiles?.nickname}</span>
+      {(isLoading || fetchingUsers) && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      
+      {!isLoading && !fetchingUsers && blockedProfiles.length === 0 && (
+        <div className="text-center text-muted-foreground py-8">
+          <UserX className="h-10 w-10 mx-auto mb-2 opacity-50" />
+          <p>No blocked users</p>
+        </div>
+      )}
+      
+      {blockedProfiles.map((profile) => (
+        <div key={profile.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              {profile.avatar_url ? (
+                <AvatarImage src={profile.avatar_url} alt={profile.nickname} />
+              ) : (
+                <AvatarFallback>{getAvatarInitial(profile.nickname)}</AvatarFallback>
+              )}
+            </Avatar>
+            <span className="font-medium">{profile.nickname}</span>
+          </div>
+          
           <Button 
             variant="destructive" 
             size="sm"
-            onClick={() => unblockMutation.mutate({ docId: blocked.blockedDoc, blockedId: blocked.blocked_id })}
+            onClick={() => handleUnblock(profile.id, profile.blockedDocId)}
           >
             Unblock
           </Button>

@@ -13,12 +13,14 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { useGlobalMessages } from '@/hooks/useGlobalMessages';
 import { useConversation } from '@/hooks/useConversation';
 import { useTypingIndicator } from '@/hooks/chat/useTypingIndicator';
+import { useInactivityTimer } from '@/hooks/useInactivityTimer';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatProvider, useChatContext } from '@/contexts/ChatContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatContent } from '@/components/chat/ChatContent';
 import { UserListSidebar } from '@/components/chat/UserListSidebar';
 import { ConnectionProvider } from '@/contexts/ConnectionContext';
+import { toast } from 'sonner';
 
 const ChatInterfaceContent = () => {
   const { 
@@ -49,6 +51,14 @@ const ChatInterfaceContent = () => {
 
   // Setup user presence
   const { isOnline } = usePresenceState(currentUserId);
+
+  // Setup inactivity timer for standard users
+  const { resetTimer } = useInactivityTimer({
+    isVipUser,
+    onTimeout: () => {
+      toast.error('You have been logged out due to inactivity');
+    }
+  });
 
   // Get unread message counts
   const { unreadCount, fetchUnreadCount } = useGlobalMessages(currentUserId);
@@ -98,6 +108,7 @@ const ChatInterfaceContent = () => {
   const sidebarUserSelect = (userId: string) => {
     contextHandleUserSelect(userId, '');
     setActiveSidebar('none');
+    resetTimer(); // Reset inactivity timer when selecting a user
   };
 
   const handleRetryConnection = () => {
