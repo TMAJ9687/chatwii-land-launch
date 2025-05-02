@@ -1,5 +1,6 @@
 
-import { Query, DocumentData, onSnapshot, getDatabase, ref, onValue, DatabaseReference } from 'firebase/firestore';
+import { Query, DocumentData, onSnapshot } from 'firebase/firestore';
+import { ref, onValue } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/firebase-core';
 
 type ListenerCallback = (snapshot: any) => void;
