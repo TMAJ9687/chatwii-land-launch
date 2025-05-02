@@ -57,7 +57,7 @@ const ChatInterfaceContent = () => {
   const { 
     messages,
     isLoading: messagesLoading,
-    error: messagesError,
+    messagesError,
     handleSendMessage,
     handleDeleteConversation,
   } = useConversation(currentUserId, selectedUserId, currentUserRole, isVipUser);
