@@ -61,6 +61,7 @@ export const MessageInputContainer: React.FC<MessageInputContainerProps> = ({
     };
   }, []);
 
+  // Handle typing status change
   const handleTypingStatus = (isTyping: boolean) => {
     if (onTypingStatusChange) onTypingStatusChange(isTyping);
   };
