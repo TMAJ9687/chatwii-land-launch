@@ -1,5 +1,5 @@
 
-import { DatabaseIcon, DatabaseOff } from 'lucide-react';
+import { DatabaseIcon, Database } from 'lucide-react';
 import { useMockMode } from '@/contexts/MockModeContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +34,7 @@ export const MockModeToggle = () => {
             className={isMockMode ? 'text-orange-500 border-orange-500' : ''}
           >
             {isMockMode ? (
-              <DatabaseOff className="h-4 w-4" />
+              <Database className="h-4 w-4" />
             ) : (
               <DatabaseIcon className="h-4 w-4" />
             )}

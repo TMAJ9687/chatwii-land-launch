@@ -101,7 +101,7 @@ export const mockMessages: MessageWithMedia[] = [
       id: 'mock-reaction-1',
       message_id: 'mock-msg-4',
       user_id: 'current-user',
-      type: 'like',
+      emoji: 'like',
       created_at: new Date(Date.now() - 800000).toISOString()
     }]
   }
