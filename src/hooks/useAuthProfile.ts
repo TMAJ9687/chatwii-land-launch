@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -7,6 +6,8 @@ import {
 } from '@/lib/firebase';
 import { updateUserPresence, removeUserPresence } from '@/utils/presenceUtils';
 import { storeCurrentUserId } from '@/utils/channelUtils';
+import { useMockMode } from '@/contexts/MockModeContext';
+import { mockCurrentUser } from '@/utils/mockDataService';
 
 // Define the UserProfile type inline
 interface UserProfile {
@@ -31,8 +32,28 @@ export const useAuthProfile = () => {
   const [isVipUser, setIsVipUser] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isMockMode } = useMockMode();
 
   useEffect(() => {
+    // If in mock mode and user has enabled mock authentication
+    if (isMockMode && localStorage.getItem('mock_auth') === 'true') {
+      setCurrentUserId(mockCurrentUser.id);
+      setCurrentUserRole(mockCurrentUser.role);
+      setIsVipUser(mockCurrentUser.vip_status);
+      setProfile(mockCurrentUser as UserProfile);
+      setLoading(false);
+      storeCurrentUserId(mockCurrentUser.id);
+      return;
+    }
+    
+    // If in mock mode but not authenticated
+    if (isMockMode) {
+      setCurrentUserId(null);
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     let presenceRef: any = null;
 
@@ -117,7 +138,7 @@ export const useAuthProfile = () => {
         console.error('Error cleaning up auth subscription:', err);
       });
     };
-  }, [navigate, currentUserId]);
+  }, [navigate, currentUserId, isMockMode]);
 
   return {
     currentUserId,

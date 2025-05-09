@@ -1,10 +1,11 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase';
 import { MessageWithMedia } from '@/types/message';
 import { toast } from 'sonner';
 import { getMockVipMessages, isMockUser } from '@/utils/mockUsers';
+import { useMockMode } from '@/contexts/MockModeContext';
+import { getMockMessagesForUser } from '@/utils/mockDataService';
 
 // Helper function to convert any timestamp format to a numeric value for comparison
 const getTimestampValue = (timestamp: string | Date | Timestamp | undefined): number => {
@@ -34,6 +35,7 @@ export const useMessages = (
   const maxRetries = 3;
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchedUserIdRef = useRef<string | null>(null);
+  const { isMockMode } = useMockMode();
 
   const resetState = useCallback(() => {
     setMessages([]);
@@ -60,6 +62,16 @@ export const useMessages = (
     isFetchingRef.current = true;
     lastFetchedUserIdRef.current = selectedUserId;
     setIsLoading(true);
+    
+    // In mock mode, use mock messages
+    if (isMockMode) {
+      const mockMessages = getMockMessagesForUser(selectedUserId);
+      setMessages(mockMessages);
+      setIsLoading(false);
+      isFetchingRef.current = false;
+      setError(null);
+      return;
+    }
     
     // Special handling for mock VIP user
     if (isMockUser(selectedUserId)) {
@@ -128,7 +140,7 @@ export const useMessages = (
         isFetchingRef.current = false; // Reset after a small delay to prevent rapid re-fetching
       }, 500);
     }
-  }, [selectedUserId, currentUserId, markMessagesAsRead]);
+  }, [selectedUserId, currentUserId, markMessagesAsRead, isMockMode]);
 
   // Helper function to fetch and process all messages between two users
   const fetchAllMessages = async (userId1: string, userId2: string): Promise<MessageWithMedia[]> => {

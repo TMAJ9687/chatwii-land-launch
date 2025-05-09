@@ -3,6 +3,7 @@ import { ref, onValue, set, serverTimestamp } from 'firebase/database';
 import { realtimeDb } from '@/integrations/firebase/client';
 import { firebaseListeners } from '@/services/FirebaseListenerService';
 import { toast } from 'sonner';
+import { useMockMode } from '@/contexts/MockModeContext';
 
 // Connection status check interval in ms (1 minute)
 const CONNECTION_CHECK_INTERVAL = 60000;
@@ -27,15 +28,28 @@ const ConnectionContext = createContext<ConnectionContextType>({
 
 export const useConnection = () => useContext(ConnectionContext);
 
-export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface ConnectionProviderProps {
+  children: React.ReactNode;
+}
+
+export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [lastConnectionUpdate, setLastConnectionUpdate] = useState<Date | null>(null);
   const [connectionState, setConnectionState] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [reconnectAttempts, setReconnectAttempts] = useState<number>(0);
   const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
+  const { isMockMode } = useMockMode();
 
   // Setup the connection monitoring
   useEffect(() => {
+    // If in mock mode, always report as connected
+    if (isMockMode) {
+      setIsConnected(true);
+      setConnectionState('connected');
+      setLastConnectionUpdate(new Date());
+      return () => {};
+    }
+    
     let mounted = true;
     
     // Monitor .info/connected to detect connection status
@@ -145,10 +159,15 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       mounted = false;
       cleanup();
     };
-  }, [reconnectAttempts, isConnected]);
+  }, [reconnectAttempts, isConnected, isMockMode]);
   
   // Function to force a reconnection attempt
   const reconnect = useCallback(async () => {
+    // In mock mode, just report success immediately
+    if (isMockMode) {
+      return Promise.resolve(true);
+    }
+    
     setConnectionState('connecting');
     
     try {
@@ -192,13 +211,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setConnectionState('disconnected');
       return false;
     }
-  }, []);
+  }, [isMockMode]);
   
   const value = {
-    isConnected,
+    isConnected: isMockMode ? true : isConnected,
     lastConnectionUpdate,
     reconnect,
-    connectionState,
+    connectionState: isMockMode ? 'connected' : connectionState,
   };
   
   return (

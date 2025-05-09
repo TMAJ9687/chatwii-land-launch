@@ -5,6 +5,8 @@ import { ref, onValue } from 'firebase/database';
 import { toast } from 'sonner';
 import { MOCK_VIP_USER } from '@/utils/mockUsers';
 import { enhanceUserWithDisplayProps } from '@/utils/userUtils';
+import { useMockMode } from '@/contexts/MockModeContext';
+import { mockUsers } from '@/utils/mockDataService';
 
 export interface OnlineUser {
   user_id: string;
@@ -37,8 +39,17 @@ export const useOnlineUsers = (options: UseOnlineUsersOptions = {}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const { isMockMode } = useMockMode();
 
   useEffect(() => {
+    // If in mock mode, use mock data
+    if (isMockMode) {
+      setIsLoading(false);
+      setError(null);
+      setUsers(mockUsers);
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -187,7 +198,7 @@ export const useOnlineUsers = (options: UseOnlineUsersOptions = {}) => {
         unsubscribeRef.current = null;
       }
     };
-  }, [includeMockUsers, currentUserId, showSelf]);
+  }, [includeMockUsers, currentUserId, showSelf, isMockMode]);
 
   return {
     onlineUsers: users,
