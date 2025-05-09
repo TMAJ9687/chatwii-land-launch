@@ -9,9 +9,16 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export const MockModeToggle = () => {
   const { isMockMode, enableMockMode, disableMockMode } = useMockMode();
+
+  // Enable mock mode by default on startup to prevent Firebase errors
+  useEffect(() => {
+    enableMockMode();
+    toast.info('Mock mode enabled automatically - Firebase connection disabled');
+  }, [enableMockMode]);
 
   const toggleMockMode = () => {
     if (isMockMode) {

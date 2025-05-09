@@ -5,8 +5,17 @@ import ProfileSetupPage from "@/pages/ProfileSetupPage";
 import Index from "@/pages/Index";
 import ChatInterface from "@/pages/ChatInterface";
 import NotFound from "@/pages/NotFound";
+import { useEffect } from "react";
+import { useMockMode } from "@/contexts/MockModeContext";
 
 export const Routes = () => {
+  const { enableMockMode } = useMockMode();
+
+  // Enable mock mode by default on all routes
+  useEffect(() => {
+    enableMockMode();
+  }, [enableMockMode]);
+
   return (
     <RouterRoutes>
       <Route path="/" element={<LandingPage />} />
