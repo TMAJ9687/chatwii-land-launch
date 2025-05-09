@@ -7,6 +7,7 @@ import ChatInterface from "@/pages/ChatInterface";
 import NotFound from "@/pages/NotFound";
 import { useEffect } from "react";
 import { useMockMode } from "@/contexts/MockModeContext";
+import { toast } from "sonner";
 
 export const Routes = () => {
   const { enableMockMode } = useMockMode();
@@ -14,11 +15,12 @@ export const Routes = () => {
   // Enable mock mode by default on all routes
   useEffect(() => {
     enableMockMode();
+    toast.success("Mock mode enabled automatically - now you can access the Chat Interface");
   }, [enableMockMode]);
 
   return (
     <RouterRoutes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<Index />} />
       <Route path="/index" element={<Index />} />
       <Route path="/profile-setup" element={<ProfileSetupPage />} />
       <Route path="/chat" element={<ChatInterface />} />
