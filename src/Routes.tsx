@@ -4,6 +4,7 @@ import LandingPage from "@/pages/LandingPage";
 import ProfileSetupPage from "@/pages/ProfileSetupPage";
 import Index from "@/pages/Index";
 import ChatInterface from "@/pages/ChatInterface";
+import SimpleChatInterface from "@/pages/SimpleChatInterface";
 import NotFound from "@/pages/NotFound";
 import { useEffect } from "react";
 import { useMockMode } from "@/contexts/MockModeContext";
@@ -20,10 +21,11 @@ export const Routes = () => {
 
   return (
     <RouterRoutes>
-      <Route path="/" element={<Index />} />
+      <Route path="/" element={<SimpleChatInterface />} />
       <Route path="/index" element={<Index />} />
       <Route path="/profile-setup" element={<ProfileSetupPage />} />
       <Route path="/chat" element={<ChatInterface />} />
+      <Route path="/chat-ui" element={<SimpleChatInterface />} />
       <Route path="*" element={<NotFound />} />
     </RouterRoutes>
   );
