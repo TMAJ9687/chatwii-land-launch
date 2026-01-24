@@ -54,7 +54,7 @@
     "emoji-picker-react": "^4.8.0",
     "firebase": "^10.9.0",
     "input-otp": "^1.2.4",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
